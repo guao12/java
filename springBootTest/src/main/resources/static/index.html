@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>假面骑士创骑 · 骑士系统后端 API</title>
+    <style>
+        :root { --red:#ff3b3b; --blue:#00a6e6; --gold:#f5c518; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 40px 20px; min-height: 100vh;
+            font-family: "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at 20% 0%, #2a1040 0%, #0d0f16 45%, #05060a 100%);
+            color: #e8ecf5;
+        }
+        .wrap { max-width: 860px; margin: 0 auto; }
+        h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: 2px; }
+        h1 span { color: var(--gold); }
+        .sub { color: #8b93a7; font-size: 13px; margin-bottom: 26px; }
+        .status {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px; border-radius: 10px; margin-bottom: 24px;
+            background: rgba(255,255,255,.05); border: 1px solid rgba(245,197,24,.25);
+            font-size: 14px;
+        }
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: #8b93a7; }
+        .dot.ok { background: #35d07f; box-shadow: 0 0 10px #35d07f; }
+        .dot.bad { background: var(--red); box-shadow: 0 0 10px var(--red); }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+        th { color: var(--gold); font-weight: 600; font-size: 13px; letter-spacing: 1px; }
+        code {
+            font-family: Consolas, Monaco, monospace; font-size: 12.5px;
+            background: rgba(0,166,230,.14); color: #7ad7ff;
+            padding: 2px 7px; border-radius: 5px;
+        }
+        .m { font-weight: 700; font-size: 12px; }
+        .m.get { color: #35d07f; }
+        .m.post { color: var(--gold); }
+        .tip { margin-top: 26px; color: #8b93a7; font-size: 13px; line-height: 1.9; }
+        a { color: var(--blue); }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>假面骑士<span>创骑</span> · 骑士系统后端</h1>
+    <div class="sub">Spring Boot 3.4.5 &nbsp;+&nbsp; MyBatis-Plus &nbsp;+&nbsp; MySQL 8 &nbsp;+&nbsp; Vue 3</div>
+
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">正在检测后端与数据库连接…</span></div>
+
+    <table>
+        <thead>
+        <tr><th style="width:70px">方法</th><th style="width:240px">地址</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+        <tr><td><span class="m get">GET</span></td><td><code>/api/health</code></td><td>健康检查（含数据库连通性）</td></tr>
+        <tr><td><span class="m post">POST</span></td><td><code>/api/user/register</code></td><td>注册新骑士</td></tr>
+        <tr><td><span class="m post">POST</span></td><td><code>/api/user/login</code></td><td>登录（写入 Session）</td></tr>
+        <tr><td><span class="m post">POST</span></td><td><code>/api/user/logout</code></td><td>退出登录</td></tr>
+        <tr><td><span class="m get">GET</span></td><td><code>/api/user/me</code></td><td>当前登录用户</td></tr>
+        <tr><td><span class="m get">GET</span></td><td><code>/api/user/check-username?username=xx</code></td><td>骑士名是否可用</td></tr>
+        <tr><td><span class="m get">GET</span></td><td><code>/api/user/list</code></td><td>骑士花名册（不含密码）</td></tr>
+        </tbody>
+    </table>
+
+    <div class="tip">
+        前端 Vue 项目启动：<code>cd C:\Users\Administrator\Desktop\创骑文件夹 &amp;&amp; npm run dev</code><br>
+        打开 <a href="http://localhost:5173" target="_blank">http://localhost:5173</a> 即可看到骑士登录 / 注册页。
+    </div>
+</div>
+
+<script>
+    fetch('/api/health')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var dot = document.getElementById('dot');
+            var text = document.getElementById('statusText');
+            if (res.code === 200) {
+                dot.className = 'dot ok';
+                text.textContent = '后端已连接 · ' + res.data.database + ' · 当前骑士数 ' + res.data.userCount
+                    + ' · 环境 ' + res.data.profile + ' · 端口 ' + res.data.port;
+            } else {
+                dot.className = 'dot bad';
+                text.textContent = '后端返回异常：' + res.message;
+            }
+        })
+        .catch(function () {
+            document.getElementById('dot').className = 'dot bad';
+            document.getElementById('statusText').textContent = '无法连接后端，请确认 Spring Boot 已启动';
+        });
+</script>
+</body>
+</html>
