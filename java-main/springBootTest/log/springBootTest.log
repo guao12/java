@@ -1,0 +1,342 @@
+2026-10-09 13:57:09 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 1452 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 13:57:09 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 13:57:09 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 13:57:10 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 58867 (http)
+2026-10-09 13:57:10 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 13:57:10 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 13:57:10 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 13:57:10 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 970 ms
+2026-10-09 13:57:10 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 13:57:10 WARN  o.s.b.w.s.c.AnnotationConfigServletWebServerApplicationContext.refresh 635 : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
+2026-10-09 13:57:10 INFO  o.s.b.a.l.ConditionEvaluationReportLogger.logMessage 82 : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-10-09 13:57:10 ERROR o.s.b.d.LoggingFailureAnalysisReporter.report 40 : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Web server failed to start. Port 58867 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 58867 or configure this application to listen on another port.
+
+2026-10-09 14:00:00 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 11732 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:00:00 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:00:00 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:00:02 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:00:02 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:00:02 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:00:02 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:00:02 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1086 ms
+2026-10-09 14:00:02 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:00:02 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:00:02 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.266 seconds (process running for 2.599)
+2026-10-09 14:00:02 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:02:47 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 11368 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:02:47 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:02:47 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:02:48 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:02:48 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:02:48 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:02:48 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:02:48 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 936 ms
+2026-10-09 14:02:49 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:02:49 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:02:49 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 1.974 seconds (process running for 2.305)
+2026-10-09 14:02:49 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:03:09 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:03:09 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:03:09 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+2026-10-09 14:03:09 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:03:11 ERROR c.f.s.common.GlobalExceptionHandler.handleOther 62 : 服务器内部异常
+org.mybatis.spring.MyBatisSystemException: 
+### Error querying database.  Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+### The error may exist in com/fenglin/springboottest/mapper/UserMapper.java (best guess)
+### The error may involve com.fenglin.springboottest.mapper.UserMapper.selectCount
+### The error occurred while executing a query
+### Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.mybatis.spring.MyBatisExceptionTranslator.translateExceptionIfPossible(MyBatisExceptionTranslator.java:99)
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:347)
+	at jdk.proxy2/jdk.proxy2.$Proxy69.selectOne(Unknown Source)
+	at org.mybatis.spring.SqlSessionTemplate.selectOne(SqlSessionTemplate.java:154)
+	at com.baomidou.mybatisplus.core.override.MybatisMapperMethod.execute(MybatisMapperMethod.java:87)
+	at com.baomidou.mybatisplus.core.override.MybatisMapperProxy$PlainMethodInvoker.invoke(MybatisMapperProxy.java:152)
+	at com.baomidou.mybatisplus.core.override.MybatisMapperProxy.invoke(MybatisMapperProxy.java:89)
+	at jdk.proxy2/jdk.proxy2.$Proxy74.selectCount(Unknown Source)
+	at com.fenglin.springboottest.controller.HealthController.health(HealthController.java:48)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:258)
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:191)
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:986)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:891)
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564)
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:195)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167)
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90)
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:483)
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:116)
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93)
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344)
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:398)
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903)
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1740)
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1189)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:658)
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: org.apache.ibatis.exceptions.PersistenceException: 
+### Error querying database.  Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+### The error may exist in com/fenglin/springboottest/mapper/UserMapper.java (best guess)
+### The error may involve com.fenglin.springboottest.mapper.UserMapper.selectCount
+### The error occurred while executing a query
+### Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.apache.ibatis.exceptions.ExceptionFactory.wrapException(ExceptionFactory.java:30)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:156)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:147)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:142)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectOne(DefaultSqlSession.java:75)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:333)
+	... 55 common frames omitted
+Caused by: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.springframework.jdbc.datasource.DataSourceUtils.getConnection(DataSourceUtils.java:84)
+	at org.mybatis.spring.transaction.SpringManagedTransaction.openConnection(SpringManagedTransaction.java:77)
+	at org.mybatis.spring.transaction.SpringManagedTransaction.getConnection(SpringManagedTransaction.java:64)
+	at org.apache.ibatis.executor.BaseExecutor.getConnection(BaseExecutor.java:348)
+	at org.apache.ibatis.executor.SimpleExecutor.prepareStatement(SimpleExecutor.java:89)
+	at org.apache.ibatis.executor.SimpleExecutor.doQuery(SimpleExecutor.java:64)
+	at org.apache.ibatis.executor.BaseExecutor.queryFromDatabase(BaseExecutor.java:336)
+	at org.apache.ibatis.executor.BaseExecutor.query(BaseExecutor.java:158)
+	at org.apache.ibatis.executor.CachingExecutor.query(CachingExecutor.java:110)
+	at org.apache.ibatis.executor.CachingExecutor.query(CachingExecutor.java:90)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:154)
+	... 61 common frames omitted
+Caused by: java.sql.SQLSyntaxErrorException: Unknown database 'kr_build'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:112)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:114)
+	at com.mysql.cj.jdbc.ConnectionImpl.createNewIO(ConnectionImpl.java:837)
+	at com.mysql.cj.jdbc.ConnectionImpl.<init>(ConnectionImpl.java:420)
+	at com.mysql.cj.jdbc.ConnectionImpl.getInstance(ConnectionImpl.java:238)
+	at com.mysql.cj.jdbc.NonRegisteringDriver.connect(NonRegisteringDriver.java:180)
+	at com.zaxxer.hikari.util.DriverDataSource.getConnection(DriverDataSource.java:137)
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:360)
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:202)
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:461)
+	at com.zaxxer.hikari.pool.HikariPool.checkFailFast(HikariPool.java:550)
+	at com.zaxxer.hikari.pool.HikariPool.<init>(HikariPool.java:98)
+	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:111)
+	at org.springframework.jdbc.datasource.DataSourceUtils.fetchConnection(DataSourceUtils.java:160)
+	at org.springframework.jdbc.datasource.DataSourceUtils.doGetConnection(DataSourceUtils.java:118)
+	at org.springframework.jdbc.datasource.DataSourceUtils.getConnection(DataSourceUtils.java:81)
+	... 71 common frames omitted
+2026-10-09 14:09:14 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:09:14 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@7fdf1a96
+2026-10-09 14:09:14 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 14:20:36 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 8572 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:20:36 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:20:36 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:20:38 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:20:38 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:20:38 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:20:38 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:20:38 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1274 ms
+2026-10-09 14:20:38 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:20:39 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:20:39 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.656 seconds (process running for 3.132)
+2026-10-09 14:20:39 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:20:39 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:20:39 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:20:39 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+2026-10-09 14:20:39 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:20:39 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@5092358b
+2026-10-09 14:20:39 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 14:22:48 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 3256 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:22:48 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:22:48 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:22:50 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:22:50 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:22:50 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:22:50 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:22:50 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1330 ms
+2026-10-09 14:22:50 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:22:50 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:22:51 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.827 seconds (process running for 3.313)
+2026-10-09 14:22:51 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:22:51 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:22:51 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:22:51 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+2026-10-09 14:22:51 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:22:51 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@386ef233
+2026-10-09 14:22:51 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 14:27:25 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 10524 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:27:25 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:27:25 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:27:26 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:27:26 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:27:26 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:27:26 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:27:26 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1131 ms
+2026-10-09 14:27:27 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:27:27 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:27:27 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.321 seconds (process running for 2.701)
+2026-10-09 14:27:27 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:27:28 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:27:28 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:27:28 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+2026-10-09 14:27:28 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:27:28 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@71914a4d
+2026-10-09 14:27:28 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 14:34:56 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 8580 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:34:56 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:34:56 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:34:57 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:34:57 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:34:57 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:34:57 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:34:57 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1602 ms
+2026-10-09 14:34:58 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:34:58 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:34:58 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 3.229 seconds (process running for 3.758)
+2026-10-09 14:34:58 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:34:58 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:34:58 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:34:58 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 0 ms
+2026-10-09 14:34:58 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:34:59 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@386ef233
+2026-10-09 14:34:59 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 14:39:27 INFO  c.f.s.service.impl.UserServiceImpl.register 77 : 新骑士入队：build_test（id=1）
+2026-10-09 14:39:27 INFO  c.f.s.service.impl.UserServiceImpl.login 98 : 骑士变身成功：build_test（id=1）
+2026-10-09 14:45:41 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 2856 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 14:45:41 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 14:45:41 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 14:45:42 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 14:45:42 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 14:45:42 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 14:45:42 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 14:45:42 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1016 ms
+2026-10-09 14:45:43 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 14:45:43 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 14:45:43 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.121 seconds (process running for 2.517)
+2026-10-09 14:45:43 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 14:45:44 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 14:45:44 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 14:45:44 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+2026-10-09 14:45:44 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 14:45:44 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@386ef233
+2026-10-09 14:45:44 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+2026-10-09 15:07:31 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 11636 (C:\Users\Administrator\Desktop\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in C:\Users\Administrator\Desktop\java-main\springBootTest)
+2026-10-09 15:07:31 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-09 15:07:31 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-09 15:07:33 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-09 15:07:33 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-09 15:07:33 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-09 15:07:33 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-09 15:07:33 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1101 ms
+2026-10-09 15:07:33 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-09 15:07:33 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-09 15:07:33 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.39 seconds (process running for 2.82)
+2026-10-09 15:07:33 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-09 15:08:05 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-09 15:08:05 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-09 15:08:05 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 0 ms
+2026-10-09 15:08:05 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-09 15:08:06 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@386ef233
+2026-10-09 15:08:06 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
