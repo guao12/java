@@ -1,0 +1,234 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.5)
+
+2026-10-08 14:26:52 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 2420 (D:\workSpace\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in D:\workSpace\springBootTest)
+2026-10-08 14:26:52 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-10-08 14:26:52 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-10-08 14:26:53 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8081 (http)
+2026-10-08 14:26:53 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-10-08 14:26:53 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-10-08 14:26:53 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-10-08 14:26:53 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1037 ms
+Logging initialized using 'class org.apache.ibatis.logging.stdout.StdOutImpl' adapter.
+Get /192.168.137.1 network interface 
+Get network interface info: name:ethernet_32776 (VMware Virtual Ethernet Adapter for VMnet8)
+Initialization Sequence datacenterId:0 workerId:16
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.9 
+2026-10-08 14:26:53 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-10-08 14:26:53 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8081 (http) with context path '/'
+2026-10-08 14:26:53 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 2.273 seconds (process running for 2.648)
+2026-10-08 14:26:53 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  假面骑士创骑 · 骑士系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8081/api
+  健康检查     : http://localhost:8081/api/health
+  接口首页     : http://localhost:8081/index.html
+======================================================
+
+2026-10-08 14:27:13 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-08 14:27:13 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-10-08 14:27:13 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 1 ms
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7bb5c08d] was not registered for synchronization because synchronization is not active
+2026-10-08 14:27:13 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : KrBuildHikariPool - Starting...
+2026-10-08 14:27:13 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : KrBuildHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@535847d7
+2026-10-08 14:27:13 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : KrBuildHikariPool - Start completed.
+JDBC Connection [HikariProxyConnection@969201939 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7bb5c08d]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@670fb72] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1196290377 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@670fb72]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@353dae6c] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@251619867 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT * FROM kr_user WHERE username = ? LIMIT 1
+==> Parameters: ͩ��ս��(String)
+<==    Columns: id, username, email, password, form_key, status, deleted, create_time, update_time
+<==        Row: 1, ͩ��ս��, build@toei.co.jp, $2a$10$CRdut7K8uvdrQL0.vI6LAehaM//ocKHBl2VH3LkyMS0VybRgK0Thq, genius, 1, 0, 2026-10-08 14:23:14, 2026-10-08 14:23:14
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@353dae6c]
+2026-10-08 14:27:15 INFO  c.f.s.service.impl.UserServiceImpl.login 98 : 骑士变身成功：桐生战兔（id=1）
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@66896dbb] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1749983002 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@66896dbb]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@69a5b929] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1667093081 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@69a5b929]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@10cd64f5] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@439684997 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT * FROM kr_user WHERE username = ? LIMIT 1
+==> Parameters: �õ�34115(String)
+<==      Total: 0
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@10cd64f5]
+2026-10-08 14:27:21 WARN  c.f.s.common.GlobalExceptionHandler.handleBiz 29 : 业务校验未通过：骑士名或变身密码不正确
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1a322c69] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1014414577 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT id,username,email,form_key,status,create_time FROM kr_user WHERE deleted=0 ORDER BY id DESC LIMIT 100
+==> Parameters: 
+<==    Columns: id, username, email, form_key, status, create_time
+<==        Row: 2, ��������, ryuga@toei.co.jp, hazard, 1, 2026-10-08 14:24:04
+<==        Row: 1, ͩ��ս��, build@toei.co.jp, genius, 1, 2026-10-08 14:23:14
+<==      Total: 2
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1a322c69]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@66e74122] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1946758624 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT id,username,email,form_key,status,create_time FROM kr_user WHERE deleted=0 ORDER BY id DESC LIMIT 100
+==> Parameters: 
+<==    Columns: id, username, email, form_key, status, create_time
+<==        Row: 2, ��������, ryuga@toei.co.jp, hazard, 1, 2026-10-08 14:24:04
+<==        Row: 1, ͩ��ս��, build@toei.co.jp, genius, 1, 2026-10-08 14:23:14
+<==      Total: 2
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@66e74122]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@764094f4] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@260923655 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@764094f4]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@29739521] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@79352065 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT * FROM kr_user WHERE username = ? LIMIT 1
+==> Parameters: �õ�34115(String)
+<==      Total: 0
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@29739521]
+2026-10-08 14:27:32 WARN  c.f.s.common.GlobalExceptionHandler.handleBiz 29 : 业务校验未通过：骑士名或变身密码不正确
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4a6569eb] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@966387255 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4a6569eb]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@64ccd4cb] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1848950715 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT * FROM kr_user WHERE username = ? LIMIT 1
+==> Parameters: ͩ��ս��(String)
+<==    Columns: id, username, email, password, form_key, status, deleted, create_time, update_time
+<==        Row: 1, ͩ��ս��, build@toei.co.jp, $2a$10$CRdut7K8uvdrQL0.vI6LAehaM//ocKHBl2VH3LkyMS0VybRgK0Thq, genius, 1, 0, 2026-10-08 14:23:14, 2026-10-08 14:23:14
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@64ccd4cb]
+2026-10-08 14:28:18 INFO  c.f.s.service.impl.UserServiceImpl.login 98 : 骑士变身成功：桐生战兔（id=1）
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2fdfab0] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1894267183 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2fdfab0]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@75ca6bb8] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@501246307 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 2
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@75ca6bb8]
+Creating a new SqlSession
+Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+JDBC Connection [HikariProxyConnection@1981852094 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will be managed by Spring
+==>  Preparing: SELECT COUNT(1) FROM kr_user WHERE username = ? AND deleted = 0
+==> Parameters: �õ�97553(String)
+<==    Columns: COUNT(1)
+<==        Row: 0
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1] from current transaction
+==>  Preparing: SELECT COUNT(1) FROM kr_user WHERE email = ? AND deleted = 0
+==> Parameters: evol897553@toei.co.jp(String)
+<==    Columns: COUNT(1)
+<==        Row: 0
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1] from current transaction
+==>  Preparing: INSERT INTO kr_user ( username, email, password, form_key, status ) VALUES ( ?, ?, ?, ?, ? )
+==> Parameters: �õ�97553(String), evol897553@toei.co.jp(String), $2a$10$TvXC0uxjxqljhS6BgkCIZu2q8EVLnLfm.apcZw1.RlIhXeFrkwpjO(String), genius(String), 1(Integer)
+<==    Updates: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+2026-10-08 14:28:23 INFO  c.f.s.service.impl.UserServiceImpl.register 77 : 新骑士入队：幻德97553（id=3）
+Fetched SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1] from current transaction
+==>  Preparing: SELECT id,username,email,password,form_key,status,deleted,create_time,update_time FROM kr_user WHERE id=? AND deleted=0
+==> Parameters: 3(Long)
+<==    Columns: id, username, email, password, form_key, status, deleted, create_time, update_time
+<==        Row: 3, �õ�97553, evol897553@toei.co.jp, $2a$10$TvXC0uxjxqljhS6BgkCIZu2q8EVLnLfm.apcZw1.RlIhXeFrkwpjO, genius, 1, 0, 2026-10-08 14:28:23, 2026-10-08 14:28:23
+<==      Total: 1
+Releasing transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Transaction synchronization committing SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Transaction synchronization deregistering SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Transaction synchronization closing SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@21e176e1]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6dca6180] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1731332848 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT * FROM kr_user WHERE username = ? LIMIT 1
+==> Parameters: �õ�97553(String)
+<==    Columns: id, username, email, password, form_key, status, deleted, create_time, update_time
+<==        Row: 3, �õ�97553, evol897553@toei.co.jp, $2a$10$TvXC0uxjxqljhS6BgkCIZu2q8EVLnLfm.apcZw1.RlIhXeFrkwpjO, genius, 1, 0, 2026-10-08 14:28:23, 2026-10-08 14:28:23
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6dca6180]
+2026-10-08 14:28:25 INFO  c.f.s.service.impl.UserServiceImpl.login 98 : 骑士变身成功：幻德97553（id=3）
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@62f7c945] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@389240388 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM kr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 3
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@62f7c945]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@681b8bc7] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@312876170 wrapping com.mysql.cj.jdbc.ConnectionImpl@535847d7] will not be managed by Spring
+==>  Preparing: SELECT id,username,email,form_key,status,create_time FROM kr_user WHERE deleted=0 ORDER BY id DESC LIMIT 100
+==> Parameters: 
+<==    Columns: id, username, email, form_key, status, create_time
+<==        Row: 3, �õ�97553, evol897553@toei.co.jp, genius, 1, 2026-10-08 14:28:23
+<==        Row: 2, ��������, ryuga@toei.co.jp, hazard, 1, 2026-10-08 14:24:04
+<==        Row: 1, ͩ��ս��, build@toei.co.jp, genius, 1, 2026-10-08 14:23:14
+<==      Total: 3
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@681b8bc7]
