@@ -1,0 +1,268 @@
+# AI 备忘：DragonRaja-Vue 项目上下文
+
+> **给 AI 助手（以及未来的你）看的。**
+> 本机每次重置，`node_modules/` 和 `target/` 会被删除。
+> 下次接手本项目时：**先读这份文件，不要重新探索整个代码库。**
+> 读完直接执行文末的「快速启动」，通常 1 分钟内可跑起来。
+
+> **[注意] 2026-10-15 结构变更：项目已整体搬迁到 `C:\Users\Administrator\Desktop\Dragon\`**
+> 前端 = `Dragon\DragonRaja-Vue\`，后端 = `Dragon\springBootTest\`（**兄弟目录**，不再是前端子目录）。
+> 脚本里的后端路径一律写 `..\springBootTest`。
+
+---
+
+## 0. 这是什么项目
+
+龙族（Dragon Raja）同人风格的**登录 / 注册 / 密钥重置 + 首页档案检索**系统。
+两个可独立运行的部分，共用一份代码仓库：
+
+| 部分 | 目录 | 技术栈 | 端口 |
+| --- | --- | --- | --- |
+| 前端 | `Dragon\DragonRaja-Vue\` | Vue 3.5 + Vue Router 4 + Vite 6 | **5177** |
+| 后端 | `Dragon\springBootTest\` | Spring Boot 3.4.5 + MyBatis-Plus 3.5.9 + MySQL 8 | **8081** |
+
+数据流：`浏览器 -> Vite(5177) --代理 /api--> Spring Boot(8081) --MyBatis-Plus--> MySQL(dragon_raja)`
+
+前端是纯静态 SPA，用 **Hash 路由**（`createWebHashHistory`），所以 `dist/` 可直接双击打开或丢给任意静态服务器。
+
+---
+
+## 1. 启动前必读：两个致命坑（别再踩）
+
+### 坑 1：数据库 `dragon_raja` 默认不存在
+
+MySQL 8.0 已安装并常驻运行，但**默认只有 `ruoyi` / `kr_build` 等库，没有 `dragon_raja`**。
+后端启动后如果 `dragon_raja` 不存在，登录接口会返回 `{"code":500,"message":"服务器开小差了，请稍后再试"}`。
+
+**判断方法**（一条命令）：
+```bash
+"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe" -uroot -p123456 -e "SHOW DATABASES LIKE 'dragon_raja';"
+```
+有输出 `dragon_raja` = 正常；空 = 需要初始化，执行 `初始化数据库.bat`。
+
+> [注意] **陷阱**：`/api/health` 返回 `"MySQL 已连接"` **不代表数据库正确**。
+> 旧版本后端的 health 里写死了这行文案，与真实连的是哪个库无关。
+> **判断后端是否真的可用，唯一可靠方式是调登录接口，或直接查库。**
+
+### 坑 2：SQL 脚本必须显式指定 utf8mb4，否则中文乱码失败
+
+`sql/dragon_raja.sql` 是 **UTF-8** 编码，但 MySQL 客户端默认按 GBK 解析，
+直接执行会报 `ERROR 1366 (HY000): Incorrect string value ... for column 'codename'`，
+结果是**库表建好了、演示数据一条没进去**（最阴险：看起来成功了，实际是空的）。
+
+**导入用 utf8mb4，展示查询用 gbk**：
+```
+REM 导入（读 UTF-8 文件，必须 utf8mb4）
+"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -p123456 < "sql\dragon_raja.sql" >nul
+
+REM 展示（控制台是 936，用 gbk 才不乱码）
+"%MYSQL_EXE%" --default-character-set=gbk -uroot -p123456 -e "SELECT ...;"
+```
+
+---
+
+## 1.5 写 .bat 脚本必须避开的 3 个 cmd 坑（本项目已实测踩过）
+
+这几个坑非常隐蔽，**症状是脚本中途报 `此时不应有 ...` 然后静默退出（退出码 255）**。
+
+| 坑 | 现象 | 正确做法 |
+| --- | --- | --- |
+| **GBK 文件里`echo` 行内出现半角括号 `()`** | 报`此时不应有 ...`，脚本中断 | echo 提示语里**不要用半角括号**，改用全角`【】`、空格或引号包裹 |
+| **`if` 代码块内做输入重定向 `<`** | 报 `此时不应有 MySQL` | 用 `goto :LABEL` 标签替代 `if` 块，不要在块内做重定向 |
+| **`timeout /t N`** | Git Bash 下报 `invalid time interval` | 改用 `ping -n 3 127.0.0.1 >nul` 延时，Windows 与 Git Bash 通用 |
+
+> 排查这类问题的方法：把脚本逐段塞进 `.bat` 真实执行，
+> **用 Python `subprocess` 跑并按 GBK 解码 stdout/stderr**，不要凭猜测改。
+> 参考：本次问题就是这样定位到「GBK + 半角括号」的。
+
+**编码配套写法**：用 Python 生成 bat 时必须**二进制写 + GBK 编码 + CRLF**：
+```python
+with open(path, "wb") as f:
+    f.write("\r\n".join(lines).encode("gbk"))
+```
+用 `open(..., "w")` 会把 CRLF 变成 LF，**批处理会解析失败**。
+
+---
+
+## 2. 环境现状（已实测，非推测）
+
+| 项目 | 状态 | 说明 |
+| --- | --- | --- |
+| Node.js | [OK] v22.22.2 / npm 10.9.7 | 满足 Vite 6 要求 |
+| Java | [OK] OpenJDK 21.0.10 (Zulu) | Spring Boot 3 要求 17+，21 没问题 |
+| Maven（全局） | [X] **未安装** | 不要用 `mvn` 命令 |
+| Maven Wrapper | [OK]可用 | 用 `springBootTest\mvnw.cmd`，见下方说明 |
+| MySQL 8.0 | [OK]已装且运行中 | `root` / `123456`，服务常驻 3306 |
+| `mysql.exe` | [注意] 不在 PATH | 必须用完整路径，见 §1 |
+
+### 关于 Maven：没有全局 mvn，怎么办
+
+`mvnw.cmd` 可直接用，无需安装 Maven。它是 **Maven Wrapper 3.3.2「仅脚本」模式**：
+`.mvn/wrapper/` 下**只有 `maven-wrapper.properties`、没有 `maven-wrapper.jar`，这是正常的**。
+首次运行会自动从阿里云镜像下载 Maven 3.9.9 到 `~/.m2/wrapper/dists/`。
+本机 `~/.m2/repository` **已有大量缓存依赖**（177MB+，含 Spring Boot 全家桶），所以离线或快速构建基本没问题。
+
+**如果哪天真装了全局 Maven**，`mvn` 也能用；但为了与脚本一致，**始终优先用 `mvnw.cmd`**。
+
+---
+
+## 3. 关键配置速查（不要凭记忆改这些值）
+
+**前端 `vite.config.js`**
+- `base: './'`（相对路径，dist 可随处部署）
+- `server.port: 5177`，`server.host: 127.0.0.1`
+- 代理：`/api` -> `http://127.0.0.1:8081`（可用环境变量 `VITE_API_TARGET` 覆盖）
+- 别名：`@` -> `./src`
+
+**前端 API 基址 `src/api/http.js`**
+- 开发环境**留空**（走 Vite 代理，无跨域问题）
+- 仅部署时用 `.env.production` 的 `VITE_API_BASE` 指向后端
+- 统一响应体：`{code, message, data}`，**`code === 0` 才算成功**，401 自动清会话跳回登录页
+
+**后端 `springBootTest/src/main/resources/`**
+- `application.properties`：`spring.profiles.active=dev`，JWT 短令牌 12h / 长令牌（记住身份卡）7 天
+- `application-dev.properties`：**端口 8081**，数据源 `jdbc:mysql://localhost:3306/dragon_raja`，`root/123456`
+- 另有 `application-test.properties`(8080) / `application-prod.properties`(8082)
+- JWT 密钥可用环境变量 `DR_JWT_SECRET` 覆盖（默认已内置一个 64 位值，够开发用）
+
+> 注意：`target/classes/` 下有一份 **旧拷贝** 的 properties，重置后 `target` 会被删，
+> 真实配置源永远是 `springBootTest/src/main/resources/`，别改错地方。
+
+---
+
+## 4. 目录结构（只列关键节点）
+
+```
+Dragon/
+├─ springBootTest/                ← 后端（与前端平级）
+│  ├─ mvnw / mvnw.cmd             ← Maven Wrapper（仅脚本模式）
+│  ├─ pom.xml                    ← java 17, Spring Boot 3.4.5, MyBatis-Plus 3.5.9, jjwt 0.12.6
+│  ├─ sql/dragon_raja.sql        ← 建库建表 + 3 个演示账号（UTF-8，务必配 utf8mb4 执行）
+│  ├─ src/main/java/com/fenglin/springboottest/
+│  │  ├─ controller/             ← AuthController HealthController ProfileController
+│  │  ├─ service/ impl/          ← AuthServiceImpl DictServiceImpl JwtTokenService
+│  │  ├─ mapper/ entity/ dto/ vo/
+│  │  └─ config/                 ← JwtInterceptor WebMvcConfig MybatisPlusConfig AppConfig
+│  ├─ src/main/resources/application*.properties
+│  └─ target/                    ← 每次重置后被删，需重新构建
+└─ DragonRaja-Vue/                ← 前端
+   ├─ 启动.bat / 停止.bat / 重启.bat / 初始化数据库.bat   ← GBK 编码，后端路径写 ..\springBootTest
+   ├─ AI-MEMO.md / AI-MEMO.txt
+   ├─ README.md                  ← 官方说明（里面后端路径写的是 D:\workSpace\springBootTest，已过时）
+   ├─ index.html                 ← 入口（含内联 SVG favicon）
+   ├─ vite.config.js  package.json  package-lock.json
+   ├─ dist/                      ← 构建产物，base:'./' 可直接打开
+   ├─ src/
+   │  ├─ main.js  App.vue        ← App.vue 按 meta.standalone 决定是否套认证页外壳
+   │  ├─ router/index.js         ← /home /login /register /forgot /console（Hash 模式；/home /console 需鉴权）
+   │  ├─ styles/theme.css        ← 设计令牌，换肤改这里 :root 的 --gold/--blood/--ice
+   │  ├─ api/http.js  api/auth.js  api/search.js  ← search 为 /api/search 预留位 + 本地演示数据回退
+   │  ├─ utils/auth.js           ← token 存取、清理
+   │  ├─ components/             ← AuthLayout RuneBackground DragonEmblem AuthCard FormField GlowButton AppIcon
+   │  └─ views/                  ← HomeView LoginView RegisterView ForgotView ConsoleView
+```
+
+---
+
+## 5. 后端接口清单
+
+| 方法 | 路径 | 说明 | 鉴权 |
+| --- | --- | --- | --- |
+| POST | `/api/auth/register` | 新生登记，返回签发学号 | 否 |
+| POST | `/api/auth/login` | 认证，返回 JWT + 用户信息 | 否 |
+| GET | `/api/auth/check-account` | 账号是否已登记（返回行动代号） | 否 |
+| POST | `/api/auth/reset/send` | 下发 6 位验证龙文（5min 有效 / 60s 冷却） | 否 |
+| POST | `/api/auth/reset/confirm` | 校验龙文并重置密钥 | 否 |
+| GET | `/api/auth/dictionaries` | 身份 / 言灵字典 | 否 |
+| GET | `/api/user/profile` | 我的身份卡 | 是 |
+| POST | `/api/user/logout` | 退出登录 | 是 |
+| GET | `/api/health` | 健康检查（**文案有误导性，见 §1**） | 否 |
+| GET | `/api/search` | **预留位：首页档案检索**。后端未实现，前端回退本地演示数据 | 否 |
+
+> **首页说明（2026-10-15 新增）**：登录成功后跳转 `/home`（HomeView.vue）。
+> 含导航栏（品牌 + 菜单 + 用户下拉/退出）和搜索栏；风格与登录页同源（theme.css 设计令牌）。
+> `/api/search?keyword=xxx` 是后端预留接口，实现后前端自动切换真实数据（api/search.js）。
+> **登录已改为纯学号体系（邮箱已全链路移除）**：演示账号 `CC20260001` / 密钥 `Dragon@2026`。
+
+---
+
+## 6. 演示账号（数据库初始化后可用）
+
+密钥统一为 `Dragon@2026`：
+
+| 学院编号 | 姓名 | 邮箱 | 身份 | 言灵 |
+| --- | --- | --- | --- | --- |
+| `CC20260001` | 路明非 | luffy.cassell@cassell.edu | freshman | junyan |
+| `CC20260002` | 楚子航 | chu.zihang@cassell.edu | executor | shiling |
+| `CC20260003` | 芬格尔 | finger@cassell.edu | student | fengwang |
+
+---
+
+## 7. 快速启动（重置后照此执行）
+
+### 最省事：双击 `启动.bat`
+
+它会自动完成：检查环境 -> 检查/初始化数据库 -> 释放端口 5177/8081 ->
+`npm install` -> 后端 `mvnw.cmd spring-boot:run` -> 前端 `npm run dev` -> 打开浏览器。
+
+配套脚本（全部 **GBK 编码、相对路径、双击即用，且已实测通过**）：
+
+| 脚本 | 作用 | 验证状态 |
+| --- | --- | --- |
+| `启动.bat` | 一键启动（自动检查环境、初始化库、清端口、npm install、起后端与前端、开浏览器） |逻辑已验证 |
+| `停止.bat` | 按端口精准杀掉 5177 / 8081 上的进程 | 已实测退出码 0 |
+| `重启.bat` | 先停止再启动 | 逻辑已验证 |
+| `初始化数据库.bat` | 建库建表 + 灌 3 个演示账号（幂等，可重复跑） | 已实测退出码 0，中文正常 |
+
+> 后端窗口若启动失败，请看那个窗口里的报错；
+> 若提示找不到数据库，多半是 MySQL 没启动 —— 先确认 3306 端口在监听。
+
+### 手动启动（想看每步输出时）
+
+```bash
+# 终端 1 —— 后端（必须用 mvnw.cmd，没有全局 mvn）
+cd ../springBootTest     # 后端是前端的兄弟目录
+mvnw.cmd spring-boot:run
+# 看到 "Started SpringBootTestApplication" 即成功，端口 8081
+
+# 终端 2 —— 前端
+cd DragonRaja-Vue
+npm install          # node_modules 已被删，必须先装
+npm run dev          # 端口 5177
+```
+
+启动后访问 **http://127.0.0.1:5177**
+
+---
+
+## 8. 常见故障速查
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| 登录报 `code:500 服务器开小差了` | `dragon_raja` 库不存在 | 跑 `初始化数据库.bat`，或按 §1 手工执行 SQL |
+| 后端启动即失败 / 连不上库 | 同上 | 同上 |
+| `/api/health` 说已连接但登录仍失败 | health 文案写死，误导 | 忽略 health，直接看登录接口 |
+| `ERROR 1366 Incorrect string value` | SQL 缺 `--default-character-set=utf8mb4` | 加上该参数重跑 |
+| bat 报 `此时不应有 ...` 后静默退出 | GBK 下 echo 含半角括号，或 if 块内做重定向 | 见 §1.5，用全角括号 + goto 标签 |
+| bat 里中文显示成 `鏁版嵁` | MySQL 用 utf8mb4 输出但控制台是 936 | 展示查询改用 `--default-character-set=gbk` |
+| 前端 5177 端口被占 | 上次没关干净 | 跑 `停止.bat` |
+| 后端 8081 端口被占 | 同上（或有僵尸 java 进程） | 跑 `停止.bat` |
+| `mvn` 不是内部或外部命令 | 本机无全局 Maven | 用 `mvnw.cmd`（脚本已处理） |
+| 端口被占但 `停止.bat` 没杀掉 | 进程以其他用户/权限运行 | 用**管理员身份**运行 `停止.bat` |
+| 想换端口 | 前端改 `vite.config.js` 的 `server.port`；后端改 `application-dev.properties` 的 `server.port`，**两边要同步** | 代理目标可用 `VITE_API_TARGET` 覆盖 |
+
+---
+
+## 9. 给 AI 的行为约定
+
+1. **先读本文件**，别从头遍历代码库。
+2. 改配置只动 `springBootTest/src/main/resources/`，**不要动 `target/classes/`**（会被删）。
+3. 中文相关的 MySQL 操作**一律加 `--default-character-set=utf8mb4`**。
+4. 验证后端是否可用，**不要信 `/api/health`**，请调 `/api/auth/login` 或查库。
+5. 脚本必须用**相对路径**（`%~dp0`），且**不得依赖已存在的 `node_modules` / `target`**——它们每次重置都会被删。
+6. 新增 `.bat` 必须存为 **GBK(936) 编码**，否则中文乱码。
+7. 需要长时间运行的服务用后台窗口启动，不要让 AI 进程阻塞。
+
+---
+
+*最后更新：2026-10-15（二）· 本轮变更：项目迁至 Desktop\Dragon（前后端平级）、首页 /home 上线（导航栏+搜索栏，/api/search 预留）、登录改纯学号体系、脚本后端路径改 ..\springBootTest*
