@@ -4,6 +4,7 @@ import RegisterView from '@/views/RegisterView.vue'
 import ForgotView from '@/views/ForgotView.vue'
 import ConsoleView from '@/views/ConsoleView.vue'
 import HomeView from '@/views/HomeView.vue'
+import MissionsView from '@/views/MissionsView.vue'
 import CharacterView from '@/views/CharacterView.vue'
 import AppraisalView from '@/views/AppraisalView.vue'
 import CodexDetailView from '@/views/CodexDetailView.vue'
@@ -16,6 +17,12 @@ const routes = [
     name: 'home',
     component: HomeView,
     meta: { title: '学院首页 · 龙文档案馆', requiresAuth: true, standalone: true }
+  },
+  {
+    path: '/missions',
+    name: 'missions',
+    component: MissionsView,
+    meta: { title: '执行部任务 · 任务看板', requiresAuth: true, standalone: true }
   },
   {
     path: '/codex/:key',
