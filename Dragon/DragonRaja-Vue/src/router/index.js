@@ -9,7 +9,10 @@ import ArchiveView from '@/views/ArchiveView.vue'
 import CharacterView from '@/views/CharacterView.vue'
 import AppraisalView from '@/views/AppraisalView.vue'
 import CodexDetailView from '@/views/CodexDetailView.vue'
+import AdminLoginView from '@/views/AdminLoginView.vue'
+import AdminView from '@/views/AdminView.vue'
 import { isLoggedIn } from '@/utils/auth'
+import { isAdminLoggedIn } from '@/utils/adminAuth'
 
 const routes = [
   { path: '/', redirect: '/home' },
@@ -81,6 +84,20 @@ const routes = [
     component: ConsoleView,
     meta: { title: '学院内网 · 我的身份卡', requiresAuth: true }
   },
+  {
+    // 后台管理系统 · 登录页（只有登录，没有注册）
+    path: '/admin/login',
+    name: 'admin-login',
+    component: AdminLoginView,
+    meta: { title: '后台管理系统 · 登录' }
+  },
+  {
+    // 后台管理系统 · 言灵图鉴数据管理（meta.adminAuth 由下方守卫校验）
+    path: '/admin',
+    name: 'admin',
+    component: AdminView,
+    meta: { title: '后台管理系统', adminAuth: true }
+  },
   { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]
 
@@ -93,6 +110,14 @@ const router = createRouter({
 
 // 需要登录的页面统一走这里（令牌失效由 api 层清理会话）
 router.beforeEach((to) => {
+  // 后台管理系统：管理员令牌独立于学员令牌
+  if (to.meta.adminAuth && !isAdminLoggedIn()) {
+    return { path: '/admin/login' }
+  }
+  // 已登录管理员不再停留登录页，直接进后台
+  if (to.path === '/admin/login' && isAdminLoggedIn()) {
+    return { path: '/admin' }
+  }
   if (to.meta.requiresAuth && !isLoggedIn()) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }

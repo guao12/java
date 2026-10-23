@@ -33,5 +33,17 @@ export const homeApi = {
     } catch {
       return FALLBACK
     }
+  },
+
+  /**
+   * 言灵图鉴列表（后台维护的数据源）。
+   * @returns {Promise<Array|null>} 言灵数组；后端不可用时返回 null，由调用方回退到静态数据
+   */
+  async spirits() {
+    try {
+      return await request('/api/home/spirits', { auth: true })
+    } catch {
+      return null
+    }
   }
 }

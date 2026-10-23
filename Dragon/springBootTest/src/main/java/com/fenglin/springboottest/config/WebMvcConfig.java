@@ -18,11 +18,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final JwtInterceptor jwtInterceptor;
     private final OptionalAuthInterceptor optionalAuthInterceptor;
+    private final AdminInterceptor adminInterceptor;
 
     public WebMvcConfig(JwtInterceptor jwtInterceptor,
-                        OptionalAuthInterceptor optionalAuthInterceptor) {
+                        OptionalAuthInterceptor optionalAuthInterceptor,
+                        AdminInterceptor adminInterceptor) {
         this.jwtInterceptor = jwtInterceptor;
         this.optionalAuthInterceptor = optionalAuthInterceptor;
+        this.adminInterceptor = adminInterceptor;
     }
 
     @Override
@@ -46,5 +49,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 以便按在校身份决定可见密级（软鉴权：不带令牌也能访问，只是只能看公开卷宗）
         registry.addInterceptor(optionalAuthInterceptor)
                 .addPathPatterns("/api/home/**", "/api/search", "/api/search/**", "/api/archive/**");
+
+        // 后台管理系统：除登录接口外全部需要管理员令牌
+        registry.addInterceptor(adminInterceptor)
+                .addPathPatterns("/api/admin/**")
+                .excludePathPatterns("/api/admin/auth/**");
     }
 }

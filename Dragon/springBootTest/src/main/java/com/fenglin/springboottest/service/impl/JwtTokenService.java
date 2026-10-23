@@ -62,16 +62,55 @@ public class JwtTokenService implements TokenService {
     @Override
     public Long parseUserId(String token) {
         try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            Claims claims = parse(token);
+            // 后台管理员令牌（scope=admin）不属于学员会话
+            if ("admin".equals(claims.get("scope", String.class))) {
+                return null;
+            }
             Number uid = claims.get("uid", Number.class);
             return uid == null ? null : uid.longValue();
         } catch (JwtException | IllegalArgumentException e) {
             log.debug("令牌校验未通过：{}", e.getMessage());
             return null;
         }
+    }
+
+    @Override
+    public String issueAdmin(Long adminId, String username, boolean remember) {
+        long seconds = expiresIn(remember);
+        Date now = new Date();
+        return Jwts.builder()
+                .subject("admin:" + username)
+                .claim("aid", adminId)
+                .claim("scope", "admin")
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + seconds * 1000))
+                .signWith(key)
+                .compact();
+    }
+
+    @Override
+    public Long parseAdminId(String token) {
+        try {
+            Claims claims = parse(token);
+            // 只有带 scope=admin 的令牌才算后台会话
+            if (!"admin".equals(claims.get("scope", String.class))) {
+                return null;
+            }
+            Number aid = claims.get("aid", Number.class);
+            return aid == null ? null : aid.longValue();
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("后台令牌校验未通过：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 解析并验签（HS256） */
+    private Claims parse(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

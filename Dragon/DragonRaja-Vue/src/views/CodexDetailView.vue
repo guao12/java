@@ -7,9 +7,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
-import DragonEmblem from '@/components/DragonEmblem.vue'
+import SiteNav from '@/components/SiteNav.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
-import { ORG_GALLERY, SPIRIT_GALLERY, codexPath } from '@/data/codex'
+import { ORG_GALLERY, codexPath } from '@/data/codex'
+import { ensureSpirits, useSpirits } from '@/data/spiritStore'
 
 const props = defineProps({
   /** spirit 言灵谱 / org 机构志 */
@@ -20,7 +21,9 @@ const route = useRoute()
 const router = useRouter()
 
 const isSpirit = computed(() => props.kind === 'spirit')
-const list = computed(() => (isSpirit.value ? SPIRIT_GALLERY : ORG_GALLERY))
+/** 言灵走后台维护的共享数据源（静态兜底），机构仍用静态数据 */
+const spiritList = useSpirits()
+const list = computed(() => (isSpirit.value ? spiritList.value : ORG_GALLERY))
 const item = computed(() => list.value.find((i) => i.key === route.params.key) || null)
 
 /** 同类其他条目（底部「相关档案」，可点击互跳） */
@@ -35,8 +38,12 @@ function onImgError() {
   imgOk.value = false
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.documentElement.style.colorScheme = 'dark'
+  // 言灵详情：先拉一次最新数据（不阻塞渲染，静态兜底先行）
+  if (isSpirit.value) {
+    await ensureSpirits()
+  }
   document.title = item.value
     ? `${isSpirit.value ? '言灵' : '机构'}档案 · ${item.value.name} | 卡塞尔学院`
     : '图鉴档案 | 卡塞尔学院'
@@ -56,22 +63,15 @@ function go(key) {
   <div class="codex">
     <RuneBackground />
 
-    <!-- ============ 顶部导航 ============ -->
-    <header class="codex__nav">
-      <div class="codex__nav-inner">
-        <div class="codex__brand">
-          <DragonEmblem class="codex__mark" />
-          <div class="codex__brand-text">
-            <span class="codex__brand-cn">卡塞尔学院</span>
-            <span class="codex__brand-en">Cassell College</span>
-          </div>
-        </div>
+    <!-- ============ 顶部导航（与首页同源的 SiteNav） ============ -->
+    <SiteNav>
+      <template #actions>
         <button type="button" class="codex__back" @click="goBack">
           <AppIcon name="arrow" :size="14" class="codex__back-ic" />
           返回档案馆
         </button>
-      </div>
-    </header>
+      </template>
+    </SiteNav>
 
     <!-- ============ 主体 ============ -->
     <main class="codex__body">
@@ -221,56 +221,7 @@ function go(key) {
   flex-direction: column;
 }
 
-/* ================= 顶部导航 ================= */
-.codex__nav {
-  width: 100%;
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 26px 24px 0;
-  animation: fade-down 0.7s 0.05s both;
-}
-
-.codex__nav-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.codex__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.codex__mark {
-  width: 38px;
-  height: 38px;
-  filter: drop-shadow(0 0 10px rgba(216, 178, 90, 0.5));
-  animation: spin 46s linear infinite;
-}
-
-.codex__brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.codex__brand-cn {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  letter-spacing: 0.26em;
-  color: var(--gold-lt);
-}
-
-.codex__brand-en {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--text-4);
-  text-transform: uppercase;
-}
-
+/* ================= 顶部导航（SiteNav 统一渲染，这里只留返回按钮样式） ================= */
 .codex__back {
   display: inline-flex;
   align-items: center;

@@ -1,9 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
+import SiteNav from '@/components/SiteNav.vue'
 import { getUser } from '@/utils/auth'
 import {
   DAILY_LIMIT,
@@ -17,8 +17,6 @@ import {
   todayUsedCount
 } from '@/utils/bloodline'
 
-const route = useRoute()
-const router = useRouter()
 
 /* ---------------- 当前登录者 ---------------- */
 
@@ -27,18 +25,7 @@ const myAccount = computed(() => (user.value?.account || '').trim().toUpperCase(
 /** 管理员 = 教员 / 研究员（密级 4），可看全部鉴定记录与排行榜 */
 const isAdmin = computed(() => isBloodlineAdmin(user.value))
 
-/* ---------------- 顶部导航 ---------------- */
-
-const NAV = [
-  { label: '学院首页', to: '/home' },
-  { label: '血统鉴定', to: '/appraisal' },
-  { label: '我的身份卡', to: '/console' }
-]
-
-/** 当前页面高亮 */
-function isCurrent(to) {
-  return route.path === to || route.path.startsWith(to + '/')
-}
+/* 顶部导航由 components/SiteNav.vue 统一渲染（与首页同源），见 data/nav.js */
 
 /* ---------------- 血统评级标准：见 utils/bloodline.js（首页共用） ---------------- */
 
@@ -321,32 +308,8 @@ onBeforeUnmount(() => {
   <div class="appr">
     <RuneBackground />
 
-    <!-- ============ 顶部导航 ============ -->
-    <header class="appr__nav">
-      <div class="appr__nav-inner">
-        <div class="appr__brand">
-          <DragonEmblem class="appr__mark" />
-          <div class="appr__brand-text">
-            <span class="appr__brand-cn">卡塞尔学院</span>
-            <span class="appr__brand-en">Cassell College</span>
-          </div>
-        </div>
-
-        <nav class="appr__links">
-          <button
-            v-for="item in NAV"
-            :key="item.to"
-            type="button"
-            class="appr__link"
-            :class="{ 'is-current': isCurrent(item.to) }"
-            :aria-current="isCurrent(item.to) ? 'page' : undefined"
-            @click="router.push(item.to)"
-          >
-            {{ item.label }}
-          </button>
-        </nav>
-      </div>
-    </header>
+    <!-- ============ 顶部导航：与首页同源 ============ -->
+    <SiteNav />
 
     <!-- ============ 核心鉴定区域 ============ -->
     <main class="appr__body">
@@ -686,122 +649,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   padding-bottom: 60px;
-}
-
-/* ================= 顶部导航 ================= */
-.appr__nav {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  width: 100%;
-  padding: 14px 24px;
-  background: linear-gradient(180deg, rgba(5, 7, 13, 0.92), rgba(5, 7, 13, 0.55));
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border-bottom: 1px solid var(--line-soft);
-  animation: fade-down 0.7s 0.05s both;
-}
-
-.appr__nav-inner {
-  width: 100%;
-  max-width: 780px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.appr__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.appr__mark {
-  width: 34px;
-  height: 34px;
-  filter: drop-shadow(0 0 10px rgba(216, 178, 90, 0.5));
-  animation: spin 46s linear infinite;
-}
-
-.appr__brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.appr__brand-cn {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  letter-spacing: 0.26em;
-  color: var(--gold-lt);
-}
-
-.appr__brand-en {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--text-4);
-  text-transform: uppercase;
-}
-
-.appr__links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* 导航项（button 需重置默认样式） */
-.appr__link {
-  position: relative;
-  padding: 8px 16px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 0.28s, background 0.28s, box-shadow 0.28s;
-}
-
-.appr__link:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* 当前页面高亮 */
-.appr__link.is-current {
-  color: var(--gold-lt);
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(216, 178, 90, 0.16), rgba(216, 178, 90, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.26), 0 0 20px -10px var(--gold-glow);
-}
-
-.appr__link.is-current::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 1px;
-  width: 16px;
-  height: 2px;
-  transform: translateX(-50%);
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold-lt), transparent);
-  box-shadow: 0 0 10px rgba(216, 178, 90, 0.9);
-  animation: nav-glow 2.6s ease-in-out infinite;
-}
-
-@keyframes nav-glow {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 
 /* ================= 主体 ================= */
@@ -2015,24 +1862,6 @@ onBeforeUnmount(() => {
 
 /* ================= 响应式 ================= */
 @media (max-width: 620px) {
-  .appr__nav-inner {
-    gap: 10px;
-  }
-
-  .appr__links {
-    gap: 0;
-  }
-
-  .appr__link {
-    padding: 7px 10px;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-  }
-
-  .appr__brand-en {
-    display: none;
-  }
-
   .appr__title {
     font-size: 26px;
   }

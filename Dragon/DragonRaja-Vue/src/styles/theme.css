@@ -1140,3 +1140,42 @@ select {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ================= 学院邮戳（全局：导航栏时钟 / 预警横幅 / 卷宗卡片共用） ================= */
+.stamp {
+  flex: 0 0 auto;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 178, 90, 0.5);
+  font-family: var(--font-serif);
+  font-style: normal;
+  font-size: 10px;
+  color: var(--gold-dp);
+  user-select: none;
+}
+
+.stamp::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px dashed rgba(216, 178, 90, 0.38);
+}
+
+.stamp--sm {
+  width: 16px;
+  height: 16px;
+  font-size: 8px;
+}
+
+.stamp--lg {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.6);
+}

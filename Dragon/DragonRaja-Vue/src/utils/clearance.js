@@ -112,6 +112,16 @@ export function hasClearance(req) {
   return level.value >= (req || 1)
 }
 
+/** 升到指定密级总共需要的权限点 */
+export function requiredPoints(req) {
+  return THRESHOLDS[(req || 1) - 1] ?? THRESHOLDS[THRESHOLDS.length - 1]
+}
+
+/** 距离升到指定密级还差多少权限点（已达标返回 0） */
+export function pointsTo(req) {
+  return Math.max(requiredPoints(req) - points.value, 0)
+}
+
 export function isCompleted(code) {
   return !!code && completed.value.includes(code)
 }

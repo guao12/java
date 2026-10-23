@@ -1,99 +1,33 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
-import DragonEmblem from '@/components/DragonEmblem.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
-import { authApi } from '@/api/auth'
+import SiteNav from '@/components/SiteNav.vue'
 import { searchApi } from '@/api/search'
 import { homeApi } from '@/api/home'
-import { clearSession, getUser } from '@/utils/auth'
+import { getUser } from '@/utils/auth'
 import { gradeOf, myLatestReport } from '@/utils/bloodline'
-import { ORG_GALLERY, SPIRIT_GALLERY, codexPath, matchCodexByArchive } from '@/data/codex'
+import { ORG_GALLERY, codexPath, matchCodexByArchive } from '@/data/codex'
+import { ensureSpirits, useSpirits } from '@/data/spiritStore'
 import { MISSION_GALLERY } from '@/data/missions'
 
 const router = useRouter()
 
-/* ---------------- 用户信息 ---------------- */
+/* ---------------- 言灵图鉴（后台维护的数据源，静态兜底） ---------------- */
+
+const spiritList = useSpirits()
+
+/* ---------------- 当前登录者 ---------------- */
 
 const user = ref(getUser())
-const codename = computed(() => user.value?.codename || '未知混血种')
-const account = computed(() => user.value?.account || '--------')
-const identityName = computed(() => user.value?.identityName || '')
-
-const menuOpen = ref(false)
-
-async function onLogout() {
-  try {
-    await authApi.logout()
-  } catch {
-    /* 令牌过期等场景直接本地清理即可 */
-  }
-  clearSession()
-  router.push('/login')
-}
-
-/* ---------------- 导航栏 ---------------- */
 
 /**
- * 顶部导航 = 本页区块锚点 + 独立页面。
- * 此前五项全部指向 /home，名称也与页面实际区块不符 —— 现统一为真实区块名，
- * 点击平滑滚动定位，并按滚动位置高亮当前所在区块。
+ * 顶部导航统一由 components/SiteNav.vue 渲染（与任务 / 档案室 / 血统鉴定同源）。
+ * 点击首页区块锚点时先退出检索视图，让区块重新挂载，再由 SiteNav 平滑滚动定位。
  */
-const NAV = [
-  { label: '首页', id: 'sec-top' },
-  { label: '言灵图鉴', id: 'sec-codex' },
-  { label: '学院机构', id: 'sec-org' },
-  { label: '档案室', to: '/archive' },
-  { label: '任务', to: '/missions' },
-  { label: '血统鉴定', to: '/appraisal' }
-]
-
-/** 当前高亮的区块 id；检索结果视图下首页区块未渲染，置空即不高亮 */
-const activeId = ref(NAV[0].id)
-/** sticky 导航高度，滚动定位时让开 */
-const NAV_OFFSET = 84
-
-const reduceMotion =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-function goSection(id) {
-  // 检索结果视图下首页区块未渲染：先回到首页视图再定位
+function onNavAnchor() {
   if (searched.value) resetAll()
-  nextTick(() => {
-    const el = document.getElementById(id)
-    if (!el) return
-    const top = el.getBoundingClientRect().top + window.scrollY - NAV_OFFSET
-    window.scrollTo({ top: Math.max(top, 0), behavior: reduceMotion ? 'auto' : 'smooth' })
-    activeId.value = id
-  })
-}
-
-let spyRaf = 0
-/** 滚动高亮：rAF 节流，取最后一个越过导航线的区块 */
-function updateSpy() {
-  if (spyRaf) return
-  spyRaf = requestAnimationFrame(() => {
-    spyRaf = 0
-    if (searched.value) {
-      activeId.value = ''
-      return
-    }
-    let cur = NAV[0].id
-    for (const item of NAV) {
-      if (!item.id) continue
-      const el = document.getElementById(item.id)
-      if (el && el.getBoundingClientRect().top - NAV_OFFSET <= 12) cur = item.id
-    }
-    // 触底时直接高亮最后一个区块
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8) {
-      const last = NAV.filter((i) => i.id).pop()
-      if (last) cur = last.id
-    }
-    activeId.value = cur
-  })
 }
 
 /* ---------------- 首页概览 ---------------- */
@@ -393,19 +327,9 @@ function expandBanner() {
   bannerCollapsed.value = false
 }
 
-/* ---------------- 学院时钟（右上角）与时间格式化 ---------------- */
-
-const clockText = ref('')
-let clockTimer = 0
+/* ---------------- 时间格式化（学院时钟已随导航栏移入 SiteNav） ---------------- */
 
 const pad2 = (n) => String(n).padStart(2, '0')
-
-function tickClock() {
-  const d = new Date()
-  clockText.value = `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} · ${pad2(
-    d.getHours()
-  )}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
-}
 
 /** 通报时间美化：2025-09-01 10:00 → 2025.09.01 10:00 */
 function formatDate(v) {
@@ -490,34 +414,23 @@ const QUICK = [
   { label: '新生登记', desc: '签发学院编号', icon: 'ticket', to: '/register' }
 ]
 
-/* 首页 / 检索结果切换时重算导航高亮 */
-watch(searched, () => nextTick(updateSpy))
-
 onMounted(async () => {
   document.documentElement.style.colorScheme = 'dark'
   // 每次进入首页都重读一次血统鉴定档案，确保与 /appraisal 的最新报告一致
   bloodTick.value++
   window.addEventListener('keydown', onKeydown)
-  window.addEventListener('scroll', updateSpy, { passive: true })
-  window.addEventListener('resize', updateSpy)
-  // 学院时钟
-  tickClock()
-  clockTimer = window.setInterval(tickClock, 1000)
   await loadOverview()
+  // 言灵图鉴：拉取后台管理系统维护的最新数据（失败时保持静态兜底）
+  ensureSpirits()
   // 首屏：静默拉一次，只为拿到各筛选项的条数（不切到结果视图）
   runSearch(true)
   // 渐进显现：等首屏区块渲染完成后再挂观察器
   await nextTick()
   observeReveals()
-  updateSpy()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('scroll', updateSpy)
-  window.removeEventListener('resize', updateSpy)
-  window.clearInterval(clockTimer)
-  if (spyRaf) cancelAnimationFrame(spyRaf)
   revealObs?.disconnect()
   revealObs = null
 })
@@ -527,69 +440,8 @@ onBeforeUnmount(() => {
   <div class="home">
     <RuneBackground />
 
-    <!-- ============ 导航栏 ============ -->
-    <header class="nav">
-      <div class="nav__inner">
-        <div class="nav__brand">
-          <DragonEmblem class="nav__mark" />
-          <div class="nav__brand-text">
-            <span class="nav__brand-cn">卡塞尔学院</span>
-            <span class="nav__brand-en">Cassell College</span>
-          </div>
-        </div>
-
-        <nav class="nav__links">
-          <template v-for="item in NAV" :key="item.label">
-            <!-- 本页区块锚点：平滑滚动 + 滚动高亮 -->
-            <button
-              v-if="item.id"
-              type="button"
-              class="nav__link"
-              :class="{ 'is-current': activeId === item.id }"
-              :aria-current="activeId === item.id ? 'true' : undefined"
-              @click="goSection(item.id)"
-            >
-              {{ item.label }}
-            </button>
-            <!-- 独立页面 -->
-            <router-link v-else :to="item.to" class="nav__link" active-class="is-current">
-              {{ item.label }}
-            </router-link>
-          </template>
-        </nav>
-
-        <!-- 学院标准时间（右上角 · 邮戳标识） -->
-        <div class="nav__clock" title="卡塞尔学院 · 标准时间">
-          <i class="stamp">龍</i>
-          <span>{{ clockText }}</span>
-        </div>
-
-        <!-- 用户区 -->
-        <div class="nav__user" @click="menuOpen = !menuOpen">
-          <span class="nav__user-avatar">{{ codename.slice(0, 1) }}</span>
-          <span class="nav__user-name">{{ codename }}</span>
-          <AppIcon name="chevron" :size="13" class="nav__user-caret" :stroke="2" />
-
-          <transition name="drop">
-            <div v-if="menuOpen" class="nav__menu" @click.stop>
-              <div class="nav__menu-head">
-                <p class="nav__menu-name">{{ codename }}</p>
-                <p class="nav__menu-meta">
-                  {{ account }}
-                  <template v-if="identityName"> · {{ identityName }}</template>
-                </p>
-              </div>
-              <router-link to="/console" class="nav__menu-item" @click="menuOpen = false">
-                <AppIcon name="id" :size="15" /> 我的身份卡
-              </router-link>
-              <button type="button" class="nav__menu-item is-danger" @click="onLogout">
-                <AppIcon name="logout" :size="15" /> 退出登录
-              </button>
-            </div>
-          </transition>
-        </div>
-      </div>
-    </header>
+    <!-- ============ 导航栏：全院统一组件（任务 / 档案室 / 血统鉴定同源） ============ -->
+    <SiteNav @anchor="onNavAnchor" />
 
     <!-- ============ 主体 ============ -->
     <main class="home__body">
@@ -975,7 +827,7 @@ onBeforeUnmount(() => {
           </header>
           <div class="gallery__grid">
             <article
-              v-for="s in SPIRIT_GALLERY"
+              v-for="s in spiritList"
               :key="s.key"
               class="gcard"
               :data-element="s.element"
@@ -1192,253 +1044,6 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.08em;
-}
-
-/* ================= 导航栏 ================= */
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: rgba(5, 7, 13, 0.78);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border-bottom: 1px solid var(--line);
-  animation: fade-down 0.7s both;
-}
-
-.nav::after {
-  content: '';
-  position: absolute;
-  left: 20%;
-  right: 20%;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0.55;
-}
-
-.nav__inner {
-  max-width: 1080px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 26px;
-  padding: 13px 24px;
-}
-
-.nav__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
-}
-
-.nav__mark {
-  width: 38px;
-  height: 38px;
-  filter: drop-shadow(0 0 10px rgba(216, 178, 90, 0.5));
-  animation: spin 46s linear infinite;
-}
-
-.nav__brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.nav__brand-cn {
-  font-family: var(--font-serif);
-  font-size: 16px;
-  letter-spacing: 0.24em;
-  color: var(--gold-lt);
-}
-
-.nav__brand-en {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--text-4);
-  text-transform: uppercase;
-}
-
-.nav__links {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.nav__link {
-  position: relative;
-  padding: 8px 15px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  border-radius: 999px;
-  letter-spacing: 0.1em;
-  color: var(--text-2);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.25s, background 0.25s, box-shadow 0.25s;
-}
-
-.nav__link:hover {
-  color: var(--text);
-  background: rgba(216, 178, 90, 0.08);
-}
-
-/* 当前区块 / 当前页面高亮 */
-.nav__link.is-current {
-  color: var(--gold-lt);
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(216, 178, 90, 0.16), rgba(216, 178, 90, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.26), 0 0 20px -10px var(--gold-glow);
-}
-
-.nav__link.is-current::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 1px;
-  width: 16px;
-  height: 2px;
-  transform: translateX(-50%);
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold-lt), transparent);
-  box-shadow: 0 0 10px rgba(216, 178, 90, 0.9);
-  animation: nav-glow 2.6s ease-in-out infinite;
-}
-
-@keyframes nav-glow {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.nav__user {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 12px 6px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--line-soft);
-  background: rgba(4, 7, 13, 0.55);
-  cursor: pointer;
-  user-select: none;
-  transition: border-color 0.25s, box-shadow 0.25s;
-}
-
-.nav__user:hover {
-  border-color: rgba(216, 178, 90, 0.45);
-  box-shadow: 0 0 18px -6px var(--gold-glow);
-}
-
-.nav__user-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-serif);
-  font-size: 13px;
-  color: #1a1206;
-  background: linear-gradient(180deg, var(--gold-lt), var(--gold));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.nav__user-name {
-  font-size: 12.5px;
-  letter-spacing: 0.06em;
-  color: var(--text);
-  max-width: 96px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav__user-caret {
-  color: var(--text-4);
-  transition: transform 0.25s;
-}
-
-.nav__user:hover .nav__user-caret {
-  color: var(--gold);
-}
-
-.nav__menu {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  width: 208px;
-  border-radius: var(--r-md);
-  background: linear-gradient(165deg, rgba(20, 28, 46, 0.96), rgba(8, 12, 22, 0.98));
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-
-.nav__menu-head {
-  padding: 13px 16px 11px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.nav__menu-name {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  letter-spacing: 0.1em;
-  color: var(--gold-lt);
-}
-
-.nav__menu-meta {
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-4);
-}
-
-.nav__menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 16px;
-  font-size: 12.5px;
-  letter-spacing: 0.05em;
-  color: var(--text-2);
-  background: none;
-  border: 0;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.nav__menu-item:hover {
-  background: rgba(216, 178, 90, 0.08);
-  color: var(--text);
-}
-
-.nav__menu-item.is-danger:hover {
-  background: rgba(179, 39, 45, 0.14);
-  color: var(--blood-lt);
-}
-
-.drop-enter-active,
-.drop-leave-active {
-  transition: opacity 0.22s, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.drop-enter-from,
-.drop-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 
 /* ================= 英雄区 ================= */
@@ -2752,20 +2357,6 @@ onBeforeUnmount(() => {
 }
 
 /* ================= 响应式 ================= */
-@media (max-width: 860px) {
-  .nav__links {
-    display: none;
-  }
-
-  .nav__inner {
-    justify-content: space-between;
-  }
-
-  .nav__clock {
-    display: none;
-  }
-}
-
 @media (max-width: 560px) {
   .home__body {
     padding: 20px 16px 22px;
@@ -2781,10 +2372,6 @@ onBeforeUnmount(() => {
   }
 
   .search__btn span {
-    display: none;
-  }
-
-  .nav__user-name {
     display: none;
   }
 
@@ -3242,59 +2829,6 @@ onBeforeUnmount(() => {
   .roster__grid {
     grid-template-columns: 1fr;
   }
-}
-
-/* ================= 学院邮戳 ================= */
-.stamp {
-  flex: 0 0 auto;
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(216, 178, 90, 0.5);
-  font-family: var(--font-serif);
-  font-style: normal;
-  font-size: 10px;
-  color: var(--gold-dp);
-  user-select: none;
-}
-
-.stamp::before {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  border: 1px dashed rgba(216, 178, 90, 0.38);
-}
-
-.stamp--sm {
-  width: 16px;
-  height: 16px;
-  font-size: 8px;
-}
-
-.stamp--lg {
-  width: 36px;
-  height: 36px;
-  font-size: 15px;
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.6);
-}
-
-/* ================= 右上角学院时钟 ================= */
-.nav__clock {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--text-4);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 /* ================= 顶部公告横幅 ================= */

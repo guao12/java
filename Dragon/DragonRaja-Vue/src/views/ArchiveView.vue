@@ -10,14 +10,15 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
-import { getUser } from '@/utils/auth'
+import SiteNav from '@/components/SiteNav.vue'
 import {
   LEVELS,
   hasClearance,
   level,
   levelLabel,
   nextLevel,
-  points
+  points,
+  pointsTo
 } from '@/utils/clearance'
 import {
   ARCHIVE_ARMS,
@@ -30,23 +31,13 @@ import {
 const router = useRouter()
 const route = useRoute()
 
-const user = getUser()
-const codename = user?.codename || '未知混血种'
-
-/* ---------------- 顶部导航 ---------------- */
-const NAV = [
-  { label: '学院首页', to: '/home' },
-  { label: '执行部任务', to: '/missions' },
-  { label: '档案室', to: '/archive' },
-  { label: '血统鉴定', to: '/appraisal' },
-  { label: '我的身份卡', to: '/console' }
-]
-
-function isCurrent(to) {
-  return route.path === to
-}
+/** 跨页跳转：顶部导航由 SiteNav 统一渲染，这里给正文里的跳转按钮复用 */
 function go(to) {
-  if (to !== route.path) router.push(to)
+  if (to === route.path) {
+    showToast('已在当前页面')
+    return
+  }
+  router.push(to)
 }
 
 /* ---------------- 权限状态 ---------------- */
@@ -55,33 +46,46 @@ const lvLabel = computed(() => levelLabel.value)
 const next = computed(() => nextLevel.value)
 const progress = computed(() => (lv.value >= LEVELS.length ? 100 : (next.value?.pct ?? 100)))
 
-/** 解锁提示语 */
+/** 解锁提示语：按目标密级实际门槛计算，还差多少权限点 */
 function needText(req) {
-  const remain = next.value?.remain ?? 0
-  const target = LEVELS.find((l) => l.value === req)?.label || '更高'
   if (lv.value >= req) return ''
-  return `需「${target}」密级 · 尚缺 ${Math.max(remain, 1)} 权限点`
+  const target = LEVELS.find((l) => l.value === req)?.label || '更高'
+  return `需「${target}」密级 · 还差 ${pointsTo(req)} 权限点`
 }
 
-/** 点击封存内容：给出明确提示（避免"点了没反应"） */
+/** 轻提示：点击封存内容 / 停留在当前页时给出明确反馈（避免"点了没反应"） */
 const toast = ref('')
 let toastTimer = 0
-function lockHint(req) {
-  const t = needText(req)
-  toast.value = t ? `该内容已封存 · ${t} · 去执行部完成任务即可解锁` : '该内容已封存'
+function showToast(text) {
+  toast.value = text
   clearTimeout(toastTimer)
-  toastTimer = window.setTimeout(() => (toast.value = ''), 2800)
+  toastTimer = window.setTimeout(() => (toast.value = ''), 4000)
+}
+
+/** 点击封存内容：抖动被点区域 + 弹提示，让点击有可见反馈 */
+function lockHint(e, req) {
+  const el = e?.currentTarget
+  if (el && el.classList) {
+    el.classList.remove('is-shake')
+    // 强制 reflow，让抖动动画可以重复触发
+    void el.offsetWidth
+    el.classList.add('is-shake')
+  }
+  const t = needText(req)
+  showToast(
+    t ? `该内容已封存 · ${t} · 去「执行部任务」完成任务即可解锁` : '该内容已封存'
+  )
 }
 onBeforeUnmount(() => clearTimeout(toastTimer))
 
 /** 点击卡片头部：已解锁则展开，未解锁则提示 */
-function onKingHead(k) {
+function onKingHead(e, k) {
   if (hasClearance(k.req)) toggleKing(k.code)
-  else lockHint(k.req)
+  else lockHint(e, k.req)
 }
-function onPersonHead(p) {
+function onPersonHead(e, p) {
   if (hasClearance(p.req)) togglePerson(p.key)
-  else lockHint(p.req)
+  else lockHint(e, p.req)
 }
 
 /* ---------------- 分卷切换 ---------------- */
@@ -126,37 +130,8 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
   <div class="arc">
     <RuneBackground />
 
-    <!-- ============ 顶部导航 ============ -->
-    <header class="arc__nav">
-      <div class="arc__nav-inner">
-        <div class="arc__brand">
-          <DragonEmblem class="arc__mark" />
-          <div class="arc__brand-text">
-            <span class="arc__brand-cn">卡塞尔学院</span>
-            <span class="arc__brand-en">Cassell College</span>
-          </div>
-        </div>
-
-        <nav class="arc__links">
-          <button
-            v-for="item in NAV"
-            :key="item.to"
-            type="button"
-            class="arc__link"
-            :class="{ 'is-current': isCurrent(item.to) }"
-            :aria-current="isCurrent(item.to) ? 'page' : undefined"
-            @click="go(item.to)"
-          >
-            {{ item.label }}
-          </button>
-        </nav>
-
-        <div class="arc__user" :title="codename">
-          <span class="arc__user-avatar">{{ codename.slice(0, 1) }}</span>
-          <span class="arc__user-name">{{ codename }}</span>
-        </div>
-      </div>
-    </header>
+    <!-- ============ 顶部导航：与首页同源 ============ -->
+    <SiteNav />
 
     <!-- ============ 主体 ============ -->
     <main class="arc__body">
@@ -207,9 +182,10 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 
       <!-- 密级不足时的显著提示 -->
       <div v-if="lv < 4" class="notice">
-        <AppIcon name="alert" :size="15" />
+        <AppIcon name="lock" :size="15" />
         <span>
-          当前为「{{ lvLabel }}」密级 · 档案室中的<em>情报条目、性格 / 武器 / 言灵、任务过程与结果、荣誉与身世</em>按密级分层解锁
+          档案室大部分内容已按密级<em>封存</em>：当前「{{ lvLabel }}」密级 ·
+          完成「执行部任务」累积权限点即可解锁（3 点升「内部」· 8 点升「机密」· 15 点升「绝密」）
         </span>
         <button type="button" class="notice__go" @click="go('/missions')">
           <AppIcon name="arrow" :size="13" /> 去完成任务累积权限点
@@ -244,7 +220,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
             class="kcard"
             :class="{ 'is-locked': !hasClearance(k.req) }"
           >
-            <div class="kcard__top" @click="onKingHead(k)">
+            <div class="kcard__top" @click="onKingHead($event, k)">
               <div class="kcard__id">
                 <span class="kcard__code">{{ k.code }}</span>
                 <span class="kcard__threat" :data-t="k.threat">{{ k.threat }}</span>
@@ -292,7 +268,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
                 </div>
               </template>
 
-              <div v-else class="kcard__locked" @click="lockHint(k.req)">
+              <div v-else class="kcard__locked" @click="lockHint($event, k.req)">
                 <AppIcon name="lock" :size="16" />
                 <span>情报条目已封存 · {{ needText(k.req) }}</span>
                 <button type="button" class="kcard__unlock" @click.stop="go('/missions')">
@@ -343,7 +319,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
             :data-tone="p.tone"
             :class="{ 'is-locked': !hasClearance(p.req), 'is-open': openKey === p.key }"
           >
-            <div class="person__top" @click="onPersonHead(p)">
+            <div class="person__top" @click="onPersonHead($event, p)">
               <div class="person__avatar"><span>{{ p.name.slice(0, 1) }}</span></div>
               <div class="person__id">
                 <h3>{{ p.name }}</h3>
@@ -450,7 +426,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 
                 </template>
 
-                <div v-else class="kcard__locked" @click="lockHint(p.req)">
+                <div v-else class="kcard__locked" @click="lockHint($event, p.req)">
                   <AppIcon name="lock" :size="16" />
                   <span>完整档案已封存 · {{ needText(p.req) }}</span>
                   <button type="button" class="kcard__unlock" @click.stop="go('/missions')">
@@ -492,7 +468,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
               </div>
               <p class="acard__status">状态：{{ a.status }}</p>
             </template>
-            <div v-else class="acard__locked" @click="lockHint(a.req)">
+            <div v-else class="acard__locked" @click="lockHint($event, a.req)">
               <AppIcon name="lock" :size="16" />
               <span>武器详情已封存 · {{ needText(a.req) }}</span>
             </div>
@@ -524,7 +500,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
               <p class="log__p"><i>执行过程</i>{{ m.process }}</p>
               <p class="log__r"><i>完成结果</i>{{ m.result }}</p>
             </template>
-            <div v-else class="log__lock" @click="lockHint(m.req)">
+            <div v-else class="log__lock" @click="lockHint($event, m.req)">
               <AppIcon name="lock" :size="14" /> 过程与结果已封存 · {{ needText(m.req) }}
             </div>
           </article>
@@ -550,123 +526,6 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
   position: relative;
   z-index: 1;
   min-height: 100%;
-}
-
-/* ================= 顶部导航 ================= */
-.arc__nav {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  width: 100%;
-  padding: 14px 24px;
-  background: linear-gradient(180deg, rgba(5, 7, 13, 0.92), rgba(5, 7, 13, 0.55));
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border-bottom: 1px solid var(--line-soft);
-  animation: fade-down 0.7s 0.05s both;
-}
-
-.arc__nav-inner {
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.arc__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.arc__mark {
-  width: 34px;
-  height: 34px;
-  filter: drop-shadow(0 0 10px rgba(216, 178, 90, 0.5));
-  animation: spin 46s linear infinite;
-}
-
-.arc__brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.arc__brand-cn {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  letter-spacing: 0.26em;
-  color: var(--gold-lt);
-}
-
-.arc__brand-en {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--text-4);
-  text-transform: uppercase;
-}
-
-.arc__links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.arc__link {
-  position: relative;
-  padding: 8px 16px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 0.28s, background 0.28s, box-shadow 0.28s;
-}
-
-.arc__link:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.arc__link.is-current {
-  color: var(--gold-lt);
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(216, 178, 90, 0.16), rgba(216, 178, 90, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.26), 0 0 20px -10px var(--gold-glow);
-}
-
-.arc__user {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 14px;
-  border-left: 1px solid var(--line-soft);
-}
-
-.arc__user-avatar {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-family: var(--font-serif);
-  font-size: 13px;
-  color: var(--gold-lt);
-  background: rgba(216, 178, 90, 0.1);
-  border: 1px solid rgba(216, 178, 90, 0.4);
-}
-
-.arc__user-name {
-  font-size: 12.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-2);
 }
 
 /* ================= 主体 ================= */
@@ -1257,14 +1116,41 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 11px 22px;
   border-radius: 999px;
   border: 1px solid rgba(216, 178, 90, 0.45);
   background: linear-gradient(165deg, rgba(33, 28, 47, 0.96), rgba(14, 11, 23, 0.98));
   box-shadow: 0 16px 40px -20px rgba(0, 0, 0, 0.9), 0 0 24px -12px var(--gold-glow);
-  font-size: 12.5px;
+  font-size: 13px;
   letter-spacing: 0.06em;
   color: var(--gold-lt);
+}
+
+/* 点击封存内容时的抖动反馈：证明点击已生效 */
+.kcard__locked.is-shake,
+.person__locked.is-shake,
+.acard__locked.is-shake,
+.log__lock.is-shake {
+  animation: lock-shake 0.5s ease;
+}
+
+@keyframes lock-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
 }
 
 .toast-enter-active,
@@ -1800,14 +1686,6 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 @media (max-width: 720px) {
   .block--split {
     grid-template-columns: 1fr;
-  }
-
-  .arc__nav-inner {
-    flex-wrap: wrap;
-  }
-
-  .arc__user {
-    display: none;
   }
 
   .arc__title {
