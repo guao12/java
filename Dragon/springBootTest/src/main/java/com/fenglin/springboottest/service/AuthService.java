@@ -25,10 +25,10 @@ public interface AuthService {
     /** 下发注册验证码（5 分钟有效，60 秒冷却），演示环境回显验证码 */
     RegisterCodeVO sendRegisterCode(String clientKey);
 
-    /** 身份认证：学号/邮箱查找 → 校验密钥 → 累计登录 → 签发 JWT */
+    /** 身份认证：学号查找 → 校验密钥 → 累计登录 → 签发 JWT */
     LoginVO login(LoginDTO dto);
 
-    /** 账号是否已登记（附带脱敏邮箱） */
+    /** 账号是否已登记（返回行动代号） */
     CheckAccountVO checkAccount(String account);
 
     /** 下发 6 位验证龙文（5 分钟有效，60 秒冷却），演示环境回显验证码 */

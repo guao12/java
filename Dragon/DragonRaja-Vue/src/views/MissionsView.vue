@@ -13,7 +13,8 @@ import {
   level,
   levelLabel,
   nextLevel,
-  points
+  points,
+  records
 } from '@/utils/clearance'
 import { generateMissions } from '@/data/missions'
 
@@ -48,24 +49,63 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 
 /* ---------------- 执行部任务看板 ---------------- */
 
-/** 看板任务（刷新时重新生成） */
-const board = ref(generateMissions(6))
+/** 一次下发的任务数量 */
+const BATCH = 6
+/** 「已完成」栏默认展示的记录条数（其余折叠为一行统计） */
+const DONE_SHOW = 8
+
+/** 看板任务（刷新时重新下发；自己已领取的任务会保留） */
+const board = ref(generateMissions(BATCH))
 /** 已领取任务编号集合（会话内状态，刷新页面后重置） */
 const claimed = reactive(new Set())
 
-/** 刷新看板：重新下发一批任务，清空本次已领取状态 */
+/** 刷新中：按钮禁用 + 图标旋转 */
+const refreshing = ref(false)
+/** 最近一次刷新时间 */
+const lastRefresh = ref(new Date())
+let refreshTimer = 0
+onBeforeUnmount(() => clearTimeout(refreshTimer))
+
+const pad2 = (n) => String(n).padStart(2, '0')
+const refreshedAt = computed(() => {
+  const d = lastRefresh.value
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+})
+
+/**
+ * 刷新看板：重新下发一批「未完成」任务，
+ * 但保留自己已领取（进行中）的任务，已完成记录存在 localStorage 里，刷新不受影响。
+ */
 function refreshBoard() {
-  board.value = generateMissions(6)
-  claimed.clear()
-  showToast('看板已刷新 · 新任务已下发')
+  if (refreshing.value) return
+  refreshing.value = true
+  clearTimeout(refreshTimer)
+  refreshTimer = window.setTimeout(() => {
+    const keep = board.value.filter((m) => claimed.has(m.code))
+    const keptCodes = new Set(keep.map((m) => m.code))
+    const fresh = generateMissions(BATCH).filter((m) => !keptCodes.has(m.code))
+    const rest = fresh.slice(0, Math.max(BATCH - keep.length, 0))
+    board.value = [...keep, ...rest]
+    lastRefresh.value = new Date()
+    refreshing.value = false
+    showToast(
+      keep.length
+        ? `看板已刷新 · 新下发 ${rest.length} 项，保留 ${keep.length} 项进行中`
+        : `看板已刷新 · 新任务 ${rest.length} 项已下发`
+    )
+  }, 620)
+}
+
+/** 是否可领取：招募中且尚未领取 */
+function canClaim(m) {
+  return m.status === '招募中' && !claimed.has(m.code) && !isCompleted(m.code)
 }
 
 /** 点击任务卡：招募中 → 领取；已领取 / 已完成 / 封存 不响应卡片点击 */
 function claimMission(m) {
-  if (m.status !== '招募中' || isCompleted(m.code)) return
-  if (claimed.has(m.code)) return
+  if (!canClaim(m)) return
   claimed.add(m.code)
-  showToast(`已领取 ${m.code} · ${m.name}`)
+  showToast(`已领取 ${m.code} · ${m.name}（已转入「进行中」）`)
 }
 
 /** 放弃已领取的任务（交还名额，不计权限点） */
@@ -76,11 +116,14 @@ function abandonMission(m) {
   }
 }
 
-/** 完成任务：登记编号 + 累加权限点（同一编号不重复计入） */
+/** 完成任务：登记编号 + 累加权限点，卡片从「进行中」移入「已完成」并落盘 */
 function finishMission(m) {
   if (!claimed.has(m.code)) return
-  const gain = completeMission(m.code, m.rank)
+  const gain = completeMission(m.code, m.rank, m)
   claimed.delete(m.code)
+  // 已写入「已完成」记录，看板里不再保留这张卡（避免与记录栏重复）
+  const idx = board.value.findIndex((x) => x.code === m.code)
+  if (idx > -1) board.value.splice(idx, 1)
   if (gain > 0) {
     showToast(
       `${m.code} 已完成 · 权限点 +${gain}（${points.value} 点 / ${lvLabel.value} 密级）`
@@ -96,6 +139,75 @@ function stateOf(m) {
   if (claimed.has(m.code)) return '已领取'
   return m.status
 }
+
+/** 卡片是否处于「已完成」态（含本地记录回显的卡片） */
+function isDoneCard(m) {
+  return m.status === '已完成' || isCompleted(m.code)
+}
+
+/** 任务归属：已完成 / 进行中 / 未完成 */
+function groupOf(m) {
+  if (m.status === '已完成' || m.status === '已完结' || m.status === '封存') return 'done'
+  if (isCompleted(m.code)) return 'done'
+  if (claimed.has(m.code) || m.status === '进行中') return 'doing'
+  return 'todo'
+}
+
+/** 看板内卡片按归属分桶 */
+const buckets = computed(() => {
+  const b = { todo: [], doing: [], done: [] }
+  for (const m of board.value) b[groupOf(m)].push(m)
+  return b
+})
+
+/** 已完成栏：先展示自己完成的（本地记录，新的在前），再挂看板里的已完结 / 封存卡 */
+const doneItems = computed(() => [
+  ...records.value.slice(0, DONE_SHOW),
+  ...buckets.value.done
+])
+
+/** 折叠掉的历史完成记录条数 */
+const doneMore = computed(() => Math.max(records.value.length - DONE_SHOW, 0))
+
+/** 三栏看板：未完成（可领取）/ 进行中 / 已完成 */
+const groups = computed(() => [
+  {
+    key: 'todo',
+    title: '未完成',
+    hint: '招募中 · 点击卡片领取',
+    tone: 'gold',
+    empty: '暂无待领取任务 · 点右上角「刷新看板」',
+    items: buckets.value.todo
+  },
+  {
+    key: 'doing',
+    title: '进行中',
+    hint: '已领取 · 可完成或放弃',
+    tone: 'ice',
+    empty: '暂无进行中任务 · 从「未完成」栏领取',
+    items: buckets.value.doing
+  },
+  {
+    key: 'done',
+    title: '已完成',
+    hint: '已结项 / 已归档',
+    tone: 'green',
+    empty: '暂无已完成任务 · 完成进行中的任务后归入本栏',
+    items: doneItems.value,
+    // 徽标显示总数（含折叠记录），列表只渲染最近 DONE_SHOW 条
+    count: records.value.length + buckets.value.done.length,
+    more: doneMore.value
+  }
+])
+
+/** 各栏任务数（用于标题统计） */
+const counts = computed(() => ({
+  todo: buckets.value.todo.length,
+  doing: buckets.value.doing.length,
+  done: records.value.length + buckets.value.done.length
+}))
+
+const total = computed(() => counts.value.todo + counts.value.doing + counts.value.done)
 
 /** 该任务完成可获得的权限点 */
 function gainOf(m) {
@@ -123,9 +235,6 @@ function gainOf(m) {
               卡塞尔学院执行部任务招募 · 招募中可点击领取，已领取可完成或放弃 · 完成任务累积权限点
             </p>
           </div>
-          <button type="button" class="ms__refresh ms__refresh--hero" @click="refreshBoard">
-            <AppIcon name="refresh" :size="14" /> 刷新看板
-          </button>
         </div>
       </section>
 
@@ -160,78 +269,116 @@ function gainOf(m) {
         </div>
       </section>
 
-      <!-- 执行部任务看板 -->
+      <!-- 执行部任务看板：未完成 / 进行中 / 已完成 三栏 -->
       <section class="ms__board">
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="sparkle" :size="15" /> 执行部任务看板</h2>
           <div class="shelf__ops">
-            <span class="shelf__more">共 {{ board.length }} 项任务 · 完成得权限点</span>
-            <button type="button" class="ms__refresh" @click="refreshBoard">
-              <AppIcon name="refresh" :size="13" /> 刷新
+            <span class="shelf__more">
+              共 {{ total }} 项 · 未完成 {{ counts.todo }} · 进行中 {{ counts.doing }} · 已完成
+              {{ counts.done }}
+            </span>
+            <span class="ms__stamp">最近刷新 {{ refreshedAt }}</span>
+            <button
+              type="button"
+              class="ms__refresh"
+              :class="{ 'is-loading': refreshing }"
+              :disabled="refreshing"
+              @click="refreshBoard"
+            >
+              <AppIcon name="refresh" :size="14" :stroke="1.8" />
+              {{ refreshing ? '刷新中…' : '刷新看板' }}
             </button>
           </div>
         </header>
 
-        <div class="missions__grid">
-          <article
-            v-for="m in board"
-            :key="m.code"
-            class="mcard"
-            :data-rank="m.rank"
-            :data-status="stateOf(m)"
-            :class="{ 'is-joined': claimed.has(m.code), 'is-done': isCompleted(m.code) }"
-            role="button"
-            tabindex="0"
-            @click="claimMission(m)"
-            @keydown.enter.prevent="claimMission(m)"
-            @keydown.space.prevent="claimMission(m)"
-          >
-            <div class="mcard__top">
-              <span class="mcard__code">{{ m.code }}</span>
-              <span class="mcard__status">{{ stateOf(m) }}</span>
-            </div>
-            <h3 class="mcard__name">{{ m.name }}</h3>
-            <p class="mcard__desc">{{ m.desc }}</p>
-            <div class="rcard__perks mcard__tags">
-              <span v-for="t in m.tags" :key="t">{{ t }}</span>
-            </div>
-            <div class="mcard__foot">
-              <span class="mcard__region">{{ m.region }}</span>
-              <span class="mcard__rank">{{ m.rank }}</span>
-            </div>
-            <div class="mcard__reward">{{ m.reward }}</div>
+        <div class="board">
+          <section v-for="g in groups" :key="g.key" class="lane" :data-tone="g.tone">
+            <header class="lane__head">
+              <span class="lane__dot" />
+              <h3 class="lane__title">{{ g.title }}</h3>
+              <span class="lane__count">{{ g.count ?? g.items.length }}</span>
+              <span class="lane__hint">{{ g.hint }}</span>
+            </header>
 
-            <!-- 操作区：已完成 / 已领取 / 招募中 三态 -->
-            <div class="mcard__actions">
-              <span v-if="isCompleted(m.code)" class="mcard__done">
-                <AppIcon name="check" :size="12" /> 已完成 · 权限点 +{{ gainOf(m) }}
-              </span>
-              <template v-else-if="claimed.has(m.code)">
-                <button
-                  type="button"
-                  class="mcard__finish"
-                  @click.stop="finishMission(m)"
-                  @keydown.enter.stop.prevent="finishMission(m)"
-                  @keydown.space.stop.prevent="finishMission(m)"
-                >
-                  <AppIcon name="check" :size="12" /> 完成 (+{{ gainOf(m) }})
-                </button>
-                <button
-                  type="button"
-                  class="mcard__cancel"
-                  @click.stop="abandonMission(m)"
-                  @keydown.enter.stop.prevent="abandonMission(m)"
-                  @keydown.space.stop.prevent="abandonMission(m)"
-                >
-                  <AppIcon name="close" :size="12" /> 放弃
-                </button>
-              </template>
-              <span v-else-if="m.status === '招募中'" class="mcard__tip">点击卡片领取</span>
-              <span v-else class="mcard__tip">{{ m.status }} · 不可领取</span>
-            </div>
+            <div class="lane__list">
+              <article
+                v-for="m in g.items"
+                :key="m.code"
+                class="mcard"
+                :data-rank="m.rank"
+                :data-status="stateOf(m)"
+                :class="{
+                  'is-joined': claimed.has(m.code),
+                  'is-done': isDoneCard(m),
+                  'is-clickable': canClaim(m)
+                }"
+                :role="canClaim(m) ? 'button' : null"
+                :tabindex="canClaim(m) ? 0 : null"
+                @click="claimMission(m)"
+                @keydown.enter.prevent="claimMission(m)"
+                @keydown.space.prevent="claimMission(m)"
+              >
+                <div class="mcard__top">
+                  <span class="mcard__code">{{ m.code }}</span>
+                  <span class="mcard__status">{{ stateOf(m) }}</span>
+                </div>
+                <h3 class="mcard__name">{{ m.name }}</h3>
+                <p class="mcard__desc">{{ m.desc }}</p>
+                <div class="rcard__perks mcard__tags">
+                  <span v-for="t in m.tags" :key="t">{{ t }}</span>
+                </div>
+                <div class="mcard__foot">
+                  <span class="mcard__region">{{ m.region }}</span>
+                  <span class="mcard__rank">{{ m.rank }}</span>
+                </div>
+                <div class="mcard__reward">{{ m.reward }}</div>
 
-            <p class="mcard__issued">{{ m.issued }}</p>
-          </article>
+                <!-- 操作区：已完成 / 已领取 / 招募中 三态 -->
+                <div class="mcard__actions">
+                  <span v-if="isDoneCard(m)" class="mcard__done">
+                    <AppIcon name="check" :size="12" /> 已完成 · 权限点 +{{ gainOf(m) }}
+                  </span>
+                  <template v-else-if="claimed.has(m.code)">
+                    <button
+                      type="button"
+                      class="mcard__finish"
+                      @click.stop="finishMission(m)"
+                      @keydown.enter.stop.prevent="finishMission(m)"
+                      @keydown.space.stop.prevent="finishMission(m)"
+                    >
+                      <AppIcon name="check" :size="12" /> 完成 (+{{ gainOf(m) }})
+                    </button>
+                    <button
+                      type="button"
+                      class="mcard__cancel"
+                      @click.stop="abandonMission(m)"
+                      @keydown.enter.stop.prevent="abandonMission(m)"
+                      @keydown.space.stop.prevent="abandonMission(m)"
+                    >
+                      <AppIcon name="close" :size="12" /> 放弃
+                    </button>
+                  </template>
+                  <span v-else-if="m.status === '招募中'" class="mcard__tip">点击卡片领取</span>
+                  <span v-else-if="m.status === '进行中'" class="mcard__tip">
+                    执行小组执行中 · 不可领取
+                  </span>
+                  <span v-else class="mcard__tip">{{ m.status }} · 不可领取</span>
+                </div>
+
+                <p class="mcard__issued">{{ m.issued }}</p>
+              </article>
+
+              <p v-if="!g.items.length" class="lane__empty">
+                <AppIcon name="info" :size="13" />
+                <span>{{ g.empty }}</span>
+              </p>
+
+              <p v-if="g.more" class="lane__more">
+                另有 {{ g.more }} 条历史完成记录 · 权限点已计入
+              </p>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -350,26 +497,139 @@ function gainOf(m) {
   color: var(--text-4);
 }
 
-/* ================= 执行部任务看板 ================= */
-.missions__grid {
+/* ================= 执行部任务看板：三栏 ================= */
+.board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  grid-auto-rows: 1fr; /* 行内等高，网格对齐 */
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(22, 18, 36, 0.6), rgba(9, 7, 16, 0.5));
+}
+
+/* 每栏的主色（分隔线 / 圆点 / 计数徽标共用） */
+.lane[data-tone='gold'] {
+  --lane: 216, 178, 90;
+}
+.lane[data-tone='ice'] {
+  --lane: 127, 212, 255;
+}
+.lane[data-tone='green'] {
+  --lane: 95, 211, 154;
+}
+
+.lane__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(var(--lane), 0.24);
+}
+
+.lane__dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgb(var(--lane));
+  box-shadow: 0 0 10px rgba(var(--lane), 0.85);
+}
+
+.lane__title {
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.lane__count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--lane), 0.42);
+  background: rgba(var(--lane), 0.1);
+  color: rgb(var(--lane));
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.lane__hint {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-4);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lane__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 空栏提示 */
+.lane__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 28px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: var(--r-md);
+  font-size: 11.5px;
+  line-height: 1.7;
+  letter-spacing: 0.05em;
+  color: var(--text-4);
+  text-align: center;
+}
+
+.lane__empty svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+/* 折叠的历史完成记录提示 */
+.lane__more {
+  padding: 8px 4px 2px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-4);
+  text-align: center;
 }
 
 .mcard {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 18px 20px 16px;
+  padding: 16px 17px 14px;
   border-radius: var(--r-lg);
   border: 1px solid var(--line-soft);
   background: linear-gradient(165deg, rgba(33, 28, 47, 0.85), rgba(14, 11, 23, 0.94));
   box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.05), 0 0 22px -14px rgba(216, 178, 90, 0.3);
   overflow: hidden;
-  cursor: pointer;
   transition: border-color 0.28s, transform 0.28s, box-shadow 0.28s;
+}
+
+/* 只有可领取的卡片才表现为可点击 */
+.mcard.is-clickable {
+  cursor: pointer;
 }
 
 /* 等高卡片：末块沉底 */
@@ -392,8 +652,13 @@ function gainOf(m) {
 }
 
 .mcard:hover {
-  border-color: rgba(216, 178, 90, 0.45);
-  transform: translateY(-5px) scale(1.012);
+  border-color: rgba(216, 178, 90, 0.34);
+  box-shadow: 0 20px 46px -26px rgba(0, 0, 0, 0.92), 0 0 26px -14px rgba(216, 178, 90, 0.55);
+}
+
+.mcard.is-clickable:hover {
+  border-color: rgba(216, 178, 90, 0.55);
+  transform: translateY(-4px) scale(1.008);
   animation: card-glow 2.4s ease-in-out infinite;
 }
 
@@ -578,10 +843,13 @@ function gainOf(m) {
   content: '已领取 · ';
 }
 
-/* 已领取卡片：取消按钮 */
+/* 已领取卡片：操作按钮（完成 / 放弃） */
 .mcard__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 10px;
 }
 
@@ -683,31 +951,60 @@ function gainOf(m) {
   color: var(--text-4);
 }
 
-/* 看板操作区（条数 + 刷新按钮） */
+/* 看板操作区（统计 + 刷新时间 + 刷新按钮） */
 .shelf__ops {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ms__stamp {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-4);
+  white-space: nowrap;
 }
 
 .ms__refresh {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 15px;
+  gap: 7px;
+  padding: 7px 17px;
   border-radius: 999px;
-  border: 1px solid rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.1);
+  border: 1px solid rgba(216, 178, 90, 0.55);
+  background: linear-gradient(180deg, rgba(216, 178, 90, 0.24), rgba(216, 178, 90, 0.08));
+  box-shadow: 0 0 20px -12px var(--gold-glow), inset 0 0 0 1px rgba(242, 220, 155, 0.12);
   color: var(--gold-lt);
   font-size: 12px;
+  font-family: var(--font-mono);
   letter-spacing: 0.1em;
   cursor: pointer;
-  transition: background 0.24s, transform 0.2s;
+  white-space: nowrap;
+  transition: background 0.24s, border-color 0.24s, box-shadow 0.24s, transform 0.2s;
 }
 
-.ms__refresh:hover {
-  background: rgba(216, 178, 90, 0.22);
+.ms__refresh:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(216, 178, 90, 0.38), rgba(216, 178, 90, 0.14));
+  border-color: rgba(216, 178, 90, 0.9);
+  box-shadow: 0 0 26px -10px var(--gold-glow), inset 0 0 0 1px rgba(242, 220, 155, 0.2);
   transform: translateY(-1px);
+}
+
+.ms__refresh:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ms__refresh:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+/* 刷新中：图标旋转 */
+.ms__refresh.is-loading svg {
+  animation: spin 0.7s linear infinite;
 }
 
 /* ================= 权限进度面板 ================= */
@@ -900,15 +1197,32 @@ function gainOf(m) {
 }
 
 /* ================= 响应式 ================= */
-@media (max-width: 560px) {
-  .missions__grid {
+@media (max-width: 960px) {
+  /* 三栏收拢为纵向排列，卡片改用整行宽度 */
+  .board {
     grid-template-columns: 1fr;
+  }
+
+  .lane__hint {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .shelf__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .shelf__ops {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .ms__title {
     font-size: 22px;
   }
-
 }
 
 /* ================= 尊重系统的「减少动态效果」设置 ================= */

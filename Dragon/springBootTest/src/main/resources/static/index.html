@@ -51,9 +51,9 @@
     <table>
         <tr><th>方法</th><th>路径</th><th>说明</th><th>鉴权</th></tr>
         <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/register</code></td><td>新生登记，返回签发的学号</td><td>否</td></tr>
-        <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/login</code></td><td>身份认证，返回 JWT + 身份卡</td><td>否</td></tr>
-        <tr><td><span class="tag get">GET</span></td><td><code>/api/auth/check-account</code></td><td>账号是否已登记（脱敏邮箱）</td><td>否</td></tr>
-        <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/reset/send</code></td><td>下发验证龙文（5 分钟有效，60 秒冷却）</td><td>否</td></tr>
+        <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/login</code></td><td>身份认证（凭学号或姓名），返回 JWT + 身份卡</td><td>否</td></tr>
+        <tr><td><span class="tag get">GET</span></td><td><code>/api/auth/check-account</code></td><td>账号是否已登记（返回行动代号）</td><td>否</td></tr>
+        <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/reset/send</code></td><td>下发验证龙文（凭学号或姓名，5 分钟有效，60 秒冷却）</td><td>否</td></tr>
         <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/reset/confirm</code></td><td>校验验证龙文并重置密钥</td><td>否</td></tr>
         <tr><td><span class="tag get">GET</span></td><td><code>/api/auth/dictionaries</code></td><td>在校身份 / 言灵字典</td><td>否</td></tr>
         <tr><td><span class="tag get">GET</span></td><td><code>/api/user/profile</code></td><td>我的身份卡</td><td><span class="tag jwt">JWT</span></td></tr>
@@ -62,7 +62,7 @@
     </table>
 
     <p class="note">
-        演示账号：<code>CC20260001</code>（或 <code>luffy.cassell@cassell.edu</code>），密钥 <code>Dragon@2026</code><br/>
+        演示账号：<code>CC20260001</code>，密钥 <code>Dragon@2026</code><br/>
         统一响应体 <code>{code, message, data}</code>，<code>code == 0</code> 表示成功；数据库初始化脚本见 <code>sql/dragon_raja.sql</code>
     </p>
 </div>

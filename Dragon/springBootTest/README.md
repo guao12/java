@@ -14,7 +14,7 @@
 | 持久层 | MyBatis-Plus 3.5.9 | `mybatis-plus-spring-boot3-starter`（注意是 boot3 版本） |
 | 数据库 | MySQL 8.0 | 库名 `dragon_raja`，账号 root / 123456 |
 | 连接池 | HikariCP | MyBatis-Plus starter 自带 |
-| 参数校验 | spring-boot-starter-validation | `@Valid` + `@NotBlank` / `@Email` / `@Pattern` |
+| 参数校验 | spring-boot-starter-validation | `@Valid` + `@NotBlank` / `@Pattern` |
 | 密码加密 | spring-security-crypto | 只引 BCrypt 工具，不引整套 Security 过滤器链 |
 | 鉴权 | jjwt 0.12.6（HS256） | 无状态 JWT，前端 `Authorization: Bearer <token>` |
 
@@ -107,7 +107,7 @@ npm run dev     # http://127.0.0.1:5177
 前端通过 Vite 代理把 `/api/**` 转发到 `http://127.0.0.1:8082`，
 **不存在跨域问题，也不用改前端请求地址**。后端端口若变更，同步改 `vite.config.js` 的 `VITE_API_TARGET`。
 
-演示账号：`CC20260001`（或 `luffy.cassell@cassell.edu`）+ `Dragon@2026`。
+演示账号：`CC20260001` + `Dragon@2026`。
 
 ---
 

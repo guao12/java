@@ -91,9 +91,7 @@ function syncCaps(e) {
   if (typeof e.getModifierState === 'function') capsOn.value = e.getModifierState('CapsLock')
 }
 
-const CODE_RE = /^[A-Za-z0-9_-]{4,20}$/
-
-/* ---- 编号自动规整：去空格 + 自动大写 ---- */
+/* ---- 编号自动规整：去空格 + 自动大写（学号适用；中文姓名不受影响） ---- */
 watch(
   () => form.account,
   (v) => {
@@ -105,8 +103,9 @@ watch(
 
 function validateAccount() {
   const v = form.account.trim()
-  if (!v) return '请输入账号'
-  return CODE_RE.test(v) ? '' : '账号应为 4–20 位字母、数字或下划线'
+  if (!v) return '请输入学号或姓名'
+  if (v.length > 20) return '长度不超过 20 个字符'
+  return ''
 }
 
 function validatePassword() {
@@ -410,9 +409,9 @@ onBeforeUnmount(() => {
 
             <FormField
               v-model="form.account"
-              label="账号"
+              label="学号 / 姓名"
               icon="id"
-              placeholder="例：CC20260001"
+              placeholder="例：CC20260001 或 路明非"
               autocomplete="username"
               :error="touched.account ? errors.account : ''"
               :valid="accountValid"

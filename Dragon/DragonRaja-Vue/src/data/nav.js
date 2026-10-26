@@ -13,9 +13,16 @@ export const SITE_NAV = [
   { label: '学院机构', to: '/home', id: 'sec-org' },
   { label: '档案室', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
   { label: '任务', to: '/missions' },
-  { label: '血统鉴定', to: '/appraisal' },
-  { label: '后台管理', to: '/admin', match: ['/admin'] }
+  { label: '血统鉴定', to: '/appraisal' }
 ]
+
+/**
+ * 后台管理系统入口。
+ * 不混在 SITE_NAV 里 —— 它渲染成导航栏右侧的独立描边按钮（带盾牌图标），
+ * 与前台区块菜单区分开。点进去由路由守卫决定落点：
+ * 已登录管理员 → /admin；未登录 → /admin/login（登录页只有登录，没有注册）。
+ */
+export const ADMIN_ENTRY = { label: '后台管理', to: '/admin' }
 
 /** 首页路由：品牌点击与锚点跳转的默认落点 */
 export const HOME_PATH = '/home'

@@ -10,6 +10,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.stream.Collectors;
 
@@ -53,6 +56,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public R<Void> handleMissingParam(MissingServletRequestParameterException e) {
         return R.fail("缺少必要参数：" + e.getParameterName());
+    }
+
+    /**
+     * 未知的 API 路径：返回 404 而不是兜底 500，避免把"路径写错"误报成"服务器错误"。
+     * 非 /api/ 路径（静态资源等）重新抛出，由 Spring 默认处理为 404。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public R<Void> handleNoResource(NoResourceFoundException e, HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path != null && path.startsWith("/api/")) {
+            log.warn("接口不存在：{}", path);
+            return R.fail(404, "接口不存在：" + path);
+        }
+        throw e;
     }
 
     /** 兜底：任何未捕获的异常 */

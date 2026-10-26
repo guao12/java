@@ -15,7 +15,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
 import { clearSession, getUser } from '@/utils/auth'
-import { HOME_PATH, SITE_NAV } from '@/data/nav'
+import { isAdminLoggedIn } from '@/utils/adminAuth'
+import { ADMIN_ENTRY, HOME_PATH, SITE_NAV } from '@/data/nav'
 
 const props = defineProps({
   items: { type: Array, default: () => SITE_NAV },
@@ -129,6 +130,21 @@ function onNav(item) {
   router.push(item.to)
 }
 
+/* ---------------- 后台管理系统入口 ---------------- */
+
+/** 已登录管理员时按钮文案带上「已登录」，进后台不再被守卫拦 */
+const adminReady = computed(() => isAdminLoggedIn())
+const onAdmin = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
+
+/**
+ * 跳后台：统一 push /admin。
+ * 路由守卫会兜底 —— 无管理员令牌时自动转 /admin/login，已登录则直接进。
+ */
+function goAdmin() {
+  closeMenu()
+  router.push(ADMIN_ENTRY.to)
+}
+
 /* ---------------- 滚动高亮（仅首页区块） ---------------- */
 
 let spyRaf = 0
@@ -197,6 +213,20 @@ onBeforeUnmount(() => {
           {{ item.label }}
         </button>
       </nav>
+
+      <!-- 后台管理系统入口：独立描边按钮，未登录时由路由守卫转 /admin/login -->
+      <button
+        type="button"
+        class="nav__admin"
+        :class="{ 'is-current': onAdmin }"
+        :aria-current="onAdmin ? 'page' : undefined"
+        :title="adminReady ? '进入后台管理系统' : '前往后台管理系统登录页（仅限授权管理员）'"
+        @click="goAdmin"
+      >
+        <AppIcon name="shield" :size="14" :stroke="1.8" />
+        <span class="nav__admin-text">{{ ADMIN_ENTRY.label }}</span>
+        <i v-if="adminReady" class="nav__admin-dot" title="管理员已登录" />
+      </button>
 
       <!-- 学院标准时间（右上角 · 邮戳标识） -->
       <div class="nav__clock" title="卡塞尔学院 · 标准时间">
@@ -363,6 +393,54 @@ onBeforeUnmount(() => {
   }
 }
 
+/* ===== 后台管理系统入口按钮 ===== */
+.nav__admin {
+  flex: 0 0 auto;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.42);
+  background: linear-gradient(135deg, rgba(216, 178, 90, 0.13), rgba(216, 178, 90, 0.03));
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  color: var(--gold-lt);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+
+.nav__admin:hover {
+  color: #f6e7bd;
+  border-color: rgba(216, 178, 90, 0.75);
+  box-shadow: 0 0 20px -8px var(--gold-glow);
+  transform: translateY(-1px);
+}
+
+.nav__admin:active {
+  transform: translateY(0);
+}
+
+/* 已在后台时高亮 */
+.nav__admin.is-current {
+  color: #fff6df;
+  border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(216, 178, 90, 0.3), rgba(216, 178, 90, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.35), 0 0 22px -10px var(--gold-glow);
+}
+
+/* 管理员已登录标记 */
+.nav__admin-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold-lt);
+  box-shadow: 0 0 8px var(--gold-glow);
+}
+
 .nav__clock {
   flex: 0 0 auto;
   display: inline-flex;
@@ -524,6 +602,15 @@ onBeforeUnmount(() => {
 @media (max-width: 560px) {
   .nav__user-name {
     display: none;
+  }
+
+  /* 窄屏只留盾牌图标，标题仍说明用途 */
+  .nav__admin-text {
+    display: none;
+  }
+
+  .nav__admin {
+    padding: 7px 10px;
   }
 }
 </style>

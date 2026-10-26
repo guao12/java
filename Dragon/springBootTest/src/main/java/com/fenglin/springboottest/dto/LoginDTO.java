@@ -6,14 +6,15 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 身份认证（登录）请求。
  * 前端 LoginView.vue 提交字段：account / password / remember。
- * account 支持学号（CC20260001）、学院邮箱；@JsonAlias 兼容 username 字段名。
+ * account 为学院编号（学号，如 CC20260001）或行动代号（姓名）；@JsonAlias 兼容 username 字段名。
+ * 登录支持学号或姓名（邮箱已全链路移除）。
  *
  * @author fenglin
  */
 public class LoginDTO {
 
-    /** 学号 / 学院邮箱 */
-    @NotBlank(message = "请输入学号 / 邮箱 / 执行部编号")
+    /** 学院编号（学号）或行动代号（姓名） */
+    @NotBlank(message = "请输入学号或姓名")
     @JsonAlias({"username"})
     private String account;
 

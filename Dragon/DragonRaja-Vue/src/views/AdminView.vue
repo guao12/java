@@ -13,7 +13,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import GlowButton from '@/components/GlowButton.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import { adminApi } from '@/api/admin'
-import { clearAdminSession, getAdminName, saveAdminSession } from '@/utils/adminAuth'
+import { clearAdminSession, getAdminName } from '@/utils/adminAuth'
 
 const router = useRouter()
 

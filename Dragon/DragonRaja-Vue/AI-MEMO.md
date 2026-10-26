@@ -151,6 +151,17 @@ if not defined MYSQL_EXE goto NO_MYSQL
 
 排查技巧：看日志里 `Preparing:` 那一行，转义没被还原说明块外写了 `&lt;`。
 
+### 坑 8（2026-10-26 新踩）：admin 拦截器排除路径过宽，导致 /me 空指针 + 鉴权绕过
+
+`WebMvcConfig` 给 `adminInterceptor` 配 `.excludePathPatterns("/api/admin/auth/**")`，本意是放行登录接口，
+但前缀通配把整个 auth 子路径（含 `/api/admin/auth/me`）都放过了：
+
+- `/me` 没被注入 `CurrentAdmin` → `AdminAuthController.me()` 里 `CurrentAdmin.get()` 为 null → NPE，返回 500；
+- 更糟的是 `/api/admin/**` 下其它接口也漏掉了鉴权，无令牌时不会返回 401（鉴权被绕过）。
+
+**修复**：精确到具体接口 `.excludePathPatterns("/api/admin/auth/login");`
+**教训**：`excludePathPatterns` 用前缀通配（`/xxx/**`）会误伤同前缀下的其它接口，只排除真正要放行的那一两个接口即可。
+
 ---
 
 ## 1.5 写 .bat 脚本必须避开的 3 个 cmd 坑（本项目已实测踩过）
@@ -300,12 +311,12 @@ Dragon/
 | GET | `/api/user/profile` | 我的身份卡 | 是 |
 | POST | `/api/user/logout` | 退出登录 | 是 |
 | GET | `/api/health` | 健康检查（**文案有误导性，见 §1**） | 否 |
-| GET | `/api/search` | **预留位：首页档案检索**。后端未实现，前端回退本地演示数据 | 否 |
+| GET | `/api/search` | 首页档案检索（关键词 + 两级分类 + 密级分级 + 排序 + 分页 + 分面统计），已落地（见 §5.3） | 否 |
 
 > **首页说明（2026-10-15 新增）**：登录成功后跳转 `/home`（HomeView.vue）。
 > 含导航栏（品牌 + 菜单 + 用户下拉/退出）和搜索栏；风格与登录页同源（theme.css 设计令牌）。
 > `/api/search?keyword=xxx` 是后端预留接口，实现后前端自动切换真实数据（api/search.js）。
-> **登录已改为纯学号体系（邮箱已全链路移除）**：演示账号 `CC20260001` / 密钥 `Dragon@2026`。
+> **登录与密钥重置均支持「学号或姓名」**（邮箱已全链路移除）：演示账号 `CC20260001`（或姓名「路明非」）/ 密钥 `Dragon@2026`。
 
 ---
 
@@ -366,6 +377,62 @@ Dragon/
 - 卷宗详情用 `Teleport to="body"` 的弹窗，支持 ESC 与点遮罩关闭。
 
 ---
+
+## 5.4 后台管理系统（2026-10-26 完成）
+
+**入口**：首页导航栏右侧独立的描边按钮「后台管理」（盾牌图标），配置在 `data/nav.js` 的 `ADMIN_ENTRY`，
+由 `components/SiteNav.vue` 渲染 —— **它不在 `SITE_NAV` 数组里**，是单独一个按钮，视觉上与前台区块菜单区分。
+
+### 三个页面
+
+| 路由 | 文件 | 说明 |
+| --- | --- | --- |
+| `/admin/login` | `views/AdminLoginView.vue` | **只有登录，没有注册入口**。管理员账号由 SQL 预置 |
+| `/admin` | `views/AdminView.vue` | 言灵图鉴数据管理（列表 / 新增 / 编辑 / 删除） |
+
+- 路由守卫（`router/index.js`）：`/admin` 带 `meta.adminAuth`，无管理员令牌 → `/admin/login`；
+  已登录管理员访问 `/admin/login` → 直接进 `/admin`。所以导航栏按钮**一律 push `/admin`**，落点交给守卫。
+- 初始账号：**`admin` / `Dragon@2026`**（昵称「执行部管理员」），见 `sql/dragon_raja_admin.sql`。
+
+### 数据表（`sql/dragon_raja_admin.sql`，双击 `初始化后台管理.bat` 建表）
+
+- `dr_admin` —— 管理员账号，BCrypt 密文，status=0 封禁
+- `dr_spirit` —— 言灵图鉴。**注意列名避保留字**：`spirit_key`/`intro`，
+  Java 属性 `spiritKey`/`intro`，靠 `@JsonProperty` 在 JSON 里仍输出 `key`/`desc`
+  → 前端拿到的字段名与原来静态 `SPIRIT_GALLERY` 完全一致，不用改消费方。
+
+### 前后台数据流（关键）
+
+```
+后台 /admin  ──CRUD──>  dr_spirit 表
+                            │
+                            └─ GET /api/home/spirits（仅 status=1）
+                                    │
+首页「言灵图鉴」<── data/spiritStore.js（ensureSpirits 每次进首页重拉）
+```
+
+`spiritStore` 初值是内置静态数据，接口失败就保持静态兜底，永不白屏。
+
+### 鉴权双向隔离（别搞混）
+
+- 后台令牌存 `dr:admin:token`，学员令牌存 `dr:token`（`utils/adminAuth.js` vs `utils/auth.js`），互不影响。
+- `AdminInterceptor` 拦 `/api/admin/**`、放行 `/api/admin/auth/**`；令牌 `scope=admin`。
+- **实测**：学员令牌调 `/api/admin/spirit/list` → 401「后台登录状态已失效」；无令牌 → 401「尚未携带后台令牌」。
+- 前台 `/api/home/spirits` 挂 `OptionalAuthInterceptor` 软鉴权，不登录也能看。
+
+### 接口
+
+| 方法 | 路径 | 说明 | 鉴权 |
+| --- | --- | --- | --- |
+| POST | `/api/admin/auth/login` | 管理员登录 | 否 |
+| GET | `/api/admin/auth/me` | 当前管理员 | 是 |
+| GET | `/api/admin/spirit/list` | 全部言灵（含隐藏） | 是 |
+| POST | `/api/admin/spirit` | 新增 | 是 |
+| PUT | `/api/admin/spirit/{id}` | 编辑 | 是 |
+| DELETE | `/api/admin/spirit/{id}` | 删除（逻辑删除） | 是 |
+| GET | `/api/home/spirits` | 前台图鉴（仅展示中） | 软鉴权 |
+
+> 插画约定：`public/img/spirit/<key>.webp`，后台改 key 后要同步放图，否则首页卡片空白。
 
 ## 5.5 登录页增强（2026-10-15）
 
@@ -517,6 +584,8 @@ npm run dev          # 端口 5177
 
 ---
 
-*最后更新：2026-10-15（三）· 本轮变更：新增档案库 5 张表 + 首页展示（通报/统计/两级分类/精选·热门·最新）+ 分级分类检索（关键词+两级分类+密级分级+排序+分页+分面统计）+ 卷宗详情弹窗；后端新增 OptionalAuthInterceptor 软鉴权与 SecurityLevel 密级体系*
+*最后更新：2026-10-26（一）· 本轮变更：登录与密钥重置均支持「学号或姓名」；全链路清理邮箱误导文案；修复后台管理 `/api/admin/auth/me` 空指针（根因：admin 拦截器排除路径过宽，见坑 8）与由此漏掉的鉴权；修正 AI-MEMO 旧描述"登录纯学号体系"与"/api/search 未实现"；产出可部署前端 `dist/`*
+
+> **上一条（2026-10-15）**：新增档案库 5 张表 + 首页展示 + 分级分类检索 + 卷宗详情弹窗；后端新增 OptionalAuthInterceptor 软鉴权与 SecurityLevel 密级体系
 
 > **上一条（同日早些时候）**：项目迁至 Desktop\Dragon（前后端平级）、首页 /home 上线（导航栏+搜索栏，/api/search 预留）、登录改纯学号体系、脚本后端路径改 `..\springBootTest`

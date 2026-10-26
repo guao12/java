@@ -29,15 +29,13 @@ const expireSeconds = ref(0)
 const cooldown = ref(0)
 let cooldownTimer = 0
 
-const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/
-const CODE_RE = /^[A-Za-z0-9_-]{4,20}$/
 const STRENGTH_LABEL = ['——', '脆弱', '一般', '良好', '坚不可摧']
 
 function validateAccount() {
   const v = form.account.trim()
-  if (!v) return '请输入账号 / 邮箱'
-  if (v.includes('@')) return EMAIL_RE.test(v) ? '' : '邮箱格式不正确'
-  return CODE_RE.test(v) ? '' : '账号应为 4–20 位字母、数字或下划线'
+  if (!v) return '请输入学号或姓名'
+  if (v.length > 20) return '长度不超过 20 个字符'
+  return ''
 }
 
 const RULES = {
@@ -192,9 +190,9 @@ function goLogin() {
     <form v-if="step === 1" class="form" novalidate @submit.prevent="sendCode">
       <FormField
         v-model="form.account"
-        label="账号 / 邮箱"
+        label="学号 / 姓名"
         icon="id"
-        placeholder="例：Luffy.Cassell 或 name@cassell.edu"
+        placeholder="例：CC20260001 或 路明非"
         autocomplete="username"
         :error="touched.account ? errors.account : ''"
         @blur="check('account'); checkAccountExists()"

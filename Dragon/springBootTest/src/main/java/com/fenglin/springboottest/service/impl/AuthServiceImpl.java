@@ -221,8 +221,8 @@ public class AuthServiceImpl implements AuthService {
     public LoginVO login(LoginDTO dto) {
         String input = dto.getAccount().trim();
 
-        // 1. 按学号查找（纯学号体系）
-        DrUser user = userMapper.selectByAccount(input);
+        // 1. 按学号或行动代号（姓名）查找（二者在库中均唯一）
+        DrUser user = resolveUser(input);
         // 统一提示语，避免暴露"该账号是否存在"
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             throw new BizException("学号或言灵密钥不正确");
@@ -255,9 +255,9 @@ public class AuthServiceImpl implements AuthService {
     public CheckAccountVO checkAccount(String account) {
         String input = account == null ? "" : account.trim();
         if (input.isEmpty()) {
-            throw new BizException("请输入学号");
+            throw new BizException("请输入学号或姓名");
         }
-        DrUser user = userMapper.selectByAccount(input);
+        DrUser user = resolveUser(input);
         if (user == null) {
             return new CheckAccountVO(false, null);
         }
@@ -333,13 +333,21 @@ public class AuthServiceImpl implements AuthService {
         log.info("言灵密钥已重铸：学号={}", user.getAccount());
     }
 
-    /** 学号 → 用户 */
-    private DrUser resolveUser(String account) {
-        String input = account == null ? "" : account.trim();
+    /**
+     * 身份标识 → 用户：先按学号匹配，再按行动代号（姓名）匹配。
+     * 二者在库中均唯一（学号由系统签发、代号注册时去重），故可唯一确定一位用户。
+     * 重置密钥、校验身份等场景统一走这里，支持"凭学号或姓名即可操作"。
+     */
+    private DrUser resolveUser(String identifier) {
+        String input = identifier == null ? "" : identifier.trim();
         if (input.isEmpty()) {
             return null;
         }
-        return userMapper.selectByAccount(input);
+        DrUser user = userMapper.selectByAccount(input);
+        if (user == null) {
+            user = userMapper.selectByCodename(input);
+        }
+        return user;
     }
 
     // ------------------------------------------------------------

@@ -11,7 +11,7 @@
  Target Server Version : 80039 (8.0.39)
  File Encoding         : 65001
 
- Date: 23/10/2026 15:07:05
+ Date: 26/10/2026 09:51:10
 */
 
 SET NAMES utf8mb4;
@@ -34,12 +34,12 @@ CREATE TABLE `dr_admin`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_username`(`username` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '后台管理员表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '后台管理员表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_admin
 -- ----------------------------
-INSERT INTO `dr_admin` VALUES (1, 'admin', '$2b$10$zo3PuzhEXRCmi/CgCZzvnOhCTVo8X9Bb7SDjnSfJkO6VZOuksD5W2', '执行部管理员', 1, 0, 2, '2026-10-23 15:01:25', '2026-10-23 14:52:37', '2026-10-23 15:01:24');
+INSERT INTO `dr_admin` VALUES (1, 'admin', '$2b$10$zo3PuzhEXRCmi/CgCZzvnOhCTVo8X9Bb7SDjnSfJkO6VZOuksD5W2', '执行部管理员', 1, 0, 9, '2026-10-26 09:24:06', '2026-10-23 14:52:37', '2026-10-26 09:24:05');
 
 -- ----------------------------
 -- Table structure for dr_archive
@@ -70,12 +70,12 @@ CREATE TABLE `dr_archive`  (
   INDEX `idx_cat`(`category_id` ASC, `security_level` ASC) USING BTREE,
   INDEX `idx_heat`(`heat` ASC) USING BTREE,
   INDEX `idx_time`(`create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 36 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案主表（含密级分级）' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 36 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案主表（含密级分级）' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_archive
 -- ----------------------------
-INSERT INTO `dr_archive` VALUES (1, 'AR-P-001', '路明非', '卡塞尔学院 2026 级新生，学院史上首位 S 级评估的混血种，血统来源至今不明。', '路明非，男，2026 级新生。入学血统评级为 S，是本校自建校以来第一位在入学鉴定中即取得 S 级评价的学生。其血统谱系无法追溯至任何已知混血种家族，基因组比对结果与现存所有龙王系谱均存在部分吻合，原因待查。目前已进入执行部重点关注名单。', 1001, 2001, 2, 'S', '混血种,S级,新生,执行部重点关注', '学院教务处', 3860, 98, 1, 1, 0, '2026-10-23 14:23:32', '2026-10-23 14:23:32');
+INSERT INTO `dr_archive` VALUES (1, 'AR-P-001', '路明非', '卡塞尔学院 2026 级新生，学院史上首位 S 级评估的混血种，血统来源至今不明。', '路明非，男，2026 级新生。入学血统评级为 S，是本校自建校以来第一位在入学鉴定中即取得 S 级评价的学生。其血统谱系无法追溯至任何已知混血种家族，基因组比对结果与现存所有龙王系谱均存在部分吻合，原因待查。目前已进入执行部重点关注名单。', 1001, 2001, 2, 'S', '混血种,S级,新生,执行部重点关注', '学院教务处', 3862, 98, 1, 1, 0, '2026-10-23 14:23:32', '2026-10-26 08:56:42');
 INSERT INTO `dr_archive` VALUES (2, 'AR-P-002', '楚子航', '执行部王牌专员，代号「村雨」，持言灵·风王之瞳，剑术精湛。', '楚子航，执行部 A 级专员，行动代号「村雨」。持有瞳术系言灵·风王之瞳，可洞穿幻象与谎言。擅长近身剑术，参与过多次高危任务，是执行部现存战力评估最高的专员之一。性格冷静自持，任务完成率 100%。', 1001, 2003, 2, 'A', '执行部,言灵使,村雨,瞳术', '执行部人事科', 3240, 95, 1, 1, 0, '2026-10-23 14:23:32', '2026-10-23 14:23:32');
 INSERT INTO `dr_archive` VALUES (3, 'AR-P-003', '芬格尔', '2026 级在校生，血统评级 B，以情报搜集与伪装渗透见长。', '芬格尔，2026 级在校生，血统评级 B。虽评级不高，但在情报搜集、伪装渗透与社交工程方面展现出极高天赋，多次为执行部提供关键线索。其持有的言灵·时零在实战中主要用于脱离与规避。', 1001, 2001, 1, 'B', '在校生,情报,伪装,时零', '学院教务处', 1580, 62, 0, 1, 0, '2026-10-23 14:23:32', '2026-10-23 14:23:32');
 INSERT INTO `dr_archive` VALUES (4, 'AR-P-004', '凯撒·加图索', '执行部资深专员，血统评级 A，擅长正面攻坚与战术指挥。', '凯撒·加图索，执行部资深专员，血统评级 A。出身于意大利混血种世家加图索家族，家族与学院合作历史超过一百年。擅长正面攻坚与小组战术指挥，持有火系言灵。其家族背景使其在外部势力交涉中具有不可替代的作用。', 1001, 2003, 2, 'A', '执行部,加图索家族,攻坚,指挥', '执行部人事科', 2410, 80, 0, 1, 0, '2026-10-23 14:23:32', '2026-10-23 14:23:32');
@@ -128,7 +128,7 @@ CREATE TABLE `dr_archive_category`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_code`(`code` ASC) USING BTREE,
   INDEX `idx_parent`(`parent_id` ASC, `sort_no` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案分类表（两级：parent_id=0 为一级）' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案分类表（两级：parent_id=0 为一级）' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_archive_category
@@ -169,7 +169,7 @@ CREATE TABLE `dr_hot_keyword`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_keyword`(`keyword` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 9 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '热门检索词' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 9 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '热门检索词' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_hot_keyword
@@ -204,7 +204,7 @@ CREATE TABLE `dr_notice`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_code`(`code` ASC) USING BTREE,
   INDEX `idx_publish`(`pinned` ASC, `publish_at` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '首页公告 / 学院通报' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '首页公告 / 学院通报' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_notice
@@ -226,12 +226,20 @@ CREATE TABLE `dr_reset_code`  (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下发时间',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_account`(`account` ASC, `create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '密钥重置验证码表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '密钥重置验证码表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_reset_code
 -- ----------------------------
 INSERT INTO `dr_reset_code` VALUES (1, 'REGf4c00e74d4f942d0', '954588', '2026-10-23 14:53:49', 1, '2026-10-23 14:48:49');
+INSERT INTO `dr_reset_code` VALUES (2, 'REG498a4529512f2acb', '185567', '2026-10-26 08:58:27', 0, '2026-10-26 08:53:27');
+INSERT INTO `dr_reset_code` VALUES (3, 'CC20260001', '459723', '2026-10-26 09:01:13', 1, '2026-10-26 08:56:13');
+INSERT INTO `dr_reset_code` VALUES (4, 'CC20260001', '359638', '2026-10-26 09:10:57', 1, '2026-10-26 09:05:57');
+INSERT INTO `dr_reset_code` VALUES (5, 'CC202600004', '122889', '2026-10-26 09:11:16', 1, '2026-10-26 09:06:16');
+INSERT INTO `dr_reset_code` VALUES (6, 'CC20260001', '349669', '2026-10-26 09:12:27', 1, '2026-10-26 09:07:27');
+INSERT INTO `dr_reset_code` VALUES (7, 'CC20260001', '938303', '2026-10-26 09:17:20', 0, '2026-10-26 09:12:20');
+INSERT INTO `dr_reset_code` VALUES (8, 'CC20260001', '365194', '2026-10-26 09:20:29', 0, '2026-10-26 09:15:28');
+INSERT INTO `dr_reset_code` VALUES (9, 'CC20260001', '283040', '2026-10-26 09:29:04', 0, '2026-10-26 09:24:04');
 
 -- ----------------------------
 -- Table structure for dr_search_log
@@ -250,7 +258,7 @@ CREATE TABLE `dr_search_log`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_keyword`(`keyword` ASC) USING BTREE,
   INDEX `idx_time`(`create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '检索日志' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '检索日志' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_search_log
@@ -262,6 +270,15 @@ INSERT INTO `dr_search_log` VALUES (4, 4, '', NULL, NULL, NULL, 18, '127.0.0.1',
 INSERT INTO `dr_search_log` VALUES (5, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-23 14:53:32');
 INSERT INTO `dr_search_log` VALUES (6, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-23 14:53:36');
 INSERT INTO `dr_search_log` VALUES (7, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-23 14:57:02');
+INSERT INTO `dr_search_log` VALUES (8, 1, '龙', NULL, NULL, NULL, 4, '127.0.0.1', '2026-10-26 08:56:13');
+INSERT INTO `dr_search_log` VALUES (9, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:08:50');
+INSERT INTO `dr_search_log` VALUES (10, NULL, '龙', NULL, NULL, NULL, 1, '127.0.0.1', '2026-10-26 09:24:05');
+INSERT INTO `dr_search_log` VALUES (11, NULL, '龙', NULL, NULL, NULL, 1, '127.0.0.1', '2026-10-26 09:24:28');
+INSERT INTO `dr_search_log` VALUES (12, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:29:11');
+INSERT INTO `dr_search_log` VALUES (13, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:36:11');
+INSERT INTO `dr_search_log` VALUES (14, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:40:53');
+INSERT INTO `dr_search_log` VALUES (15, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:46:15');
+INSERT INTO `dr_search_log` VALUES (16, 4, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-10-26 09:48:39');
 
 -- ----------------------------
 -- Table structure for dr_spirit
@@ -285,7 +302,7 @@ CREATE TABLE `dr_spirit`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_spirit_key`(`spirit_key` ASC) USING BTREE,
   INDEX `idx_sort`(`sort` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '言灵图鉴表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '言灵图鉴表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_spirit
@@ -327,14 +344,14 @@ CREATE TABLE `dr_user`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_account`(`account` ASC) USING BTREE,
   INDEX `idx_codename`(`codename` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_user
 -- ----------------------------
-INSERT INTO `dr_user` VALUES (1, 'CC20260001', '路明非', '$2b$10$zo3PuzhEXRCmi/CgCZzvnOhCTVo8X9Bb7SDjnSfJkO6VZOuksD5W2', 'freshman', 'junyan', 1, 0, 1, '2026-10-23 14:49:46', '2026-10-23 14:45:24', '2026-10-23 14:49:45');
+INSERT INTO `dr_user` VALUES (1, 'CC20260001', '路明非', '$2a$10$6Hzup9QGKCA9Hx8S4ouXKuGOVV27/2z4cb1.zpPYHgVP0hagU.SZS', 'freshman', 'junyan', 1, 0, 14, '2026-10-26 09:24:04', '2026-10-23 14:45:24', '2026-10-26 09:24:03');
 INSERT INTO `dr_user` VALUES (2, 'CC20260002', '楚子航', '$2b$10$EhhQtz0J7vukNhH3zCoBiew.9/FOuG9I/pE3uKWRR.7JcZxq150ou', 'executor', 'shiling', 1, 0, 0, NULL, '2026-10-23 14:45:24', '2026-10-23 14:45:24');
 INSERT INTO `dr_user` VALUES (3, 'CC20260003', '芬格尔', '$2b$10$aamVUE83rOCVisNGuH2TbOJHUrEfbXNcNzvwSOsmnASalROlxKlAC', 'student', 'fengwang', 1, 0, 0, NULL, '2026-10-23 14:45:24', '2026-10-23 14:45:24');
-INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$sEKZrmdJxgs/hdneGPlSwOpovnhmHzKlE0y4jRtOCOLqw6y5Q5zyq', 'freshman', 'none', 1, 0, 1, '2026-10-23 14:49:35', '2026-10-23 14:49:24', '2026-10-23 14:49:34');
+INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'freshman', 'none', 1, 0, 2, '2026-10-26 09:08:48', '2026-10-23 14:49:24', '2026-10-26 09:08:48');
 
 SET FOREIGN_KEY_CHECKS = 1;

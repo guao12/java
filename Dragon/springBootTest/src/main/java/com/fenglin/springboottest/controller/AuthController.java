@@ -28,9 +28,9 @@ import org.springframework.web.bind.annotation.RestController;
  * POST /api/auth/register        新生登记（签发学号）
  * POST /api/auth/register/send   下发注册验证码（系统直接给验证码，不发邮件）
  * POST /api/auth/login           身份认证（返回 JWT + 身份卡）
- * GET  /api/auth/check-account   账号是否已登记（脱敏邮箱）
- * POST /api/auth/reset/send      下发验证龙文（5 分钟有效，60 秒冷却）
- * POST /api/auth/reset/confirm   校验验证龙文并重置密钥
+ * GET  /api/auth/check-account   账号是否已登记（返回行动代号）
+ * POST /api/auth/reset/send      下发验证龙文（凭学号或姓名，5 分钟有效，60 秒冷却）
+ * POST /api/auth/reset/confirm   校验验证龙文并重置密钥（凭学号或姓名）
  * GET  /api/auth/dictionaries   在校身份 / 言灵字典（前后端共用 code）
  * </pre>
  *

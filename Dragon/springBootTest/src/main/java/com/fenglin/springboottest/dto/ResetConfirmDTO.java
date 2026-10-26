@@ -12,8 +12,8 @@ import jakarta.validation.constraints.Size;
  */
 public class ResetConfirmDTO {
 
-    /** 学号 / 学院邮箱 */
-    @NotBlank(message = "请输入学号 / 邮箱")
+    /** 学号 或 行动代号（姓名） */
+    @NotBlank(message = "请输入学号或姓名")
     private String account;
 
     /** 6 位数字验证龙文 */

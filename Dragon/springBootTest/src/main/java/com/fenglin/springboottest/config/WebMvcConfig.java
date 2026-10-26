@@ -53,6 +53,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 后台管理系统：除登录接口外全部需要管理员令牌
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/api/admin/**")
-                .excludePathPatterns("/api/admin/auth/**");
+                .excludePathPatterns("/api/admin/auth/login");
     }
 }
