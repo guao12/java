@@ -171,6 +171,7 @@ public class AdminServiceImpl implements AdminService {
         spirit.setIntro(dto.getDesc());
         spirit.setHolder(dto.getHolder() == null ? "" : dto.getHolder());
         spirit.setNote(dto.getNote() == null ? "" : dto.getNote());
+        spirit.setImageUrl(dto.getImageUrl() == null ? "" : dto.getImageUrl().trim());
         spirit.setSort(dto.getSort() == null ? 0 : dto.getSort());
         spirit.setStatus(dto.getStatus() == null ? 1 : dto.getStatus());
     }

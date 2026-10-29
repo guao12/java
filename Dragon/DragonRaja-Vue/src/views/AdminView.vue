@@ -7,7 +7,7 @@
  *  - 删除：二次确认（逻辑删除）
  * 数据接口见 src/api/admin.js，仅管理员令牌可访问。
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import GlowButton from '@/components/GlowButton.vue'
@@ -20,6 +20,32 @@ const router = useRouter()
 /* ---------------- 会话 ---------------- */
 
 const adminName = ref(getAdminName() || '管理员')
+
+/* ---------------- 侧边栏菜单 ---------------- */
+
+/** 当前菜单：spirits 言灵图鉴 / overview 数据概览 */
+const activeMenu = ref('spirits')
+
+const MENUS = [
+  { key: 'spirits', label: '言灵图鉴', desc: '条目增删改查', icon: 'flame' },
+  { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'info' }
+]
+
+/* ---------------- 数据概览统计 ---------------- */
+
+const stats = computed(() => {
+  const byLevel = Object.fromEntries(LEVELS.map((l) => [l, 0]))
+  for (const s of spirits.value) {
+    if (byLevel[s.level] !== undefined) byLevel[s.level] += 1
+  }
+  return {
+    total: spirits.value.length,
+    onShelf: spirits.value.filter((s) => s.status === 1).length,
+    hidden: spirits.value.filter((s) => s.status !== 1).length,
+    byLevel,
+    withUrl: spirits.value.filter((s) => s.imageUrl).length
+  }
+})
 
 /* ---------------- 列表 ---------------- */
 
@@ -73,11 +99,21 @@ const emptyForm = () => ({
   desc: '',
   holder: '',
   note: '',
+  imageUrl: '',
   sort: 0,
   status: 1
 })
 
 const form = reactive(emptyForm())
+
+/** 弹窗里网址图片预览加载失败标记（换网址时自动重置） */
+const modalImgBroken = ref(false)
+watch(
+  () => form.imageUrl,
+  () => {
+    modalImgBroken.value = false
+  }
+)
 
 function openCreate() {
   editingId.value = null
@@ -97,11 +133,23 @@ function openEdit(s) {
     desc: s.desc,
     holder: s.holder || '',
     note: s.note || '',
+    imageUrl: s.imageUrl || '',
     sort: s.sort ?? 0,
     status: s.status ?? 1
   })
   modalError.value = ''
   showModal.value = true
+}
+
+/** 插画来源：图片网址优先，其次本地 /img/spirit/<key>.webp */
+function spiritImg(s) {
+  return s.imageUrl || `/img/spirit/${s.key}.webp`
+}
+
+/** 插画加载失败时隐藏 <img>，用首字占位 */
+const brokenImgs = reactive(new Set())
+function onThumbError(s) {
+  brokenImgs.value.add(s.key)
 }
 
 function checkForm() {
@@ -110,6 +158,8 @@ function checkForm() {
   if (!form.element.trim()) return '请填写元素系别'
   if (!form.effect.trim()) return '请填写言灵效果'
   if (!form.desc.trim()) return '请填写详细介绍'
+  const url = form.imageUrl.trim()
+  if (url && !/^https?:\/\/\S+$/.test(url)) return '图片网址必须以 http:// 或 https:// 开头，且不能含空格'
   return ''
 }
 
@@ -127,6 +177,7 @@ async function onSave() {
       desc: form.desc.trim(),
       holder: form.holder.trim(),
       note: form.note.trim(),
+      imageUrl: form.imageUrl.trim(),
       sort: Number(form.sort) || 0,
       status: Number(form.status) || 1
     }
@@ -195,10 +246,36 @@ onMounted(() => {
           <AppIcon name="shield" :size="18" />
           <div>
             <h1>后台管理系统</h1>
-            <p>言灵图鉴 · 数据管理</p>
+            <p>卡塞尔学院 · 数据管理</p>
           </div>
         </div>
-        <div class="adm__bar-side">
+      </div>
+    </header>
+
+    <!-- ============ 侧边栏 + 主体 ============ -->
+    <div class="adm__layout">
+      <aside class="adm__side">
+        <nav class="adm__nav">
+          <p class="adm__nav-cap">数据管理</p>
+          <button
+            v-for="m in MENUS"
+            :key="m.key"
+            type="button"
+            class="adm__nav-item"
+            :class="{ 'is-active': activeMenu === m.key }"
+            @click="activeMenu = m.key"
+          >
+            <AppIcon :name="m.icon" :size="15" />
+            <span class="adm__nav-txt">
+              <b>{{ m.label }}</b>
+              <em>{{ m.desc }}</em>
+            </span>
+            <i v-if="activeMenu === m.key" class="adm__nav-glow" />
+          </button>
+        </nav>
+
+        <div class="adm__side-foot">
+          <p class="adm__nav-cap">会话</p>
           <span class="adm__who">
             <i class="adm__who-dot" />
             {{ adminName }}
@@ -210,11 +287,11 @@ onMounted(() => {
             <AppIcon name="logout" :size="14" /> 退出登录
           </button>
         </div>
-      </div>
-    </header>
+      </aside>
 
-    <!-- ============ 主体 ============ -->
-    <main class="adm__body">
+      <main class="adm__body">
+        <!-- ============ 菜单：言灵图鉴 ============ -->
+        <template v-if="activeMenu === 'spirits'">
       <!-- 工具条 -->
       <div class="adm__tools">
         <label class="adm__search">
@@ -244,6 +321,7 @@ onMounted(() => {
           <thead>
             <tr>
               <th>排序</th>
+              <th>插画</th>
               <th>插画 Key</th>
               <th>言灵名</th>
               <th>元素</th>
@@ -256,7 +334,22 @@ onMounted(() => {
           <tbody>
             <tr v-for="s in filtered" :key="s.id">
               <td class="num">{{ s.sort }}</td>
-              <td><code class="key">{{ s.key }}</code></td>
+              <td>
+                <span v-if="brokenImgs.has(s.key)" class="thumb thumb--fallback">{{ s.name.slice(0, 1) }}</span>
+                <img
+                  v-else
+                  class="thumb"
+                  :src="spiritImg(s)"
+                  :alt="`插画 · ${s.name}`"
+                  loading="lazy"
+                  :title="s.imageUrl ? '图片来源：网址' : '图片来源：本地文件'"
+                  @error="onThumbError(s)"
+                />
+              </td>
+              <td>
+                <code class="key">{{ s.key }}</code>
+                <em v-if="s.imageUrl" class="key-url" title="使用图片网址">网址</em>
+              </td>
               <td class="name">{{ s.name }}</td>
               <td>{{ s.element }}</td>
               <td>
@@ -274,7 +367,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!loading && !filtered.length">
-              <td colspan="8" class="empty">
+              <td colspan="9" class="empty">
                 {{ listError ? '加载失败，请刷新重试' : '暂无数据，点击右上角「新增言灵」录入' }}
               </td>
             </tr>
@@ -285,9 +378,57 @@ onMounted(() => {
 
       <p class="adm__tip">
         <AppIcon name="alert" :size="13" />
-        插画按 <code>/img/spirit/&lt;key&gt;.webp</code> 命名放置；「隐藏」的条目前台（首页图鉴与详情页）不再展示，数据保留。
+        插画默认按 <code>/img/spirit/&lt;key&gt;.webp</code> 放置；填写「图片网址」后前台将优先加载该网址图片。「隐藏」的条目前台不再展示，数据保留。
       </p>
-    </main>
+        </template>
+
+        <!-- ============ 菜单：数据概览 ============ -->
+        <template v-else>
+          <div class="ov__grid">
+            <div class="ov__card">
+              <span class="ov__num">{{ stats.total }}</span>
+              <span class="ov__label">条目总数</span>
+            </div>
+            <div class="ov__card is-gold">
+              <span class="ov__num">{{ stats.onShelf }}</span>
+              <span class="ov__label">展示中</span>
+            </div>
+            <div class="ov__card is-dim">
+              <span class="ov__num">{{ stats.hidden }}</span>
+              <span class="ov__label">已隐藏</span>
+            </div>
+            <div class="ov__card is-gold">
+              <span class="ov__num">{{ stats.withUrl }}</span>
+              <span class="ov__label">使用图片网址</span>
+            </div>
+          </div>
+
+          <div class="ov__panel">
+            <header class="ov__head">
+              <h3><AppIcon name="info" :size="14" /> 密级分布</h3>
+              <span class="ov__head-note">按言灵密级统计条目数</span>
+            </header>
+            <div class="ov__rows">
+              <div v-for="l in LEVELS" :key="l" class="ov__row">
+                <span class="lv" :data-lv="l">{{ l }}</span>
+                <div class="ov__bar">
+                  <i
+                    class="ov__bar-fill"
+                    :style="{ width: `${stats.total ? Math.round((stats.byLevel[l] / stats.total) * 100) : 0}%` }"
+                  />
+                </div>
+                <b class="ov__bar-num">{{ stats.byLevel[l] }}</b>
+              </div>
+            </div>
+          </div>
+
+          <p class="adm__tip">
+            <AppIcon name="info" :size="13" />
+            数据实时来自「言灵图鉴」列表；在图鉴菜单中增删改后回到本页即可看到最新统计。
+          </p>
+        </template>
+      </main>
+    </div>
 
     <!-- ============ 新增 / 编辑弹窗 ============ -->
     <div v-if="showModal" class="adm__mask" @click.self="showModal = false">
@@ -348,6 +489,29 @@ onMounted(() => {
             <span>使用禁忌 / 备注</span>
             <textarea v-model.trim="form.note" rows="2" maxlength="200" placeholder="如 持续释放会灼伤自身血脉" />
           </label>
+
+          <div class="imgurl">
+            <label class="fld">
+              <span>插画图片网址 <em>* 可选，填写后前台优先加载该网址图片，留空则用本地 /img/spirit/&lt;key&gt;.webp</em></span>
+              <input
+                v-model.trim="form.imageUrl"
+                type="text"
+                maxlength="500"
+                inputmode="url"
+                placeholder="https://example.com/spirit.jpg"
+              />
+            </label>
+            <div class="imgurl__preview" :class="{ 'is-empty': !form.imageUrl.trim() || modalImgBroken }">
+              <img
+                v-if="form.imageUrl.trim() && !modalImgBroken"
+                :src="form.imageUrl"
+                alt="插画预览"
+                @error="modalImgBroken = true"
+              />
+              <span v-else-if="form.imageUrl.trim()" class="imgurl__empty">图片加载失败，请检查网址</span>
+              <span v-else class="imgurl__empty">网址预览</span>
+            </div>
+          </div>
 
           <div class="grid-2">
             <label class="fld">
@@ -495,13 +659,126 @@ onMounted(() => {
   border-color: rgba(179, 39, 45, 0.5);
 }
 
+/* ================= 侧边栏 + 主体布局 ================= */
+.adm__layout {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 22px 24px 46px;
+}
+
+.adm__side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  flex: 0 0 218px;
+  align-self: flex-start;
+  position: sticky;
+  top: 84px;
+  padding: 18px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(170deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
+  box-shadow: var(--shadow-card);
+}
+
+.adm__nav {
+  display: grid;
+  gap: 6px;
+}
+
+.adm__nav-cap {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding: 0 10px 4px;
+}
+
+.adm__nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.adm__nav-item:hover {
+  color: var(--gold-lt);
+  background: rgba(216, 178, 90, 0.06);
+}
+
+.adm__nav-item.is-active {
+  color: var(--gold-lt);
+  border-color: rgba(138, 106, 40, 0.55);
+  background: linear-gradient(180deg, rgba(216, 178, 90, 0.14), rgba(138, 106, 40, 0.08));
+}
+
+.adm__nav-glow {
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 999px;
+  background: var(--gold-lt);
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+
+.adm__nav-txt {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.adm__nav-txt b {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.adm__nav-txt em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+}
+
+.adm__side-foot {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+.adm__side-foot .adm__who {
+  padding: 0 10px;
+}
+
+.adm__side-foot .adm__link {
+  justify-content: flex-start;
+}
+
 /* ================= 主体 ================= */
 .adm__body {
   flex: 1;
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 26px 24px 46px;
+  min-width: 0;
+  padding-left: 26px;
 }
 
 .adm__tools {
@@ -623,6 +900,36 @@ onMounted(() => {
   color: var(--gold-lt);
   background: rgba(216, 178, 90, 0.09);
   border: 1px solid rgba(138, 106, 40, 0.4);
+}
+
+.key-url {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--gold-lt);
+  border: 1px dashed rgba(216, 178, 90, 0.5);
+  letter-spacing: 0.08em;
+}
+
+.thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(138, 106, 40, 0.45);
+  background: rgba(4, 7, 13, 0.6);
+}
+
+.thumb--fallback {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--text-3);
 }
 
 .adm__table .name {
@@ -758,6 +1065,148 @@ onMounted(() => {
   padding: 1px 6px;
   border-radius: 4px;
   background: rgba(216, 178, 90, 0.08);
+}
+
+/* ================= 图片网址表单 ================= */
+.imgurl {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  gap: 12px;
+  align-items: start;
+}
+
+.imgurl__preview {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--r-md);
+  border: 1px dashed rgba(216, 178, 90, 0.4);
+  background: rgba(4, 7, 13, 0.55);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.imgurl__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imgurl__empty {
+  font-size: 10.5px;
+  color: var(--text-4);
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 0 8px;
+  line-height: 1.6;
+}
+
+/* ================= 数据概览 ================= */
+.ov__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 13px;
+  margin-bottom: 16px;
+}
+
+.ov__card {
+  display: grid;
+  gap: 4px;
+  padding: 18px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(165deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
+  box-shadow: var(--shadow-card);
+}
+
+.ov__card.is-gold {
+  border-color: rgba(138, 106, 40, 0.55);
+}
+
+.ov__card.is-dim {
+  opacity: 0.75;
+}
+
+.ov__num {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  color: var(--gold-lt);
+  line-height: 1.1;
+}
+
+.ov__label {
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+}
+
+.ov__panel {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(165deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.ov__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ov__head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--gold-lt);
+}
+
+.ov__head-note {
+  font-size: 11px;
+  color: var(--text-4);
+  letter-spacing: 0.06em;
+}
+
+.ov__rows {
+  display: grid;
+  gap: 13px;
+  padding: 18px;
+}
+
+.ov__row {
+  display: grid;
+  grid-template-columns: 64px 1fr 40px;
+  align-items: center;
+  gap: 14px;
+}
+
+.ov__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.ov__bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(138, 106, 40, 0.9), var(--gold-lt));
+  box-shadow: 0 0 8px rgba(216, 178, 90, 0.35);
+  transition: width 0.4s ease;
+}
+
+.ov__bar-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: right;
 }
 
 /* ================= 弹窗 ================= */
@@ -919,6 +1368,40 @@ onMounted(() => {
 
   .adm__title p {
     display: none;
+  }
+
+  .adm__layout {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 14px 40px;
+  }
+
+  .adm__side {
+    position: static;
+    flex: none;
+  }
+
+  .adm__side-foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .adm__side-foot .adm__nav-cap {
+    display: none;
+  }
+
+  .adm__body {
+    padding-left: 0;
+  }
+
+  .ov__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ov__row {
+    grid-template-columns: 52px 1fr 34px;
   }
 }
 </style>

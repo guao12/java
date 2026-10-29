@@ -64,6 +64,10 @@ public class DrSpirit implements Serializable {
     @TableField("note")
     private String note;
 
+    /** 插画图片网址（http/https），非空时优先于本地 /img/spirit/<key>.webp */
+    @TableField("image_url")
+    private String imageUrl;
+
     /** 展示排序，越小越靠前 */
     @TableField("sort")
     private Integer sort;
@@ -160,6 +164,14 @@ public class DrSpirit implements Serializable {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public Integer getSort() {

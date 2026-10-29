@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public R<Void> handleNoResource(NoResourceFoundException e, HttpServletRequest request) {
+    public R<Void> handleNoResource(NoResourceFoundException e, HttpServletRequest request) throws NoResourceFoundException {
         String path = request.getRequestURI();
         if (path != null && path.startsWith("/api/")) {
             log.warn("接口不存在：{}", path);

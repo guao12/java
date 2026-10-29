@@ -839,7 +839,7 @@ onBeforeUnmount(() => {
             >
               <div class="gcard__img">
                 <img
-                  :src="`/img/spirit/${s.key}.webp`"
+                  :src="s.imageUrl || `/img/spirit/${s.key}.webp`"
                   :alt="`言灵 · ${s.name}`"
                   loading="lazy"
                   @error="onImgError"

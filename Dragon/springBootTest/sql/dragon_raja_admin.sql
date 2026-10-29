@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS `dr_spirit`
     `intro`       TEXT         NOT NULL COMMENT '详细介绍',
     `holder`      VARCHAR(100) NOT NULL DEFAULT '' COMMENT '典型持有者',
     `note`        VARCHAR(200) NOT NULL DEFAULT '' COMMENT '使用禁忌 / 备注',
+    `image_url`   VARCHAR(500) NOT NULL DEFAULT '' COMMENT '插画图片网址（http/https），非空时优先于本地 /img/spirit/<key>.webp',
     `sort`        INT          NOT NULL DEFAULT 0 COMMENT '展示排序，越小越靠前',
     `status`      TINYINT      NOT NULL DEFAULT 1 COMMENT '1=展示 0=隐藏',
     `deleted`     TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除：0=未删除 1=已删除',

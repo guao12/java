@@ -133,6 +133,15 @@ maven-mvnd-*) MVN_CMD=mvnd.sh _MVNW_REPO_PATTERN=/maven/mvnd/ ;;
 *) MVN_CMD="mvn${0##*/mvnw}" _MVNW_REPO_PATTERN=/org/apache/maven/ ;;
 esac
 
+# On Windows (MinGW/Cygwin/Git Bash) the shell 'mvn' launcher ends up passing
+# POSIX paths (/c/Users/...) to the native Windows java.exe, which cannot resolve
+# them and fails with:
+#   "找不到或无法加载主类 org.codehaus.plexus.classworlds.launcher.Launcher"
+# Force the native .cmd launcher instead so Java always receives Windows paths.
+case "$(uname)" in
+CYGWIN* | MINGW* | MSYS*) [ "$MVN_CMD" = "mvn" ] && MVN_CMD="mvn.cmd" ;;
+esac
+
 # apply MVNW_REPOURL and calculate MAVEN_HOME
 # maven home pattern: ~/.m2/wrapper/dists/{apache-maven-<version>,maven-mvnd-<version>-<platform>}/<hash>
 [ -z "${MVNW_REPOURL-}" ] || distributionUrl="$MVNW_REPOURL$_MVNW_REPO_PATTERN${distributionUrl#*"$_MVNW_REPO_PATTERN"}"
@@ -144,6 +153,12 @@ MAVEN_HOME="${MAVEN_USER_HOME}/wrapper/dists/${distributionUrlNameMain-}/$(hash_
 
 exec_maven() {
   unset MVNW_VERBOSE MVNW_USERNAME MVNW_PASSWORD MVNW_REPOURL || :
+  # Convert MAVEN_HOME to a native Windows path so the launched JVM can read it.
+  MAVEN_HOME="$(native_path "$MAVEN_HOME")"
+  if [ "$MVN_CMD" = "mvn.cmd" ]; then
+    # Hand off to cmd.exe so the .cmd launcher runs natively with Windows paths.
+    exec cmd //c "\"$MAVEN_HOME\\bin\\mvn.cmd\"" "$@"
+  fi
   exec "$MAVEN_HOME/bin/$MVN_CMD" "$@" || die "cannot exec $MAVEN_HOME/bin/$MVN_CMD"
 }
 

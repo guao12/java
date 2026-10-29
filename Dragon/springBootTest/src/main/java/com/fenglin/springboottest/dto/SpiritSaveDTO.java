@@ -52,6 +52,15 @@ public class SpiritSaveDTO {
     @Size(max = 200, message = "备注不能超过 200 个字符")
     private String note = "";
 
+    /**
+     * 插画图片网址（可选）。非空时前台优先使用该网址展示插画，
+     * 为空时回退到本地文件 /img/spirit/<key>.webp。
+     */
+    @Size(max = 500, message = "图片网址不能超过 500 个字符")
+    @Pattern(regexp = "^$|^https?://\\S+$",
+            message = "图片网址必须以 http:// 或 https:// 开头")
+    private String imageUrl = "";
+
     /** 展示排序，越小越靠前 */
     @Min(value = 0, message = "排序值不能小于 0")
     @Max(value = 9999, message = "排序值不能大于 9999")
@@ -127,6 +136,14 @@ public class SpiritSaveDTO {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public Integer getSort() {

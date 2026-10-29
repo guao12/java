@@ -84,7 +84,7 @@ function go(key) {
             <img
               v-if="imgOk"
               class="dossier__avatar-img"
-              :src="`/img/${dir}/${item.key}.webp`"
+              :src="item.imageUrl || `/img/${dir}/${item.key}.webp`"
               :alt="`${catText} · ${item.name}`"
               @error="onImgError"
             />
