@@ -75,7 +75,7 @@ public class GlobalExceptionHandler {
 
     /** 兜底：任何未捕获的异常 */
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public R<Void> handleOther(Exception e) {
         log.error("服务器内部异常", e);
         return R.fail(500, "服务器开小差了，请稍后再试");

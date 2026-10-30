@@ -290,6 +290,27 @@ function openArchiveOrCodex(item) {
   else openDetail(item.id)
 }
 
+/**
+ * 检索结果卡片点击分发：
+ * 命中文图鉴的条目（言灵 / 机构 / 人物）直达独立详情页；
+ * 其余卷宗按密级判定 —— 在权限范围内才解封详情，超出则提示权限不足（denyAccess）。
+ */
+function canRead(item) {
+  return (item?.securityLevel || 1) <= maxLevel.value
+}
+function openResult(item) {
+  const hit = matchCodexByArchive(item)
+  if (hit) {
+    router.push(hit.path)
+    return
+  }
+  if (!canRead(item)) {
+    denyAccess()
+    return
+  }
+  openDetail(item.id)
+}
+
 function onKeydown(e) {
   if (e.key !== 'Escape') return
   if (detail.value || detailError.value) closeDetail()
@@ -674,7 +695,12 @@ onBeforeUnmount(() => {
             :key="item.id"
             class="dcard"
             :data-lv="item.securityLevel"
-            @click="denyAccess"
+            role="button"
+            tabindex="0"
+            :aria-label="canRead(item) ? `查阅卷宗：${item.title}` : `权限不足：${item.title}`"
+            @click="openResult(item)"
+            @keydown.enter.prevent="openResult(item)"
+            @keydown.space.prevent="openResult(item)"
           >
             <div class="dcard__top">
               <span class="dcard__code">卷·字第{{ dossierNo(item) }}号</span>
@@ -2379,10 +2405,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .pcard__grid {
-    grid-template-columns: 1fr;
-  }
-
   .banner {
     flex-wrap: wrap;
   }
@@ -3139,297 +3161,6 @@ onBeforeUnmount(() => {
   transform: rotate(-90deg);
 }
 
-/* ================= 人物志 · 角色卡 ================= */
-.pchips {
-  margin-bottom: 16px;
-}
-
-.pcard__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  grid-auto-rows: 1fr; /* 行内等高，网格对齐 */
-  gap: 16px;
-}
-
-.pcard {
-  position: relative;
-  display: flex;
-  gap: 16px;
-  padding: 15px 17px 13px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line-soft);
-  background: linear-gradient(165deg, rgba(33, 28, 47, 0.85), rgba(14, 11, 23, 0.94));
-  box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.05), 0 0 22px -14px rgba(216, 178, 90, 0.3);
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.28s, transform 0.28s, box-shadow 0.28s;
-}
-
-/* 悬停扫光 */
-.pcard::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 2;
-  width: 42%;
-  background: linear-gradient(100deg, transparent, rgba(242, 220, 155, 0.12), transparent);
-  pointer-events: none;
-  transform: translateX(-130%) skewX(-16deg);
-}
-
-.pcard:hover {
-  border-color: rgba(216, 178, 90, 0.45);
-  transform: translateY(-5px) scale(1.012);
-  animation: card-glow 2.4s ease-in-out infinite;
-}
-
-.pcard:hover::before {
-  animation: card-sheen 0.9s cubic-bezier(0.5, 0, 0.2, 1) both;
-}
-
-.pcard:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
-}
-
-/* —— 头像框（预留立绘位） —— */
-.pcard__avatar {
-  position: relative;
-  flex: 0 0 74px;
-  width: 74px;
-  height: 74px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  font-family: var(--font-serif);
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--gold-lt);
-  text-shadow: 0 0 18px var(--gold-glow);
-  background:
-    radial-gradient(80% 80% at 50% 30%, rgba(216, 178, 90, 0.16), transparent 70%),
-    linear-gradient(160deg, rgba(38, 32, 54, 0.95), rgba(14, 11, 22, 0.98));
-  border: 1px solid rgba(216, 178, 90, 0.38);
-  box-shadow:
-    inset 0 1px 0 rgba(246, 230, 176, 0.2),
-    0 0 20px -10px var(--gold-glow);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pcard__avatar-ring {
-  position: absolute;
-  inset: -5px;
-  border-radius: 15px;
-  border: 1px dashed rgba(216, 178, 90, 0.3);
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pcard:hover .pcard__avatar {
-  transform: scale(1.06) rotate(-2deg);
-}
-
-.pcard:hover .pcard__avatar-ring {
-  transform: rotate(45deg);
-}
-
-/* 头像色调 */
-.pcard[data-tone='ice'] .pcard__avatar {
-  color: var(--ice);
-  text-shadow: 0 0 18px rgba(127, 212, 255, 0.4);
-  border-color: rgba(127, 212, 255, 0.35);
-  background:
-    radial-gradient(80% 80% at 50% 30%, rgba(127, 212, 255, 0.13), transparent 70%),
-    linear-gradient(160deg, rgba(28, 34, 52, 0.95), rgba(11, 14, 24, 0.98));
-}
-
-.pcard[data-tone='fire'] .pcard__avatar {
-  color: var(--blood-lt);
-  text-shadow: 0 0 18px rgba(226, 86, 79, 0.45);
-  border-color: rgba(226, 86, 79, 0.4);
-  background:
-    radial-gradient(80% 80% at 50% 30%, rgba(179, 39, 45, 0.18), transparent 70%),
-    linear-gradient(160deg, rgba(46, 28, 32, 0.95), rgba(16, 10, 14, 0.98));
-}
-
-.pcard[data-tone='rose'] .pcard__avatar {
-  color: #f2b8c6;
-  text-shadow: 0 0 18px rgba(242, 184, 198, 0.4);
-  border-color: rgba(242, 184, 198, 0.35);
-  background:
-    radial-gradient(80% 80% at 50% 30%, rgba(242, 184, 198, 0.12), transparent 70%),
-    linear-gradient(160deg, rgba(44, 30, 44, 0.95), rgba(15, 11, 19, 0.98));
-}
-
-/* —— 卡片内容 —— */
-.pcard__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.pcard__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pcard__name {
-  font-family: var(--font-serif);
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 血统评级：金属徽标 */
-.pcard__rank {
-  flex: 0 0 auto;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #241a05;
-  border: 1px solid rgba(122, 90, 30, 0.9);
-  background: linear-gradient(
-    180deg,
-    var(--gold-metal-hi),
-    var(--gold-metal-md) 45%,
-    var(--gold-dp)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 2px 10px -4px var(--gold-glow);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.pcard__rank[data-rank='S'] {
-  background: linear-gradient(180deg, #f8ecc4, var(--gold-metal-md) 40%, #9c5b2a);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 2px 12px -4px rgba(226, 86, 79, 0.5);
-}
-
-.pcard__rank[data-rank='B'] {
-  background: linear-gradient(180deg, var(--gold-metal-hi) -40%, var(--gold-antique) 30%, var(--gold-metal-lo) 62%, #9c742c);
-  color: #f8ecc4;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
-}
-
-.pcard__alias {
-  margin-top: 3px;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--gold-lt);
-  opacity: 0.85;
-}
-
-.pcard__role {
-  margin-top: 5px;
-  font-size: 11.5px;
-  letter-spacing: 0.03em;
-  color: var(--text-3);
-}
-
-.pcard__blood {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 9px;
-}
-
-.pcard__bloodbar {
-  position: relative;
-  flex: 1;
-  height: 7px;
-  border-radius: 999px;
-  overflow: hidden;
-  border: 1px solid rgba(138, 106, 40, 0.5);
-  background: rgba(4, 7, 13, 0.6);
-}
-
-.pcard__bloodbar i {
-  position: absolute;
-  inset: 1px auto 1px 1px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    #6e5218,
-    var(--gold-dp) 45%,
-    var(--gold-metal-md) 80%,
-    var(--blood-lt) 100%
-  );
-  box-shadow: 0 0 10px -2px var(--gold-glow);
-  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.pcard__bloodpct {
-  flex: 0 0 auto;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: var(--text-4);
-}
-
-.pcard__bloodpct b {
-  color: var(--gold-lt);
-  text-shadow: 0 0 10px var(--gold-glow);
-}
-
-.pcard__spirits {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 9px;
-}
-
-.pcard__spirit {
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  padding: 2px 9px;
-  border-radius: 999px;
-  color: var(--text-2);
-  background: rgba(4, 7, 13, 0.5);
-  border: 1px solid rgba(216, 178, 90, 0.22);
-}
-
-/* 查看档案入口：hover 亮起 */
-.pcard__go {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-top: 7px;
-  height: 16px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--gold-dp);
-  opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.25s, transform 0.25s, color 0.25s;
-}
-
-.pcard:hover .pcard__go,
-.pcard:focus-visible .pcard__go {
-  opacity: 1;
-  transform: none;
-  color: var(--gold-lt);
-}
 
 /* ================= 渐进显现（滚动进场） ================= */
 .reveal {
@@ -3443,21 +3174,6 @@ onBeforeUnmount(() => {
 .reveal.is-in {
   opacity: 1;
   transform: none;
-}
-
-/* 角色卡：显现完成后切回 hover 用的高速过渡 */
-.pcard.reveal {
-  transition:
-    opacity 0.55s ease,
-    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pcard.reveal.is-in {
-  transition:
-    border-color 0.28s,
-    transform 0.28s,
-    box-shadow 0.28s,
-    opacity 0.3s;
 }
 
 /* ================= 尊重系统的「减少动态效果」设置 ================= */

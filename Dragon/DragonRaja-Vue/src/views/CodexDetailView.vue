@@ -68,7 +68,7 @@ function go(key) {
       <template #actions>
         <button type="button" class="codex__back" @click="goBack">
           <AppIcon name="arrow" :size="14" class="codex__back-ic" />
-          返回档案馆
+          <span class="codex__back-text">返回档案馆</span>
         </button>
       </template>
     </SiteNav>
@@ -226,6 +226,9 @@ function go(key) {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  /* 导航是 flex 行：按钮不能被压窄，否则文字会竖排折行、撑破导航高度 */
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid rgba(216, 178, 90, 0.32);
@@ -246,6 +249,17 @@ function go(key) {
 
 .codex__back-ic {
   transform: rotate(180deg);
+}
+
+/* 窄屏导航装不下：返回按钮只留图标（title 说明用途） */
+@media (max-width: 940px) {
+  .codex__back {
+    padding: 8px 10px;
+  }
+
+  .codex__back-text {
+    display: none;
+  }
 }
 
 /* ================= 主体 ================= */

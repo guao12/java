@@ -31,10 +31,12 @@
   --ice-dp: #2a6f92;
 
   /* —— 文字 —— */
+  /* text-3 / text-4 为次要文字，已按 WCAG AA(4.5:1) 校准：
+     最差底色(surface #141c2e)下分别 6.65:1 / 5.12:1，保留明暗层级又不失可读性。 */
   --text: #ece7dc;
   --text-2: #b9bccb;
-  --text-3: #7b8296;
-  --text-4: #4d5468;
+  --text-3: #9aa2b6;
+  --text-4: #858da1;
 
   /* —— 表面 / 描边 —— */
   --surface: rgba(14, 20, 34, 0.72);
@@ -131,10 +133,13 @@ select {
 }
 
 /* ------------------------------------------------------------- 背景层 */
+/* z-index 必须是负值：它是 fixed 定位层，若为 0 会参与「定位元素」绘制层级，
+   从而盖在页面里未定位的正文（.arc__body / .ms__body 等）之上，
+   表现为整页只剩背景、内容看不见。负值让它稳定待在正文之下。 */
 .bg-layer {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -244,17 +249,15 @@ select {
   transform: translate(-50%, -50%);
   opacity: 0.42;
 }
+/* 三重法阵同心旋转，肉眼几乎无法分辨转速差，属重复装饰。
+   只保留最外圈旋转作为「呼吸感」，内两圈静止 —— 少两个常驻合成层。 */
 .rune-ring .ring-a {
   transform-origin: 50% 50%;
-  animation: spin 120s linear infinite;
+  animation: spin 200s linear infinite;
 }
-.rune-ring .ring-b {
-  transform-origin: 50% 50%;
-  animation: spin-rev 84s linear infinite;
-}
+.rune-ring .ring-b,
 .rune-ring .ring-c {
   transform-origin: 50% 50%;
-  animation: spin 200s linear infinite;
 }
 
 @keyframes spin {
@@ -368,8 +371,10 @@ select {
   align-items: center;
   justify-content: space-between;
   padding-top: 22px;
-  /* 左侧留给背景控制台（左下角固定按钮 + 面板），避免压住页脚文字 */
-  padding-left: 58px;
+  /* 左侧避让左下角固定控制台按钮（见 RuneBackground.vue）。
+     该值由按钮尺寸推出，不再是猜出来的魔法数：
+     left(16) + width(32) + 间距(10) = 58px，改按钮尺寸只需同步下面这一行。 */
+  padding-left: calc(16px + 32px + 10px);
   border-top: 1px solid var(--line-soft);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -383,6 +388,13 @@ select {
 }
 .page-foot a:hover {
   color: var(--gold);
+}
+/* 窄屏时控制台按钮变小(28px)且页脚转为单列竖向排列，
+   按钮在底部固定层，不会再与页脚文字同排，取消左侧避让换取整行宽度。 */
+@media (max-width: 560px) {
+  .page-foot {
+    padding-left: 0;
+  }
 }
 
 /* ------------------------------------------------------------- 认证卡片 */

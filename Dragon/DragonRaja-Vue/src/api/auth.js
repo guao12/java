@@ -7,9 +7,12 @@ export const authApi = {
   /** 新生登记 */
   register: (payload) => request('/api/auth/register', { method: 'POST', body: payload, auth: false }),
 
-  /** 下发注册验证码（演示环境由系统直接给出验证码，不发邮件） */
-  sendRegisterCode: (clientKey) =>
-    request('/api/auth/register/send', { method: 'POST', body: { clientKey }, auth: false }),
+  /** 图形验证码：注册下发前置，返回 { token, image } */
+  captcha: () => request('/api/auth/captcha', { auth: false }),
+
+  /** 下发注册验证码：需携带图形验证码 token + 用户照填的文字（演示环境由系统直接给出验证码） */
+  sendRegisterCode: (payload) =>
+    request('/api/auth/register/send', { method: 'POST', body: payload, auth: false }),
 
   /** 身份认证 */
   login: (payload) => request('/api/auth/login', { method: 'POST', body: payload, auth: false }),
@@ -18,9 +21,9 @@ export const authApi = {
   checkAccount: (account) =>
     request(`/api/auth/check-account?account=${encodeURIComponent(account)}`, { auth: false }),
 
-  /** 下发密钥重置验证龙文 */
-  sendResetCode: (account) =>
-    request('/api/auth/reset/send', { method: 'POST', body: { account }, auth: false }),
+  /** 下发密钥重置验证龙文：需携带图形验证码 token + 用户照填的文字 */
+  sendResetCode: (payload) =>
+    request('/api/auth/reset/send', { method: 'POST', body: payload, auth: false }),
 
   /** 校验验证龙文并重置密钥 */
   confirmReset: (payload) =>

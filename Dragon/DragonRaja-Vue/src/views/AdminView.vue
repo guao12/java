@@ -6,9 +6,17 @@
  *  - 新增 / 编辑：弹窗表单，key 唯一性由后端校验
  *  - 删除：二次确认（逻辑删除）
  * 数据接口见 src/api/admin.js，仅管理员令牌可访问。
+ *
+ * 加载速度相关的设计：
+ *  - 侧边栏是独立组件，切菜单只换右侧面板，不重新挂载整页
+ *  - 列表分页拉取（服务端分页优先，后端未实现时前端切片兜底），首屏只渲染 20 行
+ *  - 请求层自带 GET 内存缓存 + 并发去重：重复进页 / 连点刷新不再重复往返
+ *  - 搜索走 computed 过滤当前页，输入即时生效、不发请求
+ *  - 装饰背景（Canvas 粒子）等首帧渲染完再挂载，不抢主线程
  */
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AdminSidebar from '@/components/AdminSidebar.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import GlowButton from '@/components/GlowButton.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
@@ -21,15 +29,53 @@ const router = useRouter()
 
 const adminName = ref(getAdminName() || '管理员')
 
+/* ---------------- 常量 ---------------- */
+
+const LEVELS = ['内部', '机密', '高危', '绝密']
+const ELEMENTS = ['火', '冰', '风', '重力', '时间', '精神', '暗影', '雷', '威压']
+
 /* ---------------- 侧边栏菜单 ---------------- */
 
-/** 当前菜单：spirits 言灵图鉴 / overview 数据概览 */
-const activeMenu = ref('spirits')
+const MENU_KEY = 'dr:admin:menu'
+const MENU_KEYS = ['spirits', 'overview']
 
-const MENUS = [
-  { key: 'spirits', label: '言灵图鉴', desc: '条目增删改查', icon: 'flame' },
-  { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'info' }
-]
+/** 当前菜单：spirits 言灵图鉴 / overview 数据概览（记忆上次停留位置） */
+const activeMenu = ref(
+  MENU_KEYS.includes(localStorage.getItem(MENU_KEY)) ? localStorage.getItem(MENU_KEY) : 'spirits'
+)
+
+/** 桌面折叠态 */
+const COLLAPSE_KEY = 'dr:admin:side-collapsed'
+const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
+/** 移动端抽屉 */
+const drawerOpen = ref(false)
+
+const menuGroups = computed(() => [
+  {
+    title: '数据管理',
+    items: [
+      {
+        key: 'spirits',
+        label: '言灵图鉴',
+        desc: '条目增删改查',
+        icon: 'flame',
+        badge: loaded.value ? total.value : ''
+      },
+      { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'chart' }
+    ]
+  }
+])
+
+function toggleCollapse() {
+  collapsed.value = !collapsed.value
+  localStorage.setItem(COLLAPSE_KEY, collapsed.value ? '1' : '0')
+}
+
+/** 菜单变化：持久化 + 概览页懒加载（概览依赖列表数据） */
+watch(activeMenu, (v) => {
+  localStorage.setItem(MENU_KEY, v)
+  if (v === 'overview' && !loaded.value && !loading.value) load()
+})
 
 /* ---------------- 数据概览统计 ---------------- */
 
@@ -39,7 +85,7 @@ const stats = computed(() => {
     if (byLevel[s.level] !== undefined) byLevel[s.level] += 1
   }
   return {
-    total: spirits.value.length,
+    total: total.value,
     onShelf: spirits.value.filter((s) => s.status === 1).length,
     hidden: spirits.value.filter((s) => s.status !== 1).length,
     byLevel,
@@ -50,10 +96,34 @@ const stats = computed(() => {
 /* ---------------- 列表 ---------------- */
 
 const spirits = ref([])
+const total = ref(0)
 const loading = ref(false)
+const loaded = ref(false)
 const listError = ref('')
 const keyword = ref('')
 
+/** 分页 */
+const PAGE_SIZE = 20
+const page = ref(1)
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+const pageNumbers = computed(() => {
+  const n = pageCount.value
+  const cur = page.value
+  if (n <= 7) return Array.from({ length: n }, (_, i) => i + 1)
+  // 首尾常显，中间以当前页为中心展开
+  const set = new Set([1, n, cur, cur - 1, cur + 1])
+  if (cur <= 3) [2, 3, 4].forEach((i) => set.add(i))
+  if (cur >= n - 2) [n - 1, n - 2, n - 3].forEach((i) => set.add(i))
+  const nums = [...set].filter((i) => i >= 1 && i <= n).sort((a, b) => a - b)
+  const out = []
+  for (let i = 0; i < nums.length; i++) {
+    if (i && nums[i] - nums[i - 1] > 1) out.push('…')
+    out.push(nums[i])
+  }
+  return out
+})
+
+/** 关键词过滤当前页（不发请求，输入即过滤） */
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase()
   if (!k) return spirits.value
@@ -66,12 +136,27 @@ const filtered = computed(() => {
   )
 })
 
-async function load() {
+/**
+ * 拉取列表。
+ * @param {{ fresh?: boolean, keepData?: boolean }} [opts]
+ *   fresh：跳过请求层缓存（手动刷新）
+ *   keepData：翻页 / 刷新时保留旧数据，避免表格闪白
+ */
+async function load(opts = {}) {
+  const { fresh = false, keepData = false } = opts
   loading.value = true
   listError.value = ''
+  if (!keepData) spirits.value = []
   try {
-    const data = await adminApi.listSpirits()
-    spirits.value = data || []
+    const res = await adminApi.listSpirits({
+      page: page.value,
+      size: PAGE_SIZE,
+      keyword: keyword.value,
+      fresh
+    })
+    spirits.value = res.list || []
+    total.value = res.total || 0
+    loaded.value = true
   } catch (e) {
     listError.value = e.message
     if (e.code === 401) router.replace('/admin/login')
@@ -80,10 +165,24 @@ async function load() {
   }
 }
 
-/* ---------------- 新增 / 编辑弹窗 ---------------- */
+/** 手动刷新：强制绕过缓存 */
+function refresh() {
+  load({ fresh: true, keepData: true })
+}
 
-const LEVELS = ['内部', '机密', '高危', '绝密']
-const ELEMENTS = ['火', '冰', '风', '重力', '时间', '精神', '暗影', '雷', '威压']
+function goPage(p) {
+  const next = Math.min(pageCount.value, Math.max(1, p))
+  if (next === page.value) return
+  page.value = next
+  load({ keepData: true })
+}
+
+/** 搜索只在当前页内过滤，换关键词时回到第一页 */
+watch(keyword, () => {
+  page.value = 1
+})
+
+/* ---------------- 新增 / 编辑弹窗 ---------------- */
 
 const showModal = ref(false)
 const editingId = ref(null) // null = 新增
@@ -146,10 +245,15 @@ function spiritImg(s) {
   return s.imageUrl || `/img/spirit/${s.key}.webp`
 }
 
-/** 插画加载失败时隐藏 <img>，用首字占位 */
-const brokenImgs = reactive(new Set())
+/**
+ * 插画加载失败时隐藏 <img>，用首字占位。
+ * 用 ref 包 Set：reactive(Set) 不代理集合方法，.add 会因 undefined 报错。
+ * 每次替换成新 Set 触发更新，条目数量级很小，成本可忽略。
+ */
+const brokenImgs = ref(new Set())
 function onThumbError(s) {
-  brokenImgs.value.add(s.key)
+  if (brokenImgs.value.has(s.key)) return
+  brokenImgs.value = new Set(brokenImgs.value).add(s.key)
 }
 
 function checkForm() {
@@ -184,7 +288,8 @@ async function onSave() {
     if (editingId.value == null) await adminApi.createSpirit(payload)
     else await adminApi.updateSpirit(editingId.value, payload)
     showModal.value = false
-    await load()
+    // 写操作已让缓存失效，这里再强制取最新一页
+    await load({ fresh: true, keepData: true })
   } catch (e) {
     modalError.value = e.message
     if (e.code === 401) {
@@ -211,7 +316,9 @@ async function onDelete() {
   try {
     await adminApi.deleteSpirit(confirmTarget.value.id)
     confirmTarget.value = null
-    await load()
+    // 删掉本页最后一条时回退一页，避免停在空页
+    if (spirits.value.length === 1 && page.value > 1) page.value -= 1
+    await load({ fresh: true, keepData: true })
   } catch (e) {
     listError.value = e.message
     confirmTarget.value = null
@@ -228,66 +335,113 @@ function logout() {
   router.replace('/admin/login')
 }
 
+/* ---------------- 首屏挂载 / 快捷键 ---------------- */
+
+/**
+ * 背景层（Canvas 粒子）延后挂载：
+ * 先渲染顶栏 + 表格骨架，等首帧画完再挂背景，避免和列表渲染抢主线程。
+ */
+const bgReady = ref(false)
+let idleTimer = 0
+
+/** 数字键 1/2 切菜单，Esc 关弹窗 / 抽屉 */
+function onKeydown(e) {
+  if (e.key === 'Escape') {
+    if (showModal.value) showModal.value = false
+    else if (confirmTarget.value) confirmTarget.value = null
+    else if (drawerOpen.value) drawerOpen.value = false
+    return
+  }
+  const tag = (e.target?.tagName || '').toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const idx = Number(e.key) - 1
+  if (idx >= 0 && idx < MENU_KEYS.length) activeMenu.value = MENU_KEYS[idx]
+}
+
 onMounted(() => {
   document.documentElement.style.colorScheme = 'dark'
   document.title = '后台管理系统 | 卡塞尔学院'
+  window.addEventListener('keydown', onKeydown)
+  // 数据请求与背景层并行：请求先发；背景等首帧渲染完再挂
   load()
+  const mountBg = () => {
+    bgReady.value = true
+  }
+  if ('requestIdleCallback' in window) {
+    idleTimer = window.requestIdleCallback(mountBg, { timeout: 900 })
+  } else {
+    idleTimer = window.setTimeout(mountBg, 200)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  if ('cancelIdleCallback' in window) window.cancelIdleCallback(idleTimer)
+  else window.clearTimeout(idleTimer)
 })
 </script>
 
 <template>
+  <!-- 移动端抽屉遮罩：必须放在 .adm 外，否则会被 .adm 的 z-index 困住 -->
+  <div
+    v-if="drawerOpen"
+    class="adm__scrim"
+    aria-hidden="true"
+    @click="drawerOpen = false"
+  />
+
   <div class="adm">
-    <RuneBackground />
+    <!-- 装饰背景延后一帧挂载，先让骨架和顶栏出来，避免首屏被粒子拖慢 -->
+    <RuneBackground v-if="bgReady" />
 
     <!-- ============ 顶栏 ============ -->
     <header class="adm__bar">
       <div class="adm__bar-inner">
-        <div class="adm__title">
-          <AppIcon name="shield" :size="18" />
-          <div>
-            <h1>后台管理系统</h1>
-            <p>卡塞尔学院 · 数据管理</p>
+        <div class="adm__bar-left">
+          <!-- 移动端抽屉开关 -->
+          <button
+            type="button"
+            class="adm__burger"
+            aria-label="打开导航"
+            @click="drawerOpen = true"
+          >
+            <AppIcon name="menu" :size="18" />
+          </button>
+          <div class="adm__title">
+            <AppIcon name="shield" :size="18" />
+            <div>
+              <h1>后台管理系统</h1>
+              <p class="adm__crumb">
+                数据管理 <i>/</i>
+                <b>{{ activeMenu === 'overview' ? '数据概览' : '言灵图鉴' }}</b>
+              </p>
+            </div>
           </div>
+        </div>
+
+        <div class="adm__bar-side">
+          <span class="adm__sync" :class="{ 'is-busy': loading }">
+            <i class="adm__who-dot" />
+            {{ loading ? '同步中…' : `共 ${total} 条` }}
+          </span>
+          <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览">1 / 2</span>
         </div>
       </div>
     </header>
 
     <!-- ============ 侧边栏 + 主体 ============ -->
-    <div class="adm__layout">
-      <aside class="adm__side">
-        <nav class="adm__nav">
-          <p class="adm__nav-cap">数据管理</p>
-          <button
-            v-for="m in MENUS"
-            :key="m.key"
-            type="button"
-            class="adm__nav-item"
-            :class="{ 'is-active': activeMenu === m.key }"
-            @click="activeMenu = m.key"
-          >
-            <AppIcon :name="m.icon" :size="15" />
-            <span class="adm__nav-txt">
-              <b>{{ m.label }}</b>
-              <em>{{ m.desc }}</em>
-            </span>
-            <i v-if="activeMenu === m.key" class="adm__nav-glow" />
-          </button>
-        </nav>
-
-        <div class="adm__side-foot">
-          <p class="adm__nav-cap">会话</p>
-          <span class="adm__who">
-            <i class="adm__who-dot" />
-            {{ adminName }}
-          </span>
-          <router-link class="adm__link" to="/home">
-            <AppIcon name="home" :size="14" /> 学院前台
-          </router-link>
-          <button type="button" class="adm__link is-danger" @click="logout">
-            <AppIcon name="logout" :size="14" /> 退出登录
-          </button>
-        </div>
-      </aside>
+    <div class="adm__layout" :class="{ 'is-collapsed': collapsed }">
+      <AdminSidebar
+        v-model="activeMenu"
+        :groups="menuGroups"
+        :admin-name="adminName"
+        :collapsed="collapsed"
+        :open="drawerOpen"
+        @toggle-collapse="toggleCollapse"
+        @close="drawerOpen = false"
+        @logout="logout"
+      />
 
       <main class="adm__body">
         <!-- ============ 菜单：言灵图鉴 ============ -->
@@ -296,11 +450,22 @@ onMounted(() => {
       <div class="adm__tools">
         <label class="adm__search">
           <AppIcon name="search" :size="14" />
-          <input v-model="keyword" type="text" placeholder="按 key / 名称 / 元素 / 密级过滤" />
+          <input v-model="keyword" type="text" placeholder="按 key / 名称 / 元素 / 密级过滤本页" />
+          <button
+            v-if="keyword"
+            type="button"
+            class="adm__search-x"
+            aria-label="清空筛选"
+            @click.prevent="keyword = ''"
+          >
+            <AppIcon name="close" :size="12" />
+          </button>
         </label>
         <div class="adm__tools-side">
-          <span class="adm__count">共 {{ filtered.length }} 条 / 上架 {{ spirits.filter((s) => s.status === 1).length }} 条</span>
-          <GlowButton variant="ghost" type="button" :disabled="loading" @click="load">
+          <span class="adm__count">
+            共 {{ total }} 条 / 本页 {{ filtered.length }} 条
+          </span>
+          <GlowButton variant="ghost" type="button" :disabled="loading" @click="refresh">
             <AppIcon name="refresh" :size="15" :class="{ 'is-spin': loading }" />
             刷新
           </GlowButton>
@@ -368,13 +533,61 @@ onMounted(() => {
             </tr>
             <tr v-if="!loading && !filtered.length">
               <td colspan="9" class="empty">
-                {{ listError ? '加载失败，请刷新重试' : '暂无数据，点击右上角「新增言灵」录入' }}
+                {{
+                  listError
+                    ? '加载失败，请刷新重试'
+                    : keyword
+                      ? '本页没有匹配「' + keyword + '」的条目'
+                      : '暂无数据，点击右上角「新增言灵」录入'
+                }}
               </td>
             </tr>
+            <!-- 骨架屏：首屏只有一屏占位，比转圈更早给出结构感 -->
+            <template v-if="loading && !spirits.length">
+              <tr v-for="i in 6" :key="`sk-${i}`" class="is-skel">
+                <td><span class="sk sk--xs" /></td>
+                <td><span class="sk sk--thumb" /></td>
+                <td><span class="sk sk--sm" /></td>
+                <td><span class="sk sk--md" /></td>
+                <td><span class="sk sk--xs" /></td>
+                <td><span class="sk sk--sm" /></td>
+                <td><span class="sk sk--lg" /></td>
+                <td><span class="sk sk--sm" /></td>
+                <td><span class="sk sk--md" /></td>
+              </tr>
+            </template>
           </tbody>
         </table>
-        <div v-if="loading && !spirits.length" class="adm__loading">正在读取图鉴数据…</div>
+        <div v-if="loading && spirits.length" class="adm__loading-bar" />
       </div>
+
+      <!-- 分页 -->
+      <nav v-if="pageCount > 1" class="adm__pager" aria-label="分页">
+        <button type="button" class="pg" :disabled="page <= 1 || loading" @click="goPage(page - 1)">
+          <AppIcon name="chevron-left" :size="13" /> 上一页
+        </button>
+        <template v-for="(p, i) in pageNumbers" :key="`p-${i}`">
+          <span v-if="p === '…'" class="pg__gap">…</span>
+          <button
+            v-else
+            type="button"
+            class="pg pg--num"
+            :class="{ 'is-active': p === page }"
+            :disabled="loading"
+            @click="goPage(p)"
+          >
+            {{ p }}
+          </button>
+        </template>
+        <button
+          type="button"
+          class="pg"
+          :disabled="page >= pageCount || loading"
+          @click="goPage(page + 1)"
+        >
+          下一页 <AppIcon name="chevron-right" :size="13" />
+        </button>
+      </nav>
 
       <p class="adm__tip">
         <AppIcon name="alert" :size="13" />
@@ -581,13 +794,111 @@ onMounted(() => {
 }
 
 .adm__bar-inner {
-  max-width: 1080px;
+  max-width: 1320px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 13px 24px;
+  padding: 11px 24px;
+}
+
+.adm__bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adm__burger {
+  display: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--line-soft);
+  background: rgba(4, 7, 13, 0.5);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.adm__burger:hover {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.45);
+}
+
+.adm__crumb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-4);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.adm__crumb i {
+  font-style: normal;
+  opacity: 0.5;
+}
+
+.adm__crumb b {
+  color: var(--gold);
+  font-weight: 500;
+}
+
+.adm__sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  border: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+
+.adm__sync .adm__who-dot {
+  transition: background 0.2s;
+}
+
+.adm__sync.is-busy {
+  color: var(--gold-lt);
+  border-color: rgba(138, 106, 40, 0.5);
+}
+
+.adm__sync.is-busy .adm__who-dot {
+  animation: adm-pulse 1s ease-in-out infinite;
+}
+
+.adm__kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-4);
+  border: 1px dashed var(--line-soft);
+}
+
+@keyframes adm-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
 }
 
 .adm__title {
@@ -602,6 +913,7 @@ onMounted(() => {
   font-size: 17px;
   letter-spacing: 0.16em;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .adm__title p {
@@ -634,144 +946,35 @@ onMounted(() => {
   box-shadow: 0 0 8px var(--gold-glow);
 }
 
-.adm__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 13px;
-  border-radius: 999px;
-  border: 1px solid var(--line-soft);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--text-2);
-  text-decoration: none;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
-}
-
-.adm__link:hover {
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.45);
-}
-
-.adm__link.is-danger:hover {
-  color: var(--blood-lt);
-  border-color: rgba(179, 39, 45, 0.5);
-}
-
 /* ================= 侧边栏 + 主体布局 ================= */
 .adm__layout {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 0;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 22px 24px 46px;
+  padding: 18px 24px 46px;
 }
 
-.adm__side {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 18px;
-  flex: 0 0 218px;
-  align-self: flex-start;
-  position: sticky;
-  top: 84px;
-  padding: 18px 14px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(170deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
-  box-shadow: var(--shadow-card);
+/* 移动端抽屉遮罩 */
+.adm__scrim {
+  display: none;
 }
 
-.adm__nav {
-  display: grid;
-  gap: 6px;
-}
-
-.adm__nav-cap {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--text-4);
-  padding: 0 10px 4px;
-}
-
-.adm__nav-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 11px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  background: none;
-  font: inherit;
-  text-align: left;
-  color: var(--text-2);
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-}
-
-.adm__nav-item:hover {
-  color: var(--gold-lt);
-  background: rgba(216, 178, 90, 0.06);
-}
-
-.adm__nav-item.is-active {
-  color: var(--gold-lt);
-  border-color: rgba(138, 106, 40, 0.55);
-  background: linear-gradient(180deg, rgba(216, 178, 90, 0.14), rgba(138, 106, 40, 0.08));
-}
-
-.adm__nav-glow {
-  position: absolute;
-  left: -1px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  border-radius: 999px;
-  background: var(--gold-lt);
-  box-shadow: 0 0 10px var(--gold-glow);
-}
-
-.adm__nav-txt {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.adm__nav-txt b {
-  font-size: 13px;
-  letter-spacing: 0.1em;
-}
-
-.adm__nav-txt em {
-  font-style: normal;
-  font-size: 10.5px;
-  color: var(--text-4);
-  letter-spacing: 0.04em;
-}
-
-.adm__side-foot {
-  display: grid;
-  gap: 9px;
-  border-top: 1px solid var(--line-soft);
-  padding-top: 14px;
-}
-
-.adm__side-foot .adm__who {
-  padding: 0 10px;
-}
-
-.adm__side-foot .adm__link {
-  justify-content: flex-start;
+@media (max-width: 920px) {
+  .adm__scrim {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 66;
+    background: rgba(3, 4, 8, 0.78);
+    animation: fade-in 0.22s both;
+  }
 }
 
 /* ================= 主体 ================= */
@@ -801,10 +1004,34 @@ onMounted(() => {
   border: 1px solid var(--line-soft);
   background: rgba(4, 7, 13, 0.55);
   color: var(--text-4);
+  transition: border-color 0.2s;
+}
+
+.adm__search:focus-within {
+  border-color: rgba(216, 178, 90, 0.4);
+}
+
+.adm__search-x {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.18s, background 0.18s;
+}
+
+.adm__search-x:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .adm__search input {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: none;
   font: inherit;
@@ -813,11 +1040,156 @@ onMounted(() => {
   outline: none;
 }
 
+/* 表格骨架屏 */
+.sk {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.11) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 300% 100%;
+  animation: sk-shimmer 1.3s ease-in-out infinite;
+}
+
+.sk--xs {
+  width: 24px;
+}
+
+.sk--sm {
+  width: 56px;
+}
+
+.sk--md {
+  width: 92px;
+}
+
+.sk--lg {
+  width: 170px;
+}
+
+.sk--thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.adm__table tr.is-skel td {
+  border-bottom-color: rgba(255, 255, 255, 0.03);
+}
+
+@keyframes sk-shimmer {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/* 翻页时顶部细进度条 */
+.adm__loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  background: rgba(216, 178, 90, 0.12);
+}
+
+.adm__loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--gold-lt), transparent);
+  animation: adm-loading 1.1s ease-in-out infinite;
+}
+
+@keyframes adm-loading {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+/* 分页 */
+.adm__pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.pg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(4, 7, 13, 0.45);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+
+.pg--num {
+  justify-content: center;
+  min-width: 32px;
+  padding: 5px 0;
+  font-family: var(--font-mono);
+}
+
+.pg:hover:not(:disabled) {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.45);
+}
+
+.pg.is-active {
+  color: var(--bg-0);
+  background: linear-gradient(180deg, var(--gold-lt), var(--gold));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.pg:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.pg__gap {
+  padding: 0 2px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+
 .adm__tools-side {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* 工具条按钮按内容取宽，不跟着全局 .btn 的 100% 撑满 */
+.adm__tools-side :deep(.btn) {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  gap: 7px;
 }
 
 .adm__count {
@@ -1361,39 +1733,57 @@ onMounted(() => {
   }
 }
 
+/* 平板：侧边栏收窄、主体让位 */
+@media (max-width: 1080px) {
+  .adm__bar-inner {
+    padding: 11px 18px;
+  }
+
+  .adm__layout {
+    padding: 16px 18px 42px;
+  }
+
+  .adm__kbd {
+    display: none;
+  }
+}
+
+/* 移动端：侧边栏改为抽屉，主体全宽 */
+@media (max-width: 920px) {
+  .adm__burger {
+    display: grid;
+  }
+
+  .adm__layout {
+    padding: 14px 14px 40px;
+  }
+
+  .adm__body {
+    padding-left: 0;
+  }
+
+  .adm__bar-side {
+    gap: 8px;
+  }
+}
+
 @media (max-width: 720px) {
   .grid-2 {
     grid-template-columns: 1fr;
   }
 
-  .adm__title p {
+  .adm__crumb {
     display: none;
   }
 
-  .adm__layout {
-    flex-direction: column;
-    gap: 16px;
-    padding: 16px 14px 40px;
+  .adm__sync {
+    /* 窄屏只留数字，省出横向空间给标题 */
+    padding: 4px 9px;
+    font-size: 10px;
   }
 
-  .adm__side {
-    position: static;
-    flex: none;
-  }
-
-  .adm__side-foot {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  .adm__side-foot .adm__nav-cap {
-    display: none;
-  }
-
-  .adm__body {
-    padding-left: 0;
+  .adm__search {
+    min-width: 0;
   }
 
   .ov__grid {
@@ -1402,6 +1792,15 @@ onMounted(() => {
 
   .ov__row {
     grid-template-columns: 52px 1fr 34px;
+  }
+
+  .imgurl {
+    grid-template-columns: 1fr;
+  }
+
+  .imgurl__preview {
+    width: 100%;
+    height: 120px;
   }
 }
 </style>

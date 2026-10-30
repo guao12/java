@@ -1,18 +1,24 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import LoginView from '@/views/LoginView.vue'
-import RegisterView from '@/views/RegisterView.vue'
-import ForgotView from '@/views/ForgotView.vue'
-import ConsoleView from '@/views/ConsoleView.vue'
-import HomeView from '@/views/HomeView.vue'
-import MissionsView from '@/views/MissionsView.vue'
-import ArchiveView from '@/views/ArchiveView.vue'
-import CharacterView from '@/views/CharacterView.vue'
-import AppraisalView from '@/views/AppraisalView.vue'
-import CodexDetailView from '@/views/CodexDetailView.vue'
-import AdminLoginView from '@/views/AdminLoginView.vue'
-import AdminView from '@/views/AdminView.vue'
 import { isLoggedIn } from '@/utils/auth'
 import { isAdminLoggedIn } from '@/utils/adminAuth'
+
+/**
+ * 路由级代码分割：视图全部用动态 import，由 Vite 自动切成独立 chunk。
+ * 这样首屏只需下载登录页那一个 chunk，后台管理 / 血统鉴定 / 档案室
+ * 等页面在真正访问时才加载，首屏体积大幅下降。
+ */
+const LoginView = () => import('@/views/LoginView.vue')
+const RegisterView = () => import('@/views/RegisterView.vue')
+const ForgotView = () => import('@/views/ForgotView.vue')
+const ConsoleView = () => import('@/views/ConsoleView.vue')
+const HomeView = () => import('@/views/HomeView.vue')
+const MissionsView = () => import('@/views/MissionsView.vue')
+const ArchiveView = () => import('@/views/ArchiveView.vue')
+const CharacterView = () => import('@/views/CharacterView.vue')
+const AppraisalView = () => import('@/views/AppraisalView.vue')
+const CodexDetailView = () => import('@/views/CodexDetailView.vue')
+const AdminLoginView = () => import('@/views/AdminLoginView.vue')
+const AdminView = () => import('@/views/AdminView.vue')
 
 const routes = [
   { path: '/', redirect: '/home' },
@@ -89,14 +95,16 @@ const routes = [
     path: '/admin/login',
     name: 'admin-login',
     component: AdminLoginView,
-    meta: { title: '后台管理系统 · 登录' }
+    // standalone：不套学员端 AuthLayout 外壳，使用后台专属登录界面
+    meta: { title: '后台管理系统 · 登录', standalone: true }
   },
   {
     // 后台管理系统 · 言灵图鉴数据管理（meta.adminAuth 由下方守卫校验）
     path: '/admin',
     name: 'admin',
     component: AdminView,
-    meta: { title: '后台管理系统', adminAuth: true }
+    // standalone：脱离学员端「执行部档案系统」外壳，独立后台身份
+    meta: { title: '后台管理系统', adminAuth: true, standalone: true }
   },
   { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]
@@ -125,9 +133,11 @@ router.beforeEach((to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta?.title
-    ? `${to.meta.title} | 卡塞尔学院・执行部档案系统`
+  // 后台路由使用独立的「后台管理」后缀，不再套用学员端「执行部档案系统」品牌
+  const suffix = to.path.startsWith('/admin')
+    ? '卡塞尔学院・后台管理'
     : '卡塞尔学院・执行部档案系统'
+  document.title = to.meta?.title ? `${to.meta.title} | ${suffix}` : suffix
 })
 
 export default router

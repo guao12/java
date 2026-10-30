@@ -57,6 +57,8 @@ onMounted(async () => {
   } catch {
     /* 后端未启动：继续使用本地字典，提交时会给出明确错误提示 */
   }
+  // 预加载图形验证码（注册下发前置）
+  loadCaptcha()
 })
 
 const form = reactive({
@@ -82,6 +84,8 @@ const touched = reactive({ codename: false, code: false, identity: false, passwo
 const loading = ref(false)
 const done = ref(false)
 const notice = ref(null)
+/** 协议摘要展开状态：'' / 'rules'（学院守则）/ 'agreement'（保密协议） */
+const legalOpen = ref('')
 
 /* ---------------- 分步向导 ---------------- */
 const STEPS = [
@@ -113,6 +117,22 @@ const expireSeconds = ref(0)
 /** 重新获取的冷却（秒），与后端 60 秒一致 */
 const cooldown = ref(0)
 let cooldownTimer = 0
+
+/** 图形验证码：注册下发前置，防脚本批量刷取 */
+const captcha = reactive({ token: '', image: '', input: '', error: '' })
+
+/** 拉取一张新的图形验证码（token 由后端签发，答案仅存服务端） */
+async function loadCaptcha() {
+  try {
+    const data = await authApi.captcha()
+    captcha.token = data.token
+    captcha.image = data.image
+    captcha.input = ''
+    captcha.error = ''
+  } catch {
+    captcha.error = '验证码加载失败，请点击刷新后重试'
+  }
+}
 
 const otpRef = ref(null)
 
@@ -200,12 +220,21 @@ function startCooldown(seconds) {
 
 onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 
-/** 获取验证码：后端生成后直接回显给页面（系统给验证码，不发邮件） */
+/** 获取验证码：先过图形验证码，后端生成后直接回显给页面（系统给验证码，不发邮件） */
 async function sendCode() {
   notice.value = null
+  // 前端基础校验：图形验证码必填
+  if (!captcha.input.trim()) {
+    captcha.error = '请输入图形验证码'
+    return
+  }
   loading.value = true
   try {
-    const data = await authApi.sendRegisterCode(clientKey)
+    const data = await authApi.sendRegisterCode({
+      clientKey,
+      captchaToken: captcha.token,
+      captchaCode: captcha.input.trim()
+    })
     demoCode.value = data.demoCode
     expireSeconds.value = data.expireSeconds || 300
     startCooldown(data.cooldownSeconds || 60)
@@ -213,8 +242,12 @@ async function sendCode() {
       type: 'ok',
       text: `系统已生成验证码，可直接点上方金色数字一键填入（${Math.round(expireSeconds.value / 60)} 分钟内有效）。`
     }
+    // 本次验证码已消费，刷新一张新的备用
+    await loadCaptcha()
   } catch (e) {
     notice.value = { type: 'err', text: e.message }
+    // 验证码错误或已消费：刷新一张新的，避免用户卡死
+    await loadCaptcha()
   } finally {
     loading.value = false
   }
@@ -448,6 +481,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
           </span>
         </div>
 
+        <!-- 图形验证码：注册下发前置，防脚本批量刷取 -->
+        <div class="captcha-row">
+          <input
+            v-model="captcha.input"
+            class="captcha-input"
+            type="text"
+            maxlength="4"
+            placeholder="图形验证码"
+            :disabled="cooldown > 0 || loading"
+            @input="captcha.error = ''"
+          />
+          <img
+            v-if="captcha.image"
+            :src="captcha.image"
+            class="captcha-img"
+            title="点击刷新"
+            alt="图形验证码"
+            @click="loadCaptcha"
+          />
+          <button type="button" class="captcha-refresh" :disabled="loading" @click="loadCaptcha">
+            换一张
+          </button>
+        </div>
+        <p v-if="captcha.error" class="field__msg">
+          <AppIcon name="alert" :size="13" />{{ captcha.error }}
+        </p>
+
         <div class="code-block">
           <label class="code-block__label">验证码</label>
           <div class="code-row">
@@ -578,11 +638,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
           <span class="check__box" />
           <span>
             我已阅读并同意
-            <a href="javascript:void(0)">《卡塞尔学院守则》</a>
+            <button
+              type="button"
+              class="link-gold legal-link"
+              @click="legalOpen = legalOpen === 'rules' ? '' : 'rules'"
+            >
+              《卡塞尔学院守则》
+            </button>
             与
-            <a href="javascript:void(0)">《血统保密协议》</a>
+            <button
+              type="button"
+              class="link-gold legal-link"
+              @click="legalOpen = legalOpen === 'agreement' ? '' : 'agreement'"
+            >
+              《血统保密协议》
+            </button>
           </span>
         </label>
+        <div v-if="legalOpen" class="legal-panel">
+          <strong>{{ legalOpen === 'rules' ? '卡塞尔学院守则（摘要）' : '血统保密协议（摘要）' }}</strong>
+          <p>
+            {{
+              legalOpen === 'rules'
+                ? '本站为《龙族》同人兴趣作品，非商用，版权归原著作者及出版方所有。注册即视为以虚构身份参与互动，所填代号、言灵与密钥仅用于本站演示，请勿使用真实敏感信息。'
+                : '你的血统数据与身份档案仅存储于本站演示数据库，不对外共享。本站不会以任何形式索要真实姓名、证件号或支付信息；如遇此类请求，均为诈骗。'
+            }}
+          </p>
+        </div>
         <p v-if="errors.agree" class="field__msg">
           <AppIcon name="alert" :size="13" />{{ errors.agree }}
         </p>
@@ -770,6 +852,71 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   font-size: 11px;
   color: var(--text-4);
   letter-spacing: 0.03em;
+}
+
+/* ---------------- 图形验证码 ---------------- */
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.captcha-input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: rgba(4, 7, 13, 0.5);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  outline: none;
+  transition: border-color 0.22s, box-shadow 0.22s;
+}
+.captcha-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.25);
+}
+.captcha-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.captcha-img {
+  flex: 0 0 auto;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.22s, transform 0.22s;
+}
+.captcha-img:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+.captcha-refresh {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--gold);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.25s, border-color 0.25s;
+}
+.captcha-refresh:hover:not(:disabled) {
+  color: var(--gold-lt);
+  border-color: currentColor;
+}
+.captcha-refresh:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
 }
 
 /* ---------------- 言灵卡片 ---------------- */
@@ -1019,5 +1166,37 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   .actions__back {
     flex: 0 0 82px;
   }
+}
+
+/* 协议摘要：原死链改为可展开的按钮 + 面板 */
+.legal-link {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  border-bottom: 1px solid rgba(216, 178, 90, 0.4);
+  cursor: pointer;
+}
+.legal-link:hover {
+  color: var(--gold-lt);
+  border-color: currentColor;
+}
+.legal-panel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: rgba(4, 7, 13, 0.5);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-3);
+  animation: fade-in 0.3s both;
+}
+.legal-panel strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gold-lt);
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
 }
 </style>

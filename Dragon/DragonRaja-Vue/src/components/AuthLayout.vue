@@ -7,7 +7,6 @@ import RuneBackground from '@/components/RuneBackground.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 
 const year = new Date().getFullYear()
-const NAV = ['学院守则', '言灵档案', '执行部', '血统鉴定']
 
 onMounted(() => {
   document.documentElement.style.colorScheme = 'dark'
@@ -40,7 +39,9 @@ onMounted(() => {
       <footer class="page-foot">
         <span>© {{ year }} CASSELL COLLEGE · 龙族身份认证系统 v1.0</span>
         <nav>
-          <a v-for="item in NAV" :key="item" href="javascript:void(0)">{{ item }}</a>
+          <router-link to="/login">登录</router-link>
+          <router-link to="/register">注册</router-link>
+          <router-link to="/forgot">找回密钥</router-link>
         </nav>
       </footer>
     </div>

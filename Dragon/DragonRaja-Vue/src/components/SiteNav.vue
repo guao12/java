@@ -191,7 +191,7 @@ onBeforeUnmount(() => {
 
 <template>
   <header class="nav">
-    <div class="nav__inner">
+    <div class="nav__inner" :class="{ 'nav__inner--actioned': !!$slots.actions }">
       <a class="nav__brand" href="#" @click.prevent="onNav({ to: HOME_PATH })">
         <DragonEmblem class="nav__mark" />
         <div class="nav__brand-text">
@@ -297,6 +297,27 @@ onBeforeUnmount(() => {
   padding: 13px 24px;
 }
 
+/* 详情页会通过 actions 插槽在右侧追加「返回」按钮，
+   此时导航里共 5 组内容，1080px 装不下：.nav__links 是 flex:1 + min-width:0，
+   会被压到比按钮自身还窄，按钮向两侧溢出、压住品牌区和后台入口的文字。
+   这里为带 actions 的导航单独放宽宽度、收紧间距，并隐藏纯装饰的学院时钟。 */
+.nav__inner--actioned {
+  max-width: 1160px;
+  gap: 14px;
+}
+
+.nav__inner--actioned .nav__links {
+  flex: 0 0 auto;
+}
+
+.nav__inner--actioned .nav__link {
+  padding: 8px 12px;
+}
+
+.nav__inner--actioned .nav__clock {
+  display: none;
+}
+
 .nav__brand {
   display: flex;
   align-items: center;
@@ -338,7 +359,10 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   gap: 4px;
-  min-width: 0;
+  /* 不能用 min-width:0：菜单项是 nowrap 的固定宽度按钮，
+     容器一旦被压窄，按钮会从两侧溢出并压住品牌区 / 后台入口的文字。
+     max-content 让它以按钮实际总宽为下限，宁可整行更宽也不要叠字。 */
+  min-width: max-content;
 }
 
 .nav__link {
@@ -575,6 +599,14 @@ onBeforeUnmount(() => {
 }
 
 /* ================= 响应式 ================= */
+/* 菜单项现在以 max-content 为下限，导航不再叠字，但整行需要约 1240px 才装得下：
+   往下逐级让出装饰性内容，避免出现横向滚动条。 */
+@media (max-width: 1320px) {
+  .nav__clock {
+    display: none;
+  }
+}
+
 @media (max-width: 1080px) {
   .nav__inner {
     gap: 16px;
@@ -582,6 +614,30 @@ onBeforeUnmount(() => {
 
   .nav__link {
     padding: 8px 12px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .nav__inner {
+    gap: 12px;
+  }
+
+  .nav__link {
+    padding: 8px 10px;
+  }
+
+  /* 只留盾牌图标；按钮有 title 提示用途 */
+  .nav__admin-text {
+    display: none;
+  }
+
+  .nav__admin {
+    padding: 7px 10px;
+  }
+
+  /* 账号名收进头像，展开菜单里仍能看到完整信息 */
+  .nav__user-name {
+    display: none;
   }
 }
 

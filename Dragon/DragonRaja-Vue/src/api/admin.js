@@ -1,3 +1,4 @@
+import { createRequest, toQuery } from '@/api/request'
 import { clearAdminSession, getAdminToken } from '@/utils/adminAuth'
 
 /**
@@ -5,9 +6,8 @@ import { clearAdminSession, getAdminToken } from '@/utils/adminAuth'
  * 与学员端（api/http.js）完全隔离：
  *  - 令牌存独立的 dr:admin:token，互不污染
  *  - 401 时清理后台会话并跳转 /admin/login（不影响学员登录态）
+ * 请求流程本身与学员端共用 api/request.js 的 createRequest。
  */
-
-const BASE_URL = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
 export class AdminApiError extends Error {
   constructor(message, code) {
@@ -19,63 +19,35 @@ export class AdminApiError extends Error {
 
 /**
  * 后台专用请求。响应约定与学员端一致：code == 0 成功，401 登录失效。
+ * GET 默认走 3 秒内存缓存 + 并发去重，写操作会自动失效 /api/admin/spirit 下的缓存。
  */
-export async function adminRequest(path, { method = 'GET', body, timeout = 15000 } = {}) {
-  const headers = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+export const adminRequest = createRequest({
+  getToken: getAdminToken,
+  onUnauthorized: clearAdminSession,
+  ErrorClass: AdminApiError,
+  unauthorizedMessage: '后台登录状态已失效，请重新登录'
+})
 
-  const token = getAdminToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), timeout)
-
-  let response
-  try {
-    response = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal
-    })
-  } catch (e) {
-    const aborted = e.name === 'AbortError'
-    throw new AdminApiError(
-      aborted ? '请求超时，学院服务器无响应，请稍后重试' : '无法连接学院服务器，请确认后端已启动（默认 127.0.0.1:8082）',
-      0
-    )
-  } finally {
-    window.clearTimeout(timer)
+/**
+ * 统一分页返回结构，兼容后端两种返回：
+ *  - 已支持分页：{ list, total } / { records, total } → { list, total, paged: true }
+ *  - 仍是全量数组：[...]                              → 前端自行切片分页
+ */
+function normalizePage(raw, page, size) {
+  if (Array.isArray(raw)) {
+    const total = raw.length
+    const start = (page - 1) * size
+    return { list: raw.slice(start, start + size), total, paged: false }
   }
-
-  if (response.status === 401) {
-    clearAdminSession()
-    let message = '后台登录状态已失效，请重新登录'
-    try {
-      const payload = await response.json()
-      if (payload?.message) message = payload.message
-    } catch {
-      /* 忽略解析失败 */
-    }
-    throw new AdminApiError(message, 401)
-  }
-
-  let payload = null
-  try {
-    payload = await response.json()
-  } catch {
-    throw new AdminApiError('服务器返回了无法解析的数据', response.status)
-  }
-
-  if (!response.ok) {
-    throw new AdminApiError(payload?.message || `请求失败（HTTP ${response.status}）`, response.status)
-  }
-  if (payload.code !== 0) {
-    if (payload.code === 401) clearAdminSession()
-    throw new AdminApiError(payload.message || '操作失败', payload.code)
-  }
-
-  return payload.data
+  const list = Array.isArray(raw?.list)
+    ? raw.list
+    : Array.isArray(raw?.records)
+      ? raw.records
+      : Array.isArray(raw?.rows)
+        ? raw.rows
+        : []
+  const total = Number(raw?.total ?? raw?.totalElements ?? list.length) || 0
+  return { list, total, paged: true }
 }
 
 export const adminApi = {
@@ -84,9 +56,12 @@ export const adminApi = {
    * @returns {Promise<{token:string, expiresIn:number, admin:{id:number, username:string, nickname:string}}>}
    */
   async login(username, password, remember = false) {
+    // 清掉上一位管理员可能留下的读缓存
+    adminRequest.clearCache()
     const data = await adminRequest('/api/admin/auth/login', {
       method: 'POST',
-      body: { username, password, remember }
+      body: { username, password, remember },
+      invalidate: false
     })
     return data
   },
@@ -96,9 +71,34 @@ export const adminApi = {
     return adminRequest('/api/admin/auth/me')
   },
 
-  /** 言灵列表（含隐藏条目） */
-  async listSpirits() {
-    return adminRequest('/api/admin/spirit/list')
+  /**
+   * 言灵列表（含隐藏条目）。
+   * 有筛选词 / 翻页时把参数交给后端；后端若还没实现分页，返回数组也能正确切片。
+   *
+   * @param {object} [query]
+   * @param {string} [query.keyword] 按 key / 名称 / 元素 / 密级过滤
+   * @param {number} [query.page] 页码，从 1 开始
+   * @param {number} [query.size] 每页条数
+   * @param {boolean}[query.fresh] 跳过缓存（手动刷新用）
+   * @returns {Promise<{list:Array, total:number, paged:boolean}>}
+   */
+  async listSpirits(query = {}) {
+    const page = Math.max(1, Number(query.page) || 1)
+    const size = Math.max(1, Number(query.size) || 20)
+    const keyword = (query.keyword || '').trim()
+
+    // 无筛选且第一页时不额外带参，与旧后端完全兼容
+    const params = {}
+    if (keyword) params.keyword = keyword
+    if (page > 1) params.page = page
+    if (size !== 20) params.size = size
+
+    const data = await adminRequest(`/api/admin/spirit/list${toQuery(params)}`, {
+      fresh: !!query.fresh,
+      // 带筛选词的缓存更短，避免改完数据看不到最新结果
+      cacheTtl: keyword ? 1200 : 3000
+    })
+    return normalizePage(data, page, size)
   },
 
   /** 新增言灵 */

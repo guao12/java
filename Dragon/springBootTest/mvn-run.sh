@@ -2,7 +2,12 @@
 # 直接拉起缓存的 Maven 发行版，绕过 MinGW 下 mvn 脚本的路径转换问题。
 # 用法: ./mvn-run.sh <maven 参数>  (例如 ./mvn-run.sh spring-boot:run)
 
-MVN_UNIX="/c/Users/Administrator/.m2/wrapper/dists/apache-maven-3.9.9/66f6076d"
+# wrapper 缓存目录带随机 hash，且结构可能变化，这里动态探测，避免硬编码路径过期。
+MVN_UNIX=$(ls -d /c/Users/Administrator/.m2/wrapper/dists/apache-maven-3.9.9-bin/*/apache-maven-3.9.9 2>/dev/null | head -1)
+if [ -z "$MVN_UNIX" ] || [ ! -f "$MVN_UNIX/boot/plexus-classworlds-2.8.0.jar" ]; then
+  echo "错误：未找到 Maven 发行版缓存目录，请检查 ~/.m2/wrapper/dists/" >&2
+  exit 1
+fi
 MVN_WIN=$(cygpath -w "$MVN_UNIX")
 JH_WIN=$(cygpath -w "$JAVA_HOME")
 BOOT_WIN=$(cygpath -w "$MVN_UNIX/boot/plexus-classworlds-2.8.0.jar")

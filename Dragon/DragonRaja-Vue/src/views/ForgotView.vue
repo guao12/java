@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AuthCard from '@/components/AuthCard.vue'
 import FormField from '@/components/FormField.vue'
@@ -28,6 +28,22 @@ const expireSeconds = ref(0)
 /** 重新发送倒计时（秒），与后端 60 秒冷却保持一致 */
 const cooldown = ref(0)
 let cooldownTimer = 0
+
+/** 图形验证码：验证龙文下发前置，防脚本批量刷取 */
+const captcha = reactive({ token: '', image: '', input: '', error: '' })
+
+/** 拉取一张新的图形验证码（token 由后端签发，答案仅存服务端） */
+async function loadCaptcha() {
+  try {
+    const data = await authApi.captcha()
+    captcha.token = data.token
+    captcha.image = data.image
+    captcha.input = ''
+    captcha.error = ''
+  } catch {
+    captcha.error = '验证码加载失败，请点击刷新后重试'
+  }
+}
 
 const STRENGTH_LABEL = ['——', '脆弱', '一般', '良好', '坚不可摧']
 
@@ -104,15 +120,24 @@ function startCooldown(seconds) {
 }
 
 onBeforeUnmount(() => window.clearInterval(cooldownTimer))
+onMounted(() => loadCaptcha())
 
 async function sendCode() {
   check('account')
   if (errors.account) return
+  if (!captcha.input.trim()) {
+    captcha.error = '请输入图形验证码'
+    return
+  }
   loading.value = true
   notice.value = null
   try {
     // 调用后端下发验证龙文：演示环境由后端直接回显验证码（你给验证码）
-    const data = await authApi.sendResetCode(form.account.trim())
+    const data = await authApi.sendResetCode({
+      account: form.account.trim(),
+      captchaToken: captcha.token,
+      captchaCode: captcha.input.trim()
+    })
     resetCode.value = data.demoCode
     expireSeconds.value = data.expireSeconds
     startCooldown(60)
@@ -122,9 +147,11 @@ async function sendCode() {
         data.expireSeconds / 60
       )} 分钟内有效）。`
     }
+    await loadCaptcha()
     step.value = 2
   } catch (e) {
     notice.value = { type: 'err', text: e.message }
+    await loadCaptcha()
   } finally {
     loading.value = false
   }
@@ -198,6 +225,33 @@ function goLogin() {
         @blur="check('account'); checkAccountExists()"
         @enter="sendCode"
       />
+
+      <!-- 图形验证码：验证龙文下发前置，防脚本批量刷取 -->
+      <div class="captcha-row">
+        <input
+          v-model="captcha.input"
+          class="captcha-input"
+          type="text"
+          maxlength="4"
+          placeholder="图形验证码"
+          :disabled="cooldown > 0 || loading"
+          @input="captcha.error = ''"
+        />
+        <img
+          v-if="captcha.image"
+          :src="captcha.image"
+          class="captcha-img"
+          title="点击刷新"
+          alt="图形验证码"
+          @click="loadCaptcha"
+        />
+        <button type="button" class="captcha-refresh" :disabled="loading" @click="loadCaptcha">
+          换一张
+        </button>
+      </div>
+      <p v-if="captcha.error" class="field__msg">
+        <AppIcon name="alert" :size="13" />{{ captcha.error }}
+      </p>
 
       <div v-if="notice" class="alert" :class="`alert--${notice.type}`">
         <AppIcon :name="notice.type === 'err' ? 'alert' : 'info'" :size="15" />
@@ -376,6 +430,71 @@ function goLogin() {
   border-color: currentColor;
 }
 .as-link:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+/* ---------------- 图形验证码 ---------------- */
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.captcha-input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: rgba(4, 7, 13, 0.5);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  outline: none;
+  transition: border-color 0.22s, box-shadow 0.22s;
+}
+.captcha-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.25);
+}
+.captcha-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.captcha-img {
+  flex: 0 0 auto;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.22s, transform 0.22s;
+}
+.captcha-img:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+.captcha-refresh {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--gold);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.25s, border-color 0.25s;
+}
+.captcha-refresh:hover:not(:disabled) {
+  color: var(--gold-lt);
+  border-color: currentColor;
+}
+.captcha-refresh:disabled {
   color: var(--text-4);
   cursor: not-allowed;
 }
