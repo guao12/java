@@ -48,7 +48,11 @@ public class OptionalAuthInterceptor implements HandlerInterceptor {
             }
             DrUser user = authService.getUserById(userId);
             if (user != null) {
-                CurrentUser.set(user);
+                // 密码已改 → 该令牌对应的身份作废，按未登录处理
+                String pwdVer = com.fenglin.springboottest.service.impl.AuthServiceImpl.pwdVer(user.getPassword());
+                if (tokenService.parseUserId(token, pwdVer) != null) {
+                    CurrentUser.set(user);
+                }
             }
         } catch (Exception e) {
             // 软鉴权：任何异常都降级为「未登录」，绝不影响接口正常返回

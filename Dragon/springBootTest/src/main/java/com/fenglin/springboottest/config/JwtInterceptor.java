@@ -63,6 +63,11 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (user.getStatus() == null || user.getStatus() == 0) {
             return reject(response, "该身份卡已被学院封印，请联系执行部");
         }
+        // 密码已修改（令牌携带的 pwd 版本与当前不一致）→ 旧令牌作废，需重新认证
+        String pwdVer = com.fenglin.springboottest.service.impl.AuthServiceImpl.pwdVer(user.getPassword());
+        if (tokenService.parseUserId(token, pwdVer) == null) {
+            return reject(response, "登录状态已失效，请重新认证");
+        }
 
         CurrentUser.set(user);
         return true;

@@ -43,6 +43,10 @@ const categories = computed(() => overview.value?.categories || [])
 const notices = computed(() => overview.value?.notices || [])
 const hotKeywords = computed(() => overview.value?.hotKeywords || searchApi.hotKeywords)
 
+/** 首页大标题逐字入场：拆成单字交给 .char-in 按序升起（--i 控制延迟） */
+const HERO_TITLE = '龙文档案馆'
+const heroChars = Array.from(HERO_TITLE)
+
 async function loadOverview() {
   const data = await homeApi.overview()
   overview.value = data
@@ -419,6 +423,20 @@ function observeReveals() {
   document.querySelectorAll('.reveal:not(.is-in)').forEach((el) => revealObs.observe(el))
 }
 
+/* ---------------- 光标跟随高光（事件委托，不给每张卡单独绑监听） ---------------- */
+
+/**
+ * 把指针在元素内的相对坐标写入 --mx / --my，供 .dcard::before 的 radial-gradient 定位。
+ * 用 pointermove 而非 mousemove：触屏与手写笔也能正常工作。
+ */
+function onPointerMove(e) {
+  const card = e.target.closest?.('.dcard, .lift')
+  if (!card) return
+  const rect = card.getBoundingClientRect()
+  card.style.setProperty('--mx', `${e.clientX - rect.left}px`)
+  card.style.setProperty('--my', `${e.clientY - rect.top}px`)
+}
+
 /** 图片加载失败兜底：隐藏 img，露出渐变底 */
 function onImgError(e) {
   const img = e.target
@@ -440,6 +458,7 @@ onMounted(async () => {
   // 每次进入首页都重读一次血统鉴定档案，确保与 /appraisal 的最新报告一致
   bloodTick.value++
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('pointermove', onPointerMove, { passive: true })
   await loadOverview()
   // 言灵图鉴：拉取后台管理系统维护的最新数据（失败时保持静态兜底）
   ensureSpirits()
@@ -452,6 +471,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('pointermove', onPointerMove)
   revealObs?.disconnect()
   revealObs = null
 })
@@ -518,8 +538,10 @@ onBeforeUnmount(() => {
 
       <!-- 英雄区 + 搜索栏 -->
       <section id="sec-top" class="hero">
-        <p class="hero__eyebrow"><i /> Secret Archive · 龙文档案馆</p>
-        <h1 class="hero__title">龙文档案馆</h1>
+        <p class="hero__eyebrow"><i class="breathe-dot" /> Secret Archive · 龙文档案馆</p>
+        <h1 class="hero__title sheen-gold">
+          <span v-for="(ch, i) in heroChars" :key="i" class="char-in" :style="{ '--i': i }">{{ ch }}</span>
+        </h1>
         <p class="hero__sub">检索混血种名册、言灵图鉴与执行部机密卷宗</p>
 
         <!-- 血统鉴定：评级 + 龙血占比 -->
@@ -1444,7 +1466,30 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.05), 0 0 22px -14px rgba(216, 178, 90, 0.3);
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.26s, transform 0.26s, box-shadow 0.26s;
+  transition:
+    border-color var(--t-base) var(--ease-soft),
+    transform var(--t-base) var(--ease-out),
+    box-shadow var(--t-base) var(--ease-soft);
+}
+
+/* 光标跟随的暖光：鼠标移到哪，卡片就在哪亮起一小片金辉 */
+.dcard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    180px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(216, 178, 90, 0.16),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity var(--t-base) var(--ease-soft);
+  pointer-events: none;
+}
+
+.dcard:hover::before,
+.dcard:focus-visible::before {
+  opacity: 1;
 }
 
 .dcard:hover {
@@ -1452,6 +1497,15 @@ onBeforeUnmount(() => {
   transform: translateY(-4px);
   box-shadow:
     0 0 0 1px rgba(216, 178, 90, 0.18),
+    0 22px 44px -22px rgba(0, 0, 0, 0.9);
+}
+
+/* 键盘聚焦也必须有可见反馈，而不是只有鼠标用户能感知 */
+.dcard:focus-visible {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow:
+    0 0 0 2px rgba(216, 178, 90, 0.28),
     0 22px 44px -22px rgba(0, 0, 0, 0.9);
 }
 
@@ -2392,13 +2446,30 @@ onBeforeUnmount(() => {
     padding: 26px 0 20px;
   }
 
+  /* 移动端检索按钮：原来只隐藏了文字、按钮里又没有图标，
+     结果被 flex 压成 36px 的空金块。这里保留文字并禁止收缩。 */
   .search__btn {
-    padding: 10px 18px;
-    letter-spacing: 0.14em;
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 5px;
+    padding: 10px 16px;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
   }
 
-  .search__btn span {
-    display: none;
+  .search {
+    padding-right: 2px;
+  }
+
+  .search__icon {
+    flex: 0 0 40px;
+  }
+
+  /* 16px 是 iOS 的分界线：低于它，聚焦输入框会放大整页 */
+  .search__input {
+    padding: 14px 0;
+    font-size: 16px;
   }
 
   .results__grid {
@@ -3162,18 +3233,23 @@ onBeforeUnmount(() => {
 }
 
 
-/* ================= 渐进显现（滚动进场） ================= */
-.reveal {
-  opacity: 0;
-  transform: translateY(18px);
-  transition:
-    opacity 0.6s ease,
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+/* ================= 渐进显现（滚动进场） =================
+   基础规则在 styles/theme.css 的 .reveal（带 --d 错峰变量）；
+   这里只给同一屏内的区块排出先后次序，视觉上像档案被逐份放到桌上。 */
+.reveal:nth-of-type(2) {
+  --d: 70ms;
 }
-
-.reveal.is-in {
-  opacity: 1;
-  transform: none;
+.reveal:nth-of-type(3) {
+  --d: 140ms;
+}
+.reveal:nth-of-type(4) {
+  --d: 210ms;
+}
+.reveal:nth-of-type(5) {
+  --d: 280ms;
+}
+.reveal:nth-of-type(n + 6) {
+  --d: 340ms;
 }
 
 /* ================= 尊重系统的「减少动态效果」设置 ================= */

@@ -62,9 +62,14 @@ export function createRequest({
   /** GET 结果缓存：key → { at, data } */
   const cache = new Map()
 
-  /** 请求 key：令牌只取长度参与，避免把敏感串留在内存表里 */
+  /** 请求 key：令牌用「长度 + 摘要」区分，既避免明文入内存，又保证不同账号不串缓存 */
   function keyOf(method, path, token) {
-    return `${method} ${path} #${token ? token.length : 0}`
+    if (!token) return `${method} ${path} #anon`
+    let h = 0
+    for (let i = 0; i < token.length; i++) {
+      h = (h * 31 + token.charCodeAt(i)) | 0
+    }
+    return `${method} ${path} #${token.length}:${h}`
   }
 
   /**

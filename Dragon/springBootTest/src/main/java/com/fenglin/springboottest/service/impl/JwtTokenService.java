@@ -42,12 +42,13 @@ public class JwtTokenService implements TokenService {
     }
 
     @Override
-    public String issue(Long userId, String account, boolean remember) {
+    public String issue(Long userId, String account, boolean remember, String pwdVer) {
         long seconds = expiresIn(remember);
         Date now = new Date();
         return Jwts.builder()
                 .subject(account)
                 .claim("uid", userId)
+                .claim("pwd", pwdVer == null ? "" : pwdVer)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + seconds * 1000))
                 .signWith(key)
@@ -60,11 +61,17 @@ public class JwtTokenService implements TokenService {
     }
 
     @Override
-    public Long parseUserId(String token) {
+    public Long parseUserId(String token, String pwdVer) {
         try {
             Claims claims = parse(token);
             // 后台管理员令牌（scope=admin）不属于学员会话
             if ("admin".equals(claims.get("scope", String.class))) {
+                return null;
+            }
+            // 密码已改（令牌内携带的 pwd 版本与当前不一致）→ 旧令牌作废
+            String tokenPwd = claims.get("pwd", String.class);
+            if (pwdVer != null && !pwdVer.equals(tokenPwd)) {
+                log.debug("密码已修改，令牌失效");
                 return null;
             }
             Number uid = claims.get("uid", Number.class);
@@ -73,6 +80,11 @@ public class JwtTokenService implements TokenService {
             log.debug("令牌校验未通过：{}", e.getMessage());
             return null;
         }
+    }
+
+    @Override
+    public Long parseUserId(String token) {
+        return parseUserId(token, null);
     }
 
     @Override

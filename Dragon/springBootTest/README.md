@@ -80,9 +80,31 @@ sql/dragon_raja.sql                  建库建表脚本（dragon_raja / dragon_r
 **全部是 `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`，不含任何 `DROP`，可放心重复执行**，
 且完全不动 `dr_user`。
 
+### 1.8 配置 JWT 密钥（必做，漏了会启动失败）
+
+`application.properties` 里是 `dr.jwt.secret=${DR_JWT_SECRET}`，**故意没有默认值**，
+不注入就会抛 `Could not resolve placeholder 'DR_JWT_SECRET'` 直接退出。
+
+项目根目录放一个 `.run-secret`（单行、64 字符、结尾不要带多余空格），
+本目录的 `run-backend.bat` 与 `../DragonRaja-Vue/启动.bat` 都会自动读取它：
+
+```bash
+# 生成一个（Git Bash / Linux）
+openssl rand -base64 48 | tr -d '\n' > .run-secret
+```
+
+手动命令行的等价写法：
+
+```bash
+DR_JWT_SECRET=$(cat .run-secret) java -jar target/springBootTest-0.0.1-SNAPSHOT.jar
+```
+
+> 换密钥后之前签发的 JWT 全部失效，前端需要重新登录。
+
 ### 2. 启动后端
 
 IDEA 里直接 Run `SpringBootTestApplication`，默认激活 `dev`（端口 **8082**）。
+**记得在 Run Configuration 的 Environment variables 里加上 `DR_JWT_SECRET`**（见 1.8）。
 
 命令行方式（本机没配 `mvn` 到 PATH 时用项目自带 wrapper）：
 
@@ -90,6 +112,29 @@ IDEA 里直接 Run `SpringBootTestApplication`，默认激活 `dev`（端口 **8
 mvnw.cmd clean package -DskipTests
 java -jar target/springBootTest-0.0.1-SNAPSHOT.jar
 ```
+
+> 若 `mvnw` 报 `ClassNotFoundException: org.codehaus.plexus.classworlds.launcher.Launcher`
+> （Git Bash / MinGW 下路径转换导致），改用 `sh ./mvn-run.sh package -DskipTests`，
+> 它直接调 `java -classpath boot/plexus-classworlds-*.jar ... Launcher` 绕过该问题，
+> 并会自动匹配 `~/.m2/wrapper/dists` 下实际存在的 Maven 版本。
+
+最省事的方式：直接双击本目录的 **`run-backend.bat`**，自动读 `.run-secret` 并固定 8082 端口。
+
+#### 开发模式（改完代码自动重启）
+
+改代码频繁时**不要用 `java -jar`**：`spring-boot-maven-plugin` 的 `repackage` 默认
+`excludeDevtools=true`，devtools 根本不在 fat jar 里，热重启永远不触发；
+而且每次都要 `package` 一次，`clean` 还会把 `target/` 删掉、正在跑的 JVM 直接消失。
+
+开发模式请双击 **`dev-run.bat`**（等价于 `mvn spring-boot:run`）：
+
+- 从 `.run-secret` 读密钥，自动探测 `~/.m2/wrapper/dists` 下的 Maven 发行版
+- devtools 生效：LiveReload 监听 **35729**，改完代码触发一次编译后进程自动重启
+- `dev-run.bat --check` 只打印探测到的 Maven / plexus / java / 密钥状态，不启动，便于排查
+
+> 热重启时如果撞上 IDE 正在全量编译，可能在 `target/classes` 处于半成品的那一瞬间
+> 报 `No qualifying bean of type ...` 之类的启动失败 —— 编译结束后会自动再重启一次，
+> 属于瞬时现象，不是代码问题。
 
 验证：
 
@@ -237,4 +282,5 @@ JDBC URL 已带 `allowPublicKeyRetrieval=true`，无需处理。
 （3.5.9 起分页插件被拆到该独立包）。
 
 **6. 换 JWT 密钥**
-改 `application.properties` 的 `dr.jwt.secret`（HS256 至少 32 字节）；生产环境用环境变量 `DR_JWT_SECRET` 注入。
+`dr.jwt.secret` 现在只接受环境变量 `DR_JWT_SECRET`（HS256 至少 32 字节），仓库里不写死默认值。
+本地最省事的做法是重新生成 `.run-secret`（见 1.8），`run-backend.bat` 与前端 `启动.bat` 都会自动读取。

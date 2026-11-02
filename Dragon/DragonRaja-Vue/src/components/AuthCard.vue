@@ -18,7 +18,7 @@ defineProps({
     <span class="corner corner--br" />
 
     <header class="auth-card__head">
-      <p v-if="badge" class="eyebrow"><i />{{ badge }}</p>
+      <p v-if="badge" class="eyebrow"><i class="breathe-dot" />{{ badge }}</p>
       <h1 class="auth-title">{{ title }}</h1>
       <p v-if="subtitle" class="auth-sub">{{ subtitle }}</p>
     </header>

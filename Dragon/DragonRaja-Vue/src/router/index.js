@@ -17,6 +17,7 @@ const ArchiveView = () => import('@/views/ArchiveView.vue')
 const CharacterView = () => import('@/views/CharacterView.vue')
 const AppraisalView = () => import('@/views/AppraisalView.vue')
 const CodexDetailView = () => import('@/views/CodexDetailView.vue')
+const TaskLogView = () => import('@/views/TaskLogView.vue')
 const AdminLoginView = () => import('@/views/AdminLoginView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
 
@@ -65,6 +66,13 @@ const routes = [
     component: CodexDetailView,
     props: { kind: 'org' },
     meta: { title: '机构档案 · 机构志', requiresAuth: true, standalone: true }
+  },
+  {
+    // 任务执行记录 · 单条详情（code = 任务编号，person = 执行人姓名，需 encodeURIComponent）
+    path: '/log/:code/:person',
+    name: 'task-log',
+    component: TaskLogView,
+    meta: { title: '任务记录 · 执行档案', requiresAuth: true, standalone: true }
   },
   {
     path: '/login',

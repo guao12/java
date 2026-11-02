@@ -96,20 +96,6 @@ const strength = computed(() => {
 const passwordValid = computed(() => touched.password && !errors.password && !!form.password)
 const confirmValid = computed(() => touched.confirm && !errors.confirm && !!form.confirm)
 
-/** 失焦时探测账号是否已登记，提前给出提示（后端 /api/auth/check-account） */
-async function checkAccountExists() {
-  const value = form.account.trim()
-  if (!value || validateAccount()) return
-  try {
-    const data = await authApi.checkAccount(value)
-    if (!data.registered) {
-      errors.account = '该身份卡尚未登记，请先完成新生登记'
-    }
-  } catch {
-    /* 网络异常留给提交时统一提示 */
-  }
-}
-
 function startCooldown(seconds) {
   cooldown.value = seconds
   window.clearInterval(cooldownTimer)
@@ -143,9 +129,9 @@ async function sendCode() {
     startCooldown(60)
     notice.value = {
       type: 'info',
-      text: `系统已生成验证龙文，请在下方抄录输入（${Math.round(
+      text: `验证龙文已生成（${Math.round(
         data.expireSeconds / 60
-      )} 分钟内有效）。`
+      )} 分钟内有效）。演示环境请到后端控制台 / 日志（log/springBootTest.log）查看「【重置验证龙文】」一行的 6 位数字并填入。`
     }
     await loadCaptcha()
     step.value = 2
@@ -222,7 +208,7 @@ function goLogin() {
         placeholder="例：CC20260001 或 路明非"
         autocomplete="username"
         :error="touched.account ? errors.account : ''"
-        @blur="check('account'); checkAccountExists()"
+        @blur="check('account')"
         @enter="sendCode"
       />
 
@@ -264,13 +250,13 @@ function goLogin() {
 
       <p class="card-note">
         校验由后端 <b>Spring Boot + MySQL</b> 完成，验证龙文 5 分钟内有效<br />
-        演示环境由系统直接显示验证码，你照着输入即可
+        演示环境：验证龙文写入后端日志，请到控制台 / log/springBootTest.log 查看后填入
       </p>
     </form>
 
     <!-- 第 2 步：重置密钥 -->
     <form v-else-if="step === 2" class="form" novalidate @submit.prevent="resetKey">
-      <!-- 系统直接给出的验证龙文：你抄录、我输入 -->
+      <!-- 系统验证龙文：由后端写入日志，前端不再回显 -->
       <div v-if="resetCode" class="code-reveal">
         <span class="code-reveal__label">系统验证龙文 · 请照此输入</span>
         <span class="code-reveal__value">{{ resetCode }}</span>

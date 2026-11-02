@@ -1,6 +1,14 @@
 @echo off
 chcp 936 >nul
 cd /d "%~dp0"
+REM 注入 JWT 密钥：后端 dr.jwt.secret=${DR_JWT_SECRET} 没有默认值，缺了会直接启动失败
+if exist "%~dp0..\springBootTest\.run-secret" (
+    set /p DR_JWT_SECRET=<"%~dp0..\springBootTest\.run-secret"
+    echo            已读取 springBootTest\.run-secret
+) else (
+    echo    [警告] 缺少 ..\springBootTest\.run-secret  后端将因无 DR_JWT_SECRET 启动失败
+)
+
 title DragonRaja-启动项目
 setlocal enabledelayedexpansion
 echo.
@@ -44,14 +52,32 @@ echo    [4/4] 启动服务...
 REM 关键修复：清空外部注入的 SERVER__PORT / SERVER__HOST，避免端口被劫持到随机端口
 set "SERVER__PORT="
 set "SERVER__HOST="
-REM 后端优先用已构建的 jar 直接运行，跳过编译；没有 jar 才 mvnw 构建一次（重启更快）
+REM 后端启动策略：
+REM   有 jar 且比源码新 -> 直接运行（重启最快）
+REM   jar 缺失 / 比源码旧 -> 自动重新打包后再运行
+REM 之前只看 jar 是否存在，改了 Java 代码照样跑旧 jar，
+REM 容易出现「代码明明改了却不生效」，这里改为比对源码与 jar 的修改时间。
 set "BACKEND=%~dp0..\springBootTest"
 set "JAR=%BACKEND%\target\springBootTest-0.0.1-SNAPSHOT.jar"
-if exist "%JAR%" (
-    echo            后端已有 jar，直接运行 跳过编译
+set "NEED_BUILD=0"
+set "SRC_NEWER="
+if not exist "!JAR!" (
+    set "NEED_BUILD=1"
+    echo            未找到 jar  将首次构建后端
+) else (
+    REM 用 PowerShell 精确比较：src 与 pom.xml 中最新的修改时间是否晚于 jar
+    REM 取不到结果（如 PowerShell 被禁用）时按「不用重建」处理，避免每次都白跑一次编译
+    for /f "usebackq delims=" %%r in (`powershell -NoProfile -Command "$j=(Get-Item -LiteralPath '%JAR%').LastWriteTime; $s=Get-ChildItem -LiteralPath '%BACKEND%\src','%BACKEND%\pom.xml' -Recurse -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if($s -and $s.LastWriteTime -gt $j){'YES'}else{'NO'}" 2^>nul`) do set "SRC_NEWER=%%r"
+    if /i "!SRC_NEWER!"=="YES" (
+        set "NEED_BUILD=1"
+        echo            检测到源码比 jar 新  需要重新打包
+    )
+)
+if "!NEED_BUILD!"=="0" (
+    echo            后端 jar 已是最新  直接运行 跳过编译
     start "龙族-后端-8082" cmd /k "cd /d "%BACKEND%" && set SERVER__PORT= && set SERVER__HOST= && java -jar "%JAR%" --server.port=8082"
 ) else (
-    echo            首次构建后端 请稍候 mvnw clean package
+    echo            正在构建后端  mvnw clean package 请稍候...
     start "龙族-后端-8082" cmd /k "cd /d "%BACKEND%" && set SERVER__PORT= && set SERVER__HOST= && mvnw.cmd clean package -DskipTests && java -jar target\springBootTest-0.0.1-SNAPSHOT.jar --server.port=8082"
 )
 echo            后端窗口已打开  端口 8082

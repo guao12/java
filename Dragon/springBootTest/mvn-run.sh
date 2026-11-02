@@ -1,21 +1,42 @@
 #!/bin/sh
-# 直接拉起缓存的 Maven 发行版，绕过 MinGW 下 mvn 脚本的路径转换问题。
+# 直接拉起缓存的 Maven 发行版，绕过 MinGW 下 mvn 脚本的路径转换 / 类路径探测问题。
 # 用法: ./mvn-run.sh <maven 参数>  (例如 ./mvn-run.sh spring-boot:run)
 
-# wrapper 缓存目录带随机 hash，且结构可能变化，这里动态探测，避免硬编码路径过期。
-MVN_UNIX=$(ls -d /c/Users/Administrator/.m2/wrapper/dists/apache-maven-3.9.9-bin/*/apache-maven-3.9.9 2>/dev/null | head -1)
-if [ -z "$MVN_UNIX" ] || [ ! -f "$MVN_UNIX/boot/plexus-classworlds-2.8.0.jar" ]; then
+PROJ_DIR="D:/workSpace/java/Dragon/springBootTest"
+
+# wrapper 缓存目录带随机 hash，且 Maven 版本会随 distributionUrl 变化，
+# 这里动态探测：优先取最高版本，避免硬编码路径 / jar 版本过期。
+MVN_UNIX=$(ls -d /c/Users/Administrator/.m2/wrapper/dists/apache-maven-*-bin/*/apache-maven-* 2>/dev/null \
+  | grep -E 'apache-maven-[0-9.]+$' \
+  | sort -V \
+  | tail -1)
+
+if [ -z "$MVN_UNIX" ]; then
   echo "错误：未找到 Maven 发行版缓存目录，请检查 ~/.m2/wrapper/dists/" >&2
+  echo "可先执行一次 ./mvnw -v 让 wrapper 下载发行版。" >&2
   exit 1
 fi
+
+# plexus-classworlds 的版本号随 Maven 版本变化（3.9.9 -> 2.8.0，3.9.16 -> 2.11.0）
+BOOT_UNIX=$(ls "$MVN_UNIX"/boot/plexus-classworlds-*.jar 2>/dev/null | head -1)
+if [ -z "$BOOT_UNIX" ] || [ ! -f "$BOOT_UNIX" ]; then
+  echo "错误：$MVN_UNIX/boot 下未找到 plexus-classworlds jar" >&2
+  exit 1
+fi
+
+if [ -z "$JAVA_HOME" ]; then
+  echo "错误：未设置 JAVA_HOME（本项目需要 JDK 17+）" >&2
+  exit 1
+fi
+
 MVN_WIN=$(cygpath -w "$MVN_UNIX")
 JH_WIN=$(cygpath -w "$JAVA_HOME")
-BOOT_WIN=$(cygpath -w "$MVN_UNIX/boot/plexus-classworlds-2.8.0.jar")
+BOOT_WIN=$(cygpath -w "$BOOT_UNIX")
 CONF_WIN=$(cygpath -w "$MVN_UNIX/bin/m2.conf")
-PROJ_WIN=$(cygpath -w "D:/workSpace/java/Dragon/springBootTest")
+PROJ_WIN=$(cygpath -w "$PROJ_DIR")
 JAVACMD="$JH_WIN/bin/java.exe"
 
-cd "D:/workSpace/java/Dragon/springBootTest" || exit 1
+cd "$PROJ_DIR" || exit 1
 
 # 该环境（WorkBuddy agent shell）会注入 SERVER__PORT 环境变量，Spring Boot 的宽松绑定
 # 会把它当成 server.port，从而覆盖 application-dev.properties 里的 8082。
@@ -23,7 +44,7 @@ cd "D:/workSpace/java/Dragon/springBootTest" || exit 1
 MVN_ARGS="$@"
 case "$MVN_ARGS" in
   *server.port*) ;;   # 已手动指定端口则不覆盖
-  *) MVN_ARGS="$MVN_ARGS -Dspring-boot.run.arguments=--server.port=8082" ;;
+  *spring-boot:run*) MVN_ARGS="$MVN_ARGS -Dspring-boot.run.arguments=--server.port=8082" ;;
 esac
 
 exec "$JAVACMD" \

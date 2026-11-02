@@ -9,11 +9,12 @@
  * - 带 `id` 的菜单项指向首页区块：已在首页则平滑滚动；在其他页面则先回首页再定位
  * - 带 `match` 的菜单项把这些路径前缀都算作命中（高亮）
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
+import { request } from '@/api/http'
 import { clearSession, getUser } from '@/utils/auth'
 import { isAdminLoggedIn } from '@/utils/adminAuth'
 import { ADMIN_ENTRY, HOME_PATH, SITE_NAV } from '@/data/nav'
@@ -47,6 +48,45 @@ function closeMenu() {
   menuOpen.value = false
 }
 
+/* ---------------- 移动端抽屉菜单（≤860px 时代替 .nav__links） ---------------- */
+
+const drawerOpen = ref(false)
+
+/** 抽屉展开时锁住页面滚动，收起 / 卸载时一定要还原 */
+function syncBodyLock() {
+  if (typeof document === 'undefined') return
+  document.body.style.overflow = drawerOpen.value ? 'hidden' : ''
+}
+
+function toggleDrawer() {
+  drawerOpen.value = !drawerOpen.value
+  syncBodyLock()
+}
+
+function closeDrawer() {
+  if (!drawerOpen.value) return
+  drawerOpen.value = false
+  syncBodyLock()
+}
+
+/** Esc 收起抽屉与用户下拉 */
+function onKeydown(e) {
+  if (e.key !== 'Escape') return
+  closeDrawer()
+  closeMenu()
+}
+
+/** 视口变宽（旋转平板等）时抽屉要自动收起，否则会和新露出的导航打架 */
+function onResize() {
+  if (window.innerWidth > 860) closeDrawer()
+}
+
+// 路由变化后收起抽屉
+watch(
+  () => route.fullPath,
+  () => closeDrawer()
+)
+
 /** 点击空白处收起用户下拉 */
 function onDocClick(e) {
   if (!menuOpen.value) return
@@ -61,6 +101,7 @@ async function onLogout() {
     /* 令牌过期等场景直接本地清理即可 */
   }
   clearSession()
+  request.clearCache() // 清空 GET 缓存，避免下一位登录者读到本账号的缓存
   router.push('/login')
 }
 
@@ -109,6 +150,7 @@ function isActive(item) {
 
 function onNav(item) {
   closeMenu()
+  closeDrawer()
   // 首页区块锚点
   if (item.id) {
     activeId.value = item.id
@@ -147,11 +189,19 @@ function goAdmin() {
 
 /* ---------------- 滚动高亮（仅首页区块） ---------------- */
 
+/** 阅读进度（0~1）：导航底部那条鎏金线，随页面滚过的高度生长 */
+const progress = ref(0)
+
 let spyRaf = 0
 function updateSpy() {
   if (spyRaf) return
   spyRaf = requestAnimationFrame(() => {
     spyRaf = 0
+
+    // 进度线：复用同一次 rAF，不为它单独挂 scroll 监听
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight
+    progress.value = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0
+
     if (!onHome.value) {
       activeId.value = ''
       return
@@ -173,6 +223,8 @@ function updateSpy() {
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onResize)
   tickClock()
   clockTimer = window.setInterval(tickClock, 1000)
   window.addEventListener('scroll', updateSpy, { passive: true })
@@ -182,15 +234,22 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onResize)
   window.clearInterval(clockTimer)
   window.removeEventListener('scroll', updateSpy)
   window.removeEventListener('resize', updateSpy)
   if (spyRaf) cancelAnimationFrame(spyRaf)
+  // 组件卸载时还原滚动锁，避免整页卡住
+  if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
 </script>
 
 <template>
   <header class="nav">
+    <!-- 阅读进度：贴近导航底边的一根鎏金线，滚到底时正好铺满 -->
+    <span class="nav__progress" aria-hidden="true" :style="{ transform: `scaleX(${progress})` }" />
+
     <div class="nav__inner" :class="{ 'nav__inner--actioned': !!$slots.actions }">
       <a class="nav__brand" href="#" @click.prevent="onNav({ to: HOME_PATH })">
         <DragonEmblem class="nav__mark" />
@@ -213,6 +272,20 @@ onBeforeUnmount(() => {
           {{ item.label }}
         </button>
       </nav>
+
+      <!-- 移动端（≤860px）菜单按钮：桌面隐藏，导航链接收起后由它打开抽屉 -->
+      <button
+        type="button"
+        class="nav__burger"
+        :aria-expanded="drawerOpen"
+        aria-controls="nav-drawer"
+        :aria-label="drawerOpen ? '收起主菜单' : '展开主菜单'"
+        @click.stop="toggleDrawer"
+      >
+        <span class="burger" :class="{ 'is-open': drawerOpen }" aria-hidden="true">
+          <i /><i /><i />
+        </span>
+      </button>
 
       <!-- 后台管理系统入口：独立描边按钮，未登录时由路由守卫转 /admin/login -->
       <button
@@ -262,6 +335,36 @@ onBeforeUnmount(() => {
       <!-- 额外操作区：详情页的「返回」按钮等 -->
       <slot name="actions" />
     </div>
+
+    <!-- 移动端抽屉：与桌面导航同源（items / ADMIN_ENTRY），不额外维护菜单数据 -->
+    <transition name="drawer">
+      <div v-if="drawerOpen" id="nav-drawer" class="nav__drawer">
+        <button
+          v-for="item in items"
+          :key="item.label"
+          type="button"
+          class="nav__drawer-item"
+          :class="{ 'is-current': isActive(item) }"
+          :aria-current="isActive(item) ? 'page' : undefined"
+          @click="onNav(item)"
+        >
+          <span>{{ item.label }}</span>
+          <AppIcon v-if="isActive(item)" name="chevron" :size="12" :stroke="2" />
+        </button>
+
+        <span class="nav__drawer-sep" aria-hidden="true" />
+
+        <button
+          type="button"
+          class="nav__drawer-item nav__drawer-item--admin"
+          :class="{ 'is-current': onAdmin }"
+          @click="goAdmin"
+        >
+          <span><AppIcon name="shield" :size="13" :stroke="1.8" /> {{ ADMIN_ENTRY.label }}</span>
+          <i v-if="adminReady" class="nav__admin-dot" />
+        </button>
+      </div>
+    </transition>
   </header>
 </template>
 
@@ -286,6 +389,23 @@ onBeforeUnmount(() => {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
   opacity: 0.55;
+}
+
+/* 阅读进度线：压在底边上，用 scaleX 而非 width —— 只走合成层，不触发重排 */
+.nav__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  z-index: 1;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(216, 178, 90, 0.3), var(--gold), #fffdf3);
+  box-shadow: 0 0 10px rgba(216, 178, 90, 0.7);
+  /* 只给 transform 加过渡，滚轮高速滚动时线也不会「追不上」而抖动 */
+  transition: transform 0.1s linear;
+  pointer-events: none;
 }
 
 .nav__inner {
@@ -377,7 +497,35 @@ onBeforeUnmount(() => {
   color: var(--text-2);
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.25s, background 0.25s, box-shadow 0.25s;
+  transition:
+    color var(--t-base) var(--ease-soft),
+    background var(--t-base) var(--ease-soft),
+    box-shadow var(--t-base) var(--ease-soft);
+}
+
+/* 未选中项的 hover：从中心向两侧长出一条极细金线，
+   与「已选中」那条静态短线区分开 —— 一个是当下，一个是意图 */
+.nav__link::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 0;
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(216, 178, 90, 0.85), transparent);
+  transition: width var(--t-base) var(--ease-out);
+  pointer-events: none;
+}
+
+.nav__link:hover::before,
+.nav__link:focus-visible::before {
+  width: 62%;
+}
+
+/* 当前项已有高亮胶囊 + 呼吸金线，不再叠一层生长线 */
+.nav__link.is-current::before {
+  display: none;
 }
 
 .nav__link:hover {
@@ -415,6 +563,138 @@ onBeforeUnmount(() => {
   50% {
     opacity: 1;
   }
+}
+
+/* ===== 移动端菜单按钮 + 抽屉 ===== */
+.nav__burger {
+  display: none;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(4, 7, 13, 0.55);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.nav__burger:hover {
+  border-color: rgba(216, 178, 90, 0.5);
+  box-shadow: 0 0 18px -6px var(--gold-glow);
+}
+
+/* 三条线用 CSS 画，不依赖图标库新增 path */
+.burger {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 12px;
+}
+
+.burger i {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--gold-lt);
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+}
+
+.burger i:nth-child(1) {
+  top: 0;
+}
+.burger i:nth-child(2) {
+  top: 5px;
+}
+.burger i:nth-child(3) {
+  top: 10px;
+}
+
+.burger.is-open i:nth-child(1) {
+  transform: translateY(5px) rotate(45deg);
+}
+.burger.is-open i:nth-child(2) {
+  opacity: 0;
+}
+.burger.is-open i:nth-child(3) {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+.nav__drawer {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 32;
+  display: grid;
+  gap: 2px;
+  padding: 8px 16px 14px;
+  background: rgba(6, 9, 16, 0.98);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 30px 60px -32px #000;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.nav__drawer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav__drawer-item:active,
+.nav__drawer-item:hover {
+  background: rgba(216, 178, 90, 0.08);
+  color: var(--gold-lt);
+}
+
+.nav__drawer-item.is-current {
+  color: var(--gold-lt);
+  background: rgba(216, 178, 90, 0.1);
+}
+
+.nav__drawer-item--admin {
+  color: var(--gold-lt);
+}
+
+.nav__drawer-item--admin span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav__drawer-sep {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--line-soft);
+}
+
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: opacity 0.2s, transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* ===== 后台管理系统入口按钮 ===== */
@@ -642,16 +922,44 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 860px) {
+  /* 导航链接收进抽屉，不再让主流程断掉：
+     下方 .nav__burger 负责打开，.nav__admin 也移入抽屉，
+     避免手机上「菜单 + 盾牌 + 头像」三个圆形按钮挤在一行。 */
   .nav__links {
     display: none;
   }
 
   .nav__inner {
-    justify-content: space-between;
+    justify-content: flex-start;
+    padding: 11px 16px;
+  }
+
+  .nav__burger {
+    display: grid;
+    margin-left: auto;
+  }
+
+  .nav__admin {
+    display: none;
   }
 
   .nav__clock {
     display: none;
+  }
+
+  .nav__mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .nav__brand-cn {
+    font-size: 15px;
+    letter-spacing: 0.16em;
+  }
+
+  .nav__brand-en {
+    font-size: 8px;
+    letter-spacing: 0.24em;
   }
 }
 

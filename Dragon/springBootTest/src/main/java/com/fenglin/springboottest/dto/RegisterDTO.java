@@ -6,10 +6,10 @@ import jakarta.validation.constraints.Size;
 
 /**
  * 新生登记（注册）请求。
- * 前端 RegisterView.vue 提交字段：codename / identity / spirit / password / code / clientKey。
+ * 前端 RegisterView.vue 提交字段：codename / identity / spirit / password / captchaToken / captchaCode。
  *
- * <p>登记前必须先通过验证码校验：验证码由 /api/auth/register/send 下发，
- * 演示环境直接回显给前端（不再使用邮箱验证）。</p>
+ * <p>登记前必须通过图形验证码校验（captchaToken + captchaCode），
+ * 取代原先「下发 6 位数字验证码」的流程：图形验证码由服务端签发、一次性消费，无需短信 / 邮件。</p>
  *
  * @author fenglin
  */
@@ -33,15 +33,13 @@ public class RegisterDTO {
     @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "言灵密钥需同时包含字母与数字")
     private String password;
 
-    /** 6 位数字验证码（由系统下发并回显） */
-    @NotBlank(message = "请输入验证码")
-    @Pattern(regexp = "^\\d{6}$", message = "验证码应为 6 位数字")
-    private String code;
+    /** 图形验证码令牌（由 GET /api/auth/captcha 下发，服务端签发、不可伪造） */
+    @NotBlank(message = "缺少图形验证码，请刷新后重试")
+    private String captchaToken;
 
-    /** 浏览器端生成的会话标识，与下发验证码时使用的保持一致 */
-    @NotBlank(message = "缺少浏览器标识，请刷新页面后重试")
-    @Size(max = 17, message = "浏览器标识过长")
-    private String clientKey;
+    /** 用户照图形验证码填入的文字 */
+    @NotBlank(message = "请输入图形验证码")
+    private String captchaCode;
 
     public RegisterDTO() {
     }
@@ -78,19 +76,19 @@ public class RegisterDTO {
         this.password = password;
     }
 
-    public String getCode() {
-        return code;
+    public String getCaptchaToken() {
+        return captchaToken;
     }
 
-    public void setCode(String code) {
-        this.code = code;
+    public void setCaptchaToken(String captchaToken) {
+        this.captchaToken = captchaToken;
     }
 
-    public String getClientKey() {
-        return clientKey;
+    public String getCaptchaCode() {
+        return captchaCode;
     }
 
-    public void setClientKey(String clientKey) {
-        this.clientKey = clientKey;
+    public void setCaptchaCode(String captchaCode) {
+        this.captchaCode = captchaCode;
     }
 }

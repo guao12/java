@@ -44,12 +44,19 @@ public class CaptchaServiceImpl implements CaptchaService {
     /** 去掉易混淆字符：0/O、1/l/I、8/B 等 */
     private static final String CHAR_POOL = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+    /** 内存里同时存活的验证码上限，防止被无限刷取打爆内存 */
+    private static final int MAX_STORE_SIZE = 10_000;
+
     private final SecureRandom random = new SecureRandom();
     private final Map<String, Entry> store = new ConcurrentHashMap<>();
 
     @Override
     public CaptchaVO generate() {
         purgeExpired();
+        // 容量保护：存活验证码超过上限时拒绝再生成，避免内存被恶意刷爆
+        if (store.size() >= MAX_STORE_SIZE) {
+            throw new BizException("验证码请求过于频繁，请稍后再试");
+        }
         String token = UUID.randomUUID().toString().replace("-", "");
         String code = randomText();
         store.put(token, new Entry(code, Instant.now().plusSeconds(TTL_SECONDS)));

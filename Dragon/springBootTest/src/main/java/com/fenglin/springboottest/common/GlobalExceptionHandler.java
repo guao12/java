@@ -3,6 +3,7 @@ package com.fenglin.springboottest.common;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +58,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public R<Void> handleMissingParam(MissingServletRequestParameterException e) {
         return R.fail("缺少必要参数：" + e.getParameterName());
+    }
+
+    /** 请求体无法解析 / 参数类型转换失败（如传错 JSON 或 ?level=abc）→ 400 而非 500 */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public R<Void> handleNotReadable(HttpMessageNotReadableException e) {
+        log.warn("请求体解析失败：{}", e.getMessage());
+        return R.fail("请求参数格式不正确，请检查后重试");
+    }
+
+    /** 参数绑定/类型转换失败（如 ?level=abc）→ 400 而非 500 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public R<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("参数类型不匹配：{}", e.getMessage());
+        return R.fail("参数「" + e.getName() + "」类型不正确");
     }
 
     /**

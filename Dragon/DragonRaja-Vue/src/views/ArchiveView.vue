@@ -5,7 +5,7 @@
  * - 内容按密级解锁：权限点由「执行部任务」页完成任务累积（utils/clearance.js）
  * - 四卷：龙王卷宗（资料+情报）/ 部门人物 / 龙族武器 / 任务执行记录
  */
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
@@ -27,6 +27,7 @@ import {
   ARCHIVE_MISSION_LOGS,
   ARCHIVE_PEOPLE
 } from '@/data/archive'
+import { logPath } from '@/data/logDetail'
 
 const router = useRouter()
 const route = useRoute()
@@ -97,6 +98,25 @@ const TABS = [
 ]
 const tab = ref('kings')
 
+/**
+ * 支持用 hash 直达某个卷宗：#tab-kings / #tab-people / #tab-arms / #tab-logs
+ * 任务记录详情页的「返回」会带 #tab-logs 回来，方便用户接着看列表。
+ */
+function tabFromHash() {
+  const h = String(route.hash || '').replace(/^#/, '')
+  const m = h.match(/^tab-(\w+)$/)
+  if (m && TABS.some((t) => t.id === m[1])) tab.value = m[1]
+}
+tabFromHash()
+watch(() => route.hash, tabFromHash)
+
+/** 切换分卷时同步 hash（用 replace 避免污染浏览器历史） */
+function selectTab(id) {
+  if (tab.value === id) return
+  tab.value = id
+  router.replace({ path: route.path, hash: `#tab-${id}` })
+}
+
 /* ---------------- 部门人物 ---------------- */
 const deptFilter = ref('')
 const filteredPeople = computed(() =>
@@ -124,6 +144,48 @@ function toggleKing(code) {
 /* ---------------- 任务执行记录 ---------------- */
 const logs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => hasClearance(m.req)))
 const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearance(m.req)))
+
+/* ---------------- 卷宗入架动效 ----------------
+   档案馆的隐喻是「一卷一卷从架上抽出」。切卷时让卡片依次入场，
+   而不是整块同时淡入。观察器只盯当前这一卷，切入时重建，
+   避免跨卷残留的旧观察目标。 */
+const shelfEl = ref(null)
+let shelfIO = null
+
+function bindShelfObserver() {
+  shelfIO?.disconnect()
+  const root = shelfEl.value
+  if (!root || typeof IntersectionObserver === 'undefined') return
+
+  shelfIO = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        entry.target.classList.add('is-in')
+        shelfIO.unobserve(entry.target)
+      }
+    },
+    { rootMargin: '0px 0px -8% 0px', threshold: 0.06 }
+  )
+
+  for (const el of root.querySelectorAll('.rise')) shelfIO.observe(el)
+}
+
+// 切卷时 DOM 换了一整批卡片：等下一帧再挂观察器
+watch(tab, () => {
+  nextTick(() => {
+    bindShelfObserver()
+    // 新一卷总是在可视区顶部，立即让首屏那批入场，不必等滚动
+    requestAnimationFrame(() => {
+      for (const el of shelfEl.value?.querySelectorAll('.rise') ?? []) {
+        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
+      }
+    })
+  })
+})
+
+onMounted(() => nextTick(bindShelfObserver))
+onBeforeUnmount(() => shelfIO?.disconnect())
 </script>
 
 <template>
@@ -134,13 +196,14 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
     <SiteNav />
 
     <!-- ============ 主体 ============ -->
-    <main class="arc__body">
+    <main ref="shelfEl" class="arc__body">
       <section class="arc__hero">
         <div class="arc__hero-row">
           <DragonEmblem class="arc__hero-mark" />
           <div class="arc__hero-text">
             <h1 class="arc__title">
-              档案室<span class="arc__title-en">ARCHIVE · DRAGON DOSSIER</span>
+              <span class="sheen-gold">档案室</span>
+              <span class="arc__title-en">ARCHIVE · DRAGON DOSSIER</span>
             </h1>
             <p class="arc__sub">
               龙王资料与情报 · 各部门人物性格 / 武器 / 言灵 · 任务执行过程与结果 · 荣誉与身世
@@ -200,14 +263,14 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
           type="button"
           class="tab"
           :class="{ 'is-on': tab === t.id }"
-          @click="tab = t.id"
+          @click="selectTab(t.id)"
         >
           <AppIcon :name="t.icon" :size="14" /> {{ t.label }}
         </button>
       </div>
 
       <!-- ===== 卷一 · 龙王卷宗 ===== -->
-      <section v-if="tab === 'kings'" class="shelf">
+      <section v-if="tab === 'kings'" class="shelf rise">
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="flame" :size="15" /> 龙王卷宗 · 资料与情报</h2>
           <span class="shelf__more">共 {{ ARCHIVE_KINGS.length }} 位 · 点击展开情报</span>
@@ -215,10 +278,11 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 
         <div class="kgrid">
           <article
-            v-for="k in ARCHIVE_KINGS"
+            v-for="(k, i) in ARCHIVE_KINGS"
             :key="k.code"
-            class="kcard"
+            class="kcard rise"
             :class="{ 'is-locked': !hasClearance(k.req) }"
+            :style="{ '--d': `${(i % 6) * 55}ms` }"
           >
             <div class="kcard__top" @click="onKingHead($event, k)">
               <div class="kcard__id">
@@ -281,7 +345,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
       </section>
 
       <!-- ===== 卷二 · 部门人物 ===== -->
-      <section v-else-if="tab === 'people'" class="shelf">
+      <section v-else-if="tab === 'people'" class="shelf rise">
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="user" :size="15" /> 部门人物档案</h2>
           <span class="shelf__more">
@@ -313,11 +377,12 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 
         <div class="pgrid">
           <article
-            v-for="p in filteredPeople"
+            v-for="(p, i) in filteredPeople"
             :key="p.key"
-            class="person"
+            class="person rise"
             :data-tone="p.tone"
             :class="{ 'is-locked': !hasClearance(p.req), 'is-open': openKey === p.key }"
+            :style="{ '--d': `${(i % 8) * 50}ms` }"
           >
             <div class="person__top" @click="onPersonHead($event, p)">
               <div class="person__avatar"><span>{{ p.name.slice(0, 1) }}</span></div>
@@ -439,7 +504,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
       </section>
 
       <!-- ===== 卷三 · 龙族武器 ===== -->
-      <section v-else-if="tab === 'arms'" class="shelf">
+      <section v-else-if="tab === 'arms'" class="shelf rise">
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="sparkle" :size="15" /> 龙族武器情报</h2>
           <span class="shelf__more">共 {{ ARCHIVE_ARMS.length }} 件 · 按密级解锁</span>
@@ -447,10 +512,11 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
 
         <div class="agrid">
           <article
-            v-for="a in ARCHIVE_ARMS"
+            v-for="(a, i) in ARCHIVE_ARMS"
             :key="a.code"
-            class="acard"
+            class="acard rise"
             :class="{ 'is-locked': !hasClearance(a.req) }"
+            :style="{ '--d': `${(i % 8) * 50}ms` }"
           >
             <div class="acard__top">
               <span class="acard__code">{{ a.code }}</span>
@@ -477,7 +543,7 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
       </section>
 
       <!-- ===== 卷四 · 任务执行记录 ===== -->
-      <section v-else class="shelf">
+      <section v-else class="shelf rise">
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="archive" :size="15" /> 任务执行记录</h2>
           <span class="shelf__more">
@@ -486,7 +552,12 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
         </header>
 
         <div class="lgrid">
-          <article v-for="(m, i) in ARCHIVE_MISSION_LOGS" :key="m.code + i" class="log">
+          <article
+            v-for="(m, i) in ARCHIVE_MISSION_LOGS"
+            :key="m.code + i"
+            class="log rise"
+            :style="{ '--d': `${(i % 8) * 50}ms` }"
+          >
             <div class="log__head">
               <span class="log__code">{{ m.code }}</span>
               <b>{{ m.name }}</b>
@@ -499,6 +570,9 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
             <template v-if="hasClearance(m.req)">
               <p class="log__p"><i>执行过程</i>{{ m.process }}</p>
               <p class="log__r"><i>完成结果</i>{{ m.result }}</p>
+              <button class="log__more" type="button" @click="go(logPath(m))">
+                查看详情 <AppIcon name="arrow" :size="12" />
+              </button>
             </template>
             <div v-else class="log__lock" @click="lockHint($event, m.req)">
               <AppIcon name="lock" :size="14" /> 过程与结果已封存 · {{ needText(m.req) }}
@@ -1657,12 +1731,48 @@ const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearan
   opacity: 0.75;
 }
 
+/* 未解锁的卡片整块可点，提示还差多少密级 */
 .log__lock {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
   color: var(--text-4);
+}
+
+/* 「查看详情」：卡片右下角的细边框小按钮，不抢正文注意力 */
+.log__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease,
+    transform 0.22s ease;
+}
+
+.log__more:hover {
+  color: var(--gold-lt);
+  border-color: var(--gold-dp);
+  background: rgba(216, 178, 90, 0.08);
+}
+
+.log__more:active {
+  transform: translateX(2px);
+}
+
+.log__more:focus-visible {
+  outline: none;
+  border-color: var(--gold-dp);
+  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.18);
 }
 
 /* ================= 页脚 ================= */

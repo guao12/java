@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
@@ -170,6 +170,44 @@ const doneItems = computed(() => [
 const doneMore = computed(() => Math.max(records.value.length - DONE_SHOW, 0))
 
 /** 三栏看板：未完成（可领取）/ 进行中 / 已完成 */
+/* ---------------- 列队入板（入场错峰） ----------------
+   任务卡分属三条泳道，每列各自从第一条开始依次落位。
+   观察器挂在整个看板上，滚动到哪一列就让哪一列入场。 */
+const boardEl = ref(null)
+let boardIO = null
+
+function bindBoardObserver() {
+  boardIO?.disconnect()
+  const root = boardEl.value
+  if (!root || typeof IntersectionObserver === 'undefined') return
+
+  boardIO = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        entry.target.classList.add('is-in')
+        boardIO.unobserve(entry.target)
+      }
+    },
+    { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }
+  )
+
+  for (const el of root.querySelectorAll('.rise')) boardIO.observe(el)
+}
+
+onMounted(() =>
+  nextTick(() => {
+    bindBoardObserver()
+    // 首屏的卡片立即入场，别让用户盯着空泳道
+    requestAnimationFrame(() => {
+      for (const el of boardEl.value?.querySelectorAll('.rise') ?? []) {
+        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
+      }
+    })
+  })
+)
+onBeforeUnmount(() => boardIO?.disconnect())
+
 const groups = computed(() => [
   {
     key: 'todo',
@@ -229,7 +267,8 @@ function gainOf(m) {
           <DragonEmblem class="ms__hero-mark" />
           <div class="ms__hero-text">
             <h1 class="ms__title">
-              执行部任务看板<span class="ms__title-en">EXECUTION BUREAU · MISSIONS</span>
+              <span class="sheen-gold">执行部任务看板</span>
+              <span class="ms__title-en">EXECUTION BUREAU · MISSIONS</span>
             </h1>
             <p class="ms__sub">
               卡塞尔学院执行部任务招募 · 招募中可点击领取，已领取可完成或放弃 · 完成任务累积权限点
@@ -292,7 +331,7 @@ function gainOf(m) {
           </div>
         </header>
 
-        <div class="board">
+        <div ref="boardEl" class="board">
           <section v-for="g in groups" :key="g.key" class="lane" :data-tone="g.tone">
             <header class="lane__head">
               <span class="lane__dot" />
@@ -303,11 +342,12 @@ function gainOf(m) {
 
             <div class="lane__list">
               <article
-                v-for="m in g.items"
+                v-for="(m, i) in g.items"
                 :key="m.code"
-                class="mcard"
+                class="mcard rise"
                 :data-rank="m.rank"
                 :data-status="stateOf(m)"
+                :style="{ '--d': `${Math.min(i, 6) * 45}ms` }"
                 :class="{
                   'is-joined': claimed.has(m.code),
                   'is-done': isDoneCard(m),

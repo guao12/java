@@ -13,19 +13,6 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>springBootTest</name>
 	<description>springBootTest - Dragon Raja Cassell College Identity Authentication System Backend (Vue3 frontend: DragonRaja-Vue)</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
 	<properties>
 		<java.version>17</java.version>
 		<mybatis-plus.version>3.5.9</mybatis-plus.version>
@@ -81,13 +68,6 @@
 			<artifactId>jjwt-jackson</artifactId>
 			<version>0.12.6</version>
 			<scope>runtime</scope>
-		</dependency>
-
-		<!-- 支持 application.yml / application.properties 的元数据提示（可选） -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-configuration-processor</artifactId>
-			<optional>true</optional>
 		</dependency>
 
 		<dependency>

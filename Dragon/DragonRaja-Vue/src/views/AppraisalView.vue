@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
@@ -288,6 +288,44 @@ function exportReport() {
   URL.revokeObjectURL(url)
 }
 
+/* ---------------- 记录入册（入场错峰） ----------------
+   鉴定记录是这一页最容易被「一屏铺满」的内容，让它逐条落位，
+   读者的视线才有个抓手。 */
+const bodyEl = ref(null)
+let bodyIO = null
+
+function bindBodyObserver() {
+  bodyIO?.disconnect()
+  const root = bodyEl.value
+  if (!root || typeof IntersectionObserver === 'undefined') return
+
+  bodyIO = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        entry.target.classList.add('is-in')
+        bodyIO.unobserve(entry.target)
+      }
+    },
+    { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }
+  )
+
+  for (const el of root.querySelectorAll('.rise:not(.is-in)')) bodyIO.observe(el)
+}
+
+watch(visibleRecords, () =>
+  nextTick(() => {
+    bindBodyObserver()
+    requestAnimationFrame(() => {
+      for (const el of bodyEl.value?.querySelectorAll('.rise:not(.is-in)') ?? []) {
+        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
+      }
+    })
+  })
+)
+
+onBeforeUnmount(() => bodyIO?.disconnect())
+
 function onKey(e) {
   if (e.key === 'Escape') closeReport()
 }
@@ -297,6 +335,8 @@ onMounted(() => {
   document.title = '血统鉴定 · 卡塞尔学院'
   loadRecords()
   window.addEventListener('keydown', onKey)
+  nextTick(bindBodyObserver)
+  nextTick(bindBodyObserver)
 })
 
 onBeforeUnmount(() => {
@@ -312,13 +352,16 @@ onBeforeUnmount(() => {
     <SiteNav />
 
     <!-- ============ 核心鉴定区域 ============ -->
-    <main class="appr__body">
+    <main ref="bodyEl" class="appr__body">
       <!-- 页面头部：与「言灵图鉴」标题样式同源（标识 + 衬线标题） -->
       <section class="appr__hero">
         <div class="appr__hero-row">
           <DragonEmblem class="appr__hero-mark" />
           <div class="appr__hero-text">
-            <h1 class="appr__title">血统鉴定<span class="appr__title-en">BLOODLINE TEST</span></h1>
+            <h1 class="appr__title">
+              <span class="sheen-gold">血统鉴定</span>
+              <span class="appr__title-en">BLOODLINE TEST</span>
+            </h1>
             <p class="appr__sub">卡塞尔学院基因检测系统・仅限在读学生提交检测</p>
           </div>
         </div>
@@ -499,10 +542,11 @@ onBeforeUnmount(() => {
         </h3>
         <ul class="appr__arch-grid">
           <li
-            v-for="r in visibleRecords"
+            v-for="(r, i) in visibleRecords"
             :key="r.code"
-            class="appr__arch-card"
+            class="appr__arch-card rise"
             :class="{ 'is-danger': r.grade === 'S' || r.grade === 'A' }"
+            :style="{ '--d': `${Math.min(i, 8) * 45}ms` }"
             @click="viewRecord(r)"
           >
             <span class="appr__arch-grade" :style="{ '--gc': r.gradeRgb }">{{ r.grade }}</span>
@@ -1432,7 +1476,40 @@ onBeforeUnmount(() => {
   display: block;
   height: 100%;
   border-radius: 999px;
+  /* 从左端开始生长：用 transform 而非动画 width，
+     避免逐帧重排 */
+  transform-origin: 0 50%;
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: bar-grow 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* 每条柱子按行号错峰，读起来像统计在逐行录入 */
+.appr__rank-row:nth-child(1) .appr__rank-bar i {
+  animation-delay: 0.05s;
+}
+.appr__rank-row:nth-child(2) .appr__rank-bar i {
+  animation-delay: 0.13s;
+}
+.appr__rank-row:nth-child(3) .appr__rank-bar i {
+  animation-delay: 0.21s;
+}
+.appr__rank-row:nth-child(4) .appr__rank-bar i {
+  animation-delay: 0.29s;
+}
+.appr__rank-row:nth-child(5) .appr__rank-bar i {
+  animation-delay: 0.37s;
+}
+.appr__rank-row:nth-child(n + 6) .appr__rank-bar i {
+  animation-delay: 0.45s;
 }
 
 .appr__rank-count {

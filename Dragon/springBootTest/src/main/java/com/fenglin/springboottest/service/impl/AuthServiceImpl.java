@@ -7,6 +7,7 @@ import com.fenglin.springboottest.dto.LoginDTO;
 import com.fenglin.springboottest.dto.RegisterDTO;
 import com.fenglin.springboottest.dto.RegisterSendDTO;
 import com.fenglin.springboottest.dto.ResetConfirmDTO;
+import com.fenglin.springboottest.dto.ResetSendDTO;
 import com.fenglin.springboottest.entity.DrResetCode;
 import com.fenglin.springboottest.entity.DrUser;
 import com.fenglin.springboottest.mapper.DrResetCodeMapper;
@@ -48,16 +49,6 @@ public class AuthServiceImpl implements AuthService {
     private static final int CODE_EXPIRE_SECONDS = 300;
     private static final int CODE_COOLDOWN_SECONDS = 60;
 
-    /**
-     * 注册验证码在 dr_reset_code 表中的 account 前缀。
-     * 真实学号固定是 CC + 年份 + 5 位序号，用 REG 前缀可保证不会与之冲突；
-     * 表结构未改动，注册验证码与重置验证码共用一张表、靠前缀区分场景。
-     */
-    private static final String REGISTER_KEY_PREFIX = "REG";
-
-    /** account 列长度上限（VARCHAR(20)），前缀占 3 位 */
-    private static final int REGISTER_KEY_BODY_MAX = 17;
-
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final DrUserMapper userMapper;
@@ -67,11 +58,19 @@ public class AuthServiceImpl implements AuthService {
     private final DictService dictService;
     private final CaptchaService captchaService;
 
-    /** 注册验证码下发冷却：按客户端真实 IP 限流（不再依赖前端 clientKey，防换 key 绕过） */
-    private final Map<String, Long> registerIpCooldown = new ConcurrentHashMap<>();
-
-    /** 验证龙文下发冷却：按客户端真实 IP 限流（与注册同源，防脚本批量探测 / 刷取） */
+    /** 验证龙文下发冷却：按客户端真实 IP 限流（防脚本批量探测 / 刷取） */
     private final Map<String, Long> resetIpCooldown = new ConcurrentHashMap<>();
+
+    /** 登录失败计数：account -> 累计失败次数（含时间戳用于过期清理），防暴力破解 */
+    private static final int LOGIN_MAX_FAIL = 5;
+    private static final long LOGIN_LOCK_MS = 15 * 60 * 1000L;
+    private static final long LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000L;
+    private final Map<String, long[]> loginFailures = new ConcurrentHashMap<>();
+
+    /** 重置验证龙文尝试计数：account -> 累计输错次数，防止 6 位验证码被穷举 */
+    private static final int RESET_MAX_FAIL = 5;
+    private static final long RESET_LOCK_MS = 5 * 60 * 1000L;
+    private final Map<String, long[]> resetFailures = new ConcurrentHashMap<>();
 
     public AuthServiceImpl(DrUserMapper userMapper,
                            DrResetCodeMapper resetCodeMapper,
@@ -91,22 +90,54 @@ public class AuthServiceImpl implements AuthService {
     // 注册
     // ------------------------------------------------------------
 
+    /**
+     * 图形验证码校验（注册前置）。
+     * <p>注册已改为「图形验证码即唯一人机校验」，不再下发 6 位数字验证码；
+     * 本方法只负责消费一次性凭证，供前端在进入下一步前做一次校验，
+     * 真正的注册入库仍由 {@link #register(RegisterDTO)} 再校验一次。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RegisterCodeVO sendRegisterCode(RegisterSendDTO dto, String clientIp) {
+        // 1. 服务端 IP 限流：同一真实 IP 60 秒内只能校验一次，防脚本批量刷取
+        long now = System.currentTimeMillis();
+        Long last = resetIpCooldown.get("register:" + clientIp);
+        if (last != null && now - last < CODE_COOLDOWN_SECONDS * 1000L) {
+            throw new BizException("验证码校验过于频繁，请 1 分钟后再试");
+        }
+
+        // 2. 图形验证码：命中即从服务端删除令牌，保证一次性使用
+        if (!captchaService.verify(dto.getCaptchaToken(), dto.getCaptchaCode())) {
+            throw new BizException("图形验证码错误或已过期，请点击图片刷新后重试");
+        }
+
+        // 3. 限流时间戳落盘（带惰性清理，避免内存无限增长）
+        resetIpCooldown.put("register:" + clientIp, now);
+        if (resetIpCooldown.size() > 1024) {
+            long expireBefore = now - CODE_COOLDOWN_SECONDS * 1000L;
+            resetIpCooldown.values().removeIf(ts -> ts < expireBefore);
+        }
+
+        log.info("【注册验证码】图形验证码校验通过 ip={} clientKey={}", clientIp, dto.getClientKey());
+        // 不再回显 6 位数字验证码：expireSeconds 仅用于前端提示有效期
+        return new RegisterCodeVO(null, CODE_EXPIRE_SECONDS, CODE_COOLDOWN_SECONDS);
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegisterVO register(RegisterDTO dto) {
         String codename = dto.getCodename().trim();
 
-        // 0. 验证码校验（替代原来的邮箱验证：验证码由系统下发并直接回显，用户照填）
-        //    校验通过后立即消费该验证码，防止同一验证码被重放 / 反复尝试不同代号
-        String regKey = registerKey(dto.getClientKey());
-        DrResetCode matchedCode = verifyRegisterCode(regKey, dto.getCode());
-        matchedCode.setUsed(1);
-        resetCodeMapper.updateById(matchedCode);
-
-        // 1. 字典合法性
-        if (!dictService.isValidIdentity(dto.getIdentity())) {
-            throw new BizException("在校身份不合法，请重新选择");
+        // 0. 图形验证码校验（注册唯一的人机校验：不再下发 6 位数字验证码）
+        //    verify 命中即从服务端内存删除令牌，保证一次性使用，防止同一张图被重放批量注册
+        if (!captchaService.verify(dto.getCaptchaToken(), dto.getCaptchaCode())) {
+            throw new BizException("图形验证码错误或已过期，请点击图片刷新后重试");
         }
+
+        // 1. 在校身份：安全修复 —— 注册一律强制为「新生 freshman」。
+        //    原实现信任前端提交的 identity，攻击者自选 teacher/executor 即可越权查阅高密级档案。
+        //    身份升级必须由后台管理员走「身份变更」流程，注册阶段不开放自选。
+        String identity = "freshman";
         String spirit = (dto.getSpirit() == null || dto.getSpirit().isBlank())
                 ? "none" : dto.getSpirit();
         if (!dictService.isValidSpirit(spirit)) {
@@ -125,15 +156,20 @@ public class AuthServiceImpl implements AuthService {
         user.setAccount(issueAccount());
         user.setCodename(codename);
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setIdentity(dto.getIdentity());
+        user.setIdentity(identity);
         user.setSpirit(spirit);
         user.setStatus(1);
         user.setLoginCount(0);
 
-        // 4. 落库（codename 已加唯一索引；并发冲突由唯一键兜底，直接提示换代号）
+        // 4. 落库（codename 已加唯一索引；并发冲突由唯一键兜底）
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
+            // 区分撞的是「学号」还是「行动代号」：学号并发撞车应提示重试，而不是误导用户换代号
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            if (msg.contains("uk_account")) {
+                throw new BizException("系统繁忙，请稍后重试（学号签发冲突）");
+            }
             throw new BizException("行动代号「" + codename + "」已被使用，换一个吧");
         }
         log.info("新生登记完成：{}（学号={}）", user.getCodename(), user.getAccount());
@@ -155,83 +191,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ------------------------------------------------------------
-    // 注册验证码（替代邮箱验证：系统直接给验证码）
+    // 注册人机校验：图形验证码（原 6 位数字验证码下发流程已移除）
     // ------------------------------------------------------------
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public RegisterCodeVO sendRegisterCode(RegisterSendDTO dto, String clientIp) {
-        // 1. 服务端 IP 限流：同一真实 IP 60 秒内只能下发一次。
-        //    关键修复：原实现按前端 clientKey 限流，攻击者换 key 即可无限绕过；
-        //    现改为按服务端可信的客户端 IP 限流，clientKey 仅用于把验证码绑定到本次登记会话。
-        long now = System.currentTimeMillis();
-        Long last = registerIpCooldown.get(clientIp);
-        if (last != null && now - last < CODE_COOLDOWN_SECONDS * 1000L) {
-            throw new BizException("验证码获取过于频繁，请 1 分钟后再试");
-        }
-
-        // 2. 图形验证码：必须先通过，校验失败直接拦截（不消耗验证码，便于用户更正后重试）
-        if (!captchaService.verify(dto.getCaptchaToken(), dto.getCaptchaCode())) {
-            throw new BizException("图形验证码错误或已过期，请点击图片刷新后重试");
-        }
-
-        // 3. 生成 6 位数字验证码并落库（绑定到本次登记会话的 registerKey）
-        String key = registerKey(dto.getClientKey());
-        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
-        DrResetCode entity = new DrResetCode();
-        entity.setAccount(key);
-        entity.setCode(code);
-        entity.setExpireTime(LocalDateTime.now().plusSeconds(CODE_EXPIRE_SECONDS));
-        entity.setUsed(0);
-        resetCodeMapper.insert(entity);
-
-        // 4. 记录本 IP 的冷却起点（图形验证码已在第 2 步校验成功时消费，不可复用）
-        registerIpCooldown.put(clientIp, now);
-        // 惰性清理：超过容量上限时剔除已过期条目，避免内存无限增长
-        if (registerIpCooldown.size() > 1024) {
-            long expireBefore = now - CODE_COOLDOWN_SECONDS * 1000L;
-            registerIpCooldown.values().removeIf(ts -> ts < expireBefore);
-        }
-
-        log.info("注册验证码已下发：key={}（演示环境直接回显，不发邮件）", key);
-        // 真实项目在这里接短信 / 邮件服务；演示环境由系统直接给出验证码
-        return new RegisterCodeVO(code, CODE_EXPIRE_SECONDS, CODE_COOLDOWN_SECONDS);
-    }
-
-    /** 校验注册验证码：必须存在、未使用、未过期；校验通过返回该条记录（供调用方立即消费） */
-    private DrResetCode verifyRegisterCode(String key, String code) {
-        if (code == null || code.isBlank()) {
-            throw new BizException("请输入验证码");
-        }
-        DrResetCode match = resetCodeMapper.selectOne(new LambdaQueryWrapper<DrResetCode>()
-                .eq(DrResetCode::getAccount, key)
-                .eq(DrResetCode::getCode, code.trim())
-                .eq(DrResetCode::getUsed, 0)
-                .gt(DrResetCode::getExpireTime, LocalDateTime.now())
-                .orderByDesc(DrResetCode::getId)
-                .last("LIMIT 1"));
-        if (match == null) {
-            throw new BizException("验证码错误或已过期，请重新获取");
-        }
-        return match;
-    }
-
-    /**
-     * 把浏览器标识规整成 dr_reset_code.account 里存储的键：REG + 最多 17 位字母数字。
-     *
-     * @param raw 前端生成的 clientKey
-     * @return 如 REGa1b2c3d4e5f60718（长度不超过 VARCHAR(20)）
-     */
-    private String registerKey(String raw) {
-        String cleaned = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9]", "");
-        if (cleaned.isEmpty()) {
-            throw new BizException("缺少浏览器标识，请刷新页面后重试");
-        }
-        if (cleaned.length() > REGISTER_KEY_BODY_MAX) {
-            cleaned = cleaned.substring(cleaned.length() - REGISTER_KEY_BODY_MAX);
-        }
-        return REGISTER_KEY_PREFIX + cleaned;
-    }
 
     // ------------------------------------------------------------
     // 登录
@@ -242,15 +203,22 @@ public class AuthServiceImpl implements AuthService {
     public LoginVO login(LoginDTO dto) {
         String input = dto.getAccount().trim();
 
+        // 0. 登录失败锁定：同一账号连续失败过多时临时锁定，防撞库 / 暴力破解
+        if (isLoginLocked(input)) {
+            throw new BizException("尝试过于频繁，请 15 分钟后再试");
+        }
+
         // 1. 按学号或行动代号（姓名）查找（二者在库中均唯一）
         DrUser user = resolveUser(input);
         // 统一提示语，避免暴露"该账号是否存在"
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            recordLoginFailure(input);
             throw new BizException("学号或言灵密钥不正确");
         }
         if (user.getStatus() == null || user.getStatus() == 0) {
             throw new BizException("该身份卡已被学院封印，请联系执行部");
         }
+        clearLoginFailure(input);
 
         // 2. 累计登录次数 + 最近登录时间
         userMapper.update(null, new LambdaUpdateWrapper<DrUser>()
@@ -262,7 +230,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 3. 签发 JWT（勾选"记住身份卡"时使用长令牌）
         boolean remember = Boolean.TRUE.equals(dto.getRemember());
-        String token = tokenService.issue(user.getId(), user.getAccount(), remember);
+        String token = tokenService.issue(user.getId(), user.getAccount(), remember, pwdVer(user.getPassword()));
 
         log.info("身份认证通过：{}（学号={}）", user.getCodename(), user.getAccount());
         return new LoginVO(token, tokenService.expiresIn(remember), toProfile(user));
@@ -300,20 +268,18 @@ public class AuthServiceImpl implements AuthService {
         }
 
         DrUser user = resolveUser(dto.getAccount());
-        String code;
         if (user != null) {
             // 已登记：生成验证龙文并落库（5 分钟有效）
-            code = String.format("%06d", RANDOM.nextInt(1_000_000));
+            String code = String.format("%06d", RANDOM.nextInt(1_000_000));
             DrResetCode entity = new DrResetCode();
             entity.setAccount(user.getAccount());
             entity.setCode(code);
             entity.setExpireTime(LocalDateTime.now().plusSeconds(CODE_EXPIRE_SECONDS));
             entity.setUsed(0);
             resetCodeMapper.insert(entity);
-            log.info("验证龙文已下发：学号={}（演示环境回显）", user.getAccount());
+            log.info("【重置验证龙文】学号={} code={}（演示环境：验证码只写日志，请到控制台/日志查看）", user.getAccount(), code);
         } else {
-            // 未登记：不下发真实验证龙文，回显一个随机数字（防枚举），且不落库
-            code = String.format("%06d", RANDOM.nextInt(1_000_000));
+            // 未登记：不下发真实验证龙文、不落库，仅记录日志（防枚举）
             log.info("验证龙文下发请求命中未登记账号（已做统一返回，不泄露存在性）：{}", dto.getAccount());
         }
 
@@ -323,9 +289,10 @@ public class AuthServiceImpl implements AuthService {
             resetIpCooldown.values().removeIf(ts -> ts < expireBefore);
         }
 
-        // 统一返回：无论账号是否存在，响应结构一致，杜绝"账号是否注册"的批量探测
-        // 真实项目在这里接邮件 / 短信服务；演示环境直接回显给前端
-        return new SendCodeVO(dto.getAccount(), code, CODE_EXPIRE_SECONDS);
+        // 统一返回：无论账号是否存在，响应结构一致，杜绝"账号是否注册"的批量探测。
+        // 安全修复：验证码不再回显给前端，只写日志（log/springBootTest.log）。
+        // 真实项目在这里接邮件 / 短信服务。
+        return new SendCodeVO(dto.getAccount(), null, CODE_EXPIRE_SECONDS);
     }
 
     @Override
@@ -337,6 +304,11 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException("验证龙文错误或已过期，请重新获取");
         }
 
+        // 0. 尝试次数限制：同一账号验证龙文连续输错过多时锁定，防 6 位验证码被穷举
+        if (isResetLocked(user.getAccount())) {
+            throw new BizException("验证龙文尝试过于频繁，请重新获取后再试");
+        }
+
         // 1. 找到匹配且未使用且未过期的最新一条验证码
         DrResetCode match = resetCodeMapper.selectOne(new LambdaQueryWrapper<DrResetCode>()
                 .eq(DrResetCode::getAccount, user.getAccount())
@@ -346,8 +318,10 @@ public class AuthServiceImpl implements AuthService {
                 .orderByDesc(DrResetCode::getId)
                 .last("LIMIT 1"));
         if (match == null) {
+            recordResetFailure(user.getAccount());
             throw new BizException("验证龙文错误或已过期，请重新获取");
         }
+        clearResetFailure(user.getAccount());
 
         // 2. 重置密钥
         userMapper.update(null, new LambdaUpdateWrapper<DrUser>()
@@ -397,5 +371,99 @@ public class AuthServiceImpl implements AuthService {
         return ProfileVO.from(user,
                 dictService.identityName(user.getIdentity()),
                 dictService.spiritName(user.getSpirit()));
+    }
+
+    /**
+     * 密码版本标识：取自 BCrypt 哈希的短摘要。
+     * 改密后哈希变化 → 版本变化 → 携带旧版本的 JWT 自动失效（配合 TokenService#parseUserId(token, pwdVer)）。
+     */
+    public static String pwdVer(String bcryptHash) {
+        if (bcryptHash == null || bcryptHash.length() < 16) {
+            return "";
+        }
+        // 取 BCrypt 盐段（$2a$10$ 后 22 位）作为版本，任何密码变化都会改变盐与哈希
+        return bcryptHash.substring(0, Math.min(bcryptHash.length(), 29));
+    }
+
+    // ------------------------------------------------------------
+    // 登录失败锁定（内存计数，防暴力破解）
+    // ------------------------------------------------------------
+
+    /** 账号是否处于锁定状态 */
+    private boolean isLoginLocked(String account) {
+        long[] rec = loginFailures.get(account);
+        if (rec == null) {
+            return false;
+        }
+        // 超过锁定窗口仍未解除，先清理再判断
+        if (System.currentTimeMillis() - rec[1] > LOGIN_LOCK_MS) {
+            loginFailures.remove(account);
+            return false;
+        }
+        return rec[0] >= LOGIN_MAX_FAIL;
+    }
+
+    /** 记录一次登录失败；达到阈值后进入锁定窗口 */
+    private void recordLoginFailure(String account) {
+        if (account == null || account.isBlank()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long[] rec = loginFailures.compute(account, (k, v) -> {
+            if (v == null || now - v[1] > LOGIN_FAIL_WINDOW_MS) {
+                return new long[]{1, now};
+            }
+            v[0] += 1;
+            v[1] = now;
+            return v;
+        });
+        // 惰性清理，避免内存无限增长
+        if (loginFailures.size() > 4096) {
+            loginFailures.entrySet().removeIf(e -> now - e.getValue()[1] > LOGIN_LOCK_MS);
+        }
+    }
+
+    /** 登录成功后清除失败记录 */
+    private void clearLoginFailure(String account) {
+        if (account != null) {
+            loginFailures.remove(account);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 重置验证龙文尝试限制
+    // ------------------------------------------------------------
+
+    private boolean isResetLocked(String account) {
+        long[] rec = resetFailures.get(account);
+        if (rec == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() - rec[1] > RESET_LOCK_MS) {
+            resetFailures.remove(account);
+            return false;
+        }
+        return rec[0] >= RESET_MAX_FAIL;
+    }
+
+    private void recordResetFailure(String account) {
+        long now = System.currentTimeMillis();
+        resetFailures.compute(account, (k, v) -> {
+            if (v == null || now - v[1] > RESET_LOCK_MS) {
+                return new long[]{1, now};
+            }
+            v[0] += 1;
+            v[1] = now;
+            return v;
+        });
+        if (resetFailures.size() > 4096) {
+            resetFailures.entrySet().removeIf(e -> now - e.getValue()[1] > RESET_LOCK_MS);
+        }
+    }
+
+    private void clearResetFailure(String account) {
+        if (account != null) {
+            resetFailures.remove(account);
+        }
     }
 }

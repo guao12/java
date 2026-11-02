@@ -13,6 +13,13 @@ const char = computed(
   () => CHARACTER_GALLERY.find((c) => c.key === route.params.key) || null
 )
 
+/** 人物介绍（按原作剧情整理，可能为空） */
+const intro = computed(() => char.value?.intro || [])
+/** 生平时间线 */
+const timeline = computed(() => char.value?.timeline || [])
+/** 人物关系 */
+const relations = computed(() => char.value?.relations || [])
+
 /** 龙血占比条：进场后从 0 涨到目标值 */
 const pctNow = ref(0)
 let pctTimer = 0
@@ -109,11 +116,44 @@ function goBack() {
             </div>
           </section>
 
+          <!-- 人物介绍（按原作剧情整理） -->
+          <section v-if="intro.length" class="dossier__sec">
+            <h2 class="dossier__sec-t"><i />人物介绍</h2>
+            <div class="dossier__intro">
+              <p v-for="(p, i) in intro" :key="i" class="dossier__intro-p">{{ p }}</p>
+            </div>
+          </section>
+
+          <!-- 生平时间线 -->
+          <section v-if="timeline.length" class="dossier__sec">
+            <h2 class="dossier__sec-t"><i />生平时间线</h2>
+            <ol class="timeline">
+              <li
+                v-for="(t, i) in timeline"
+                :key="i"
+                class="timeline__item"
+                :style="{ '--i': i }"
+              >
+                <i class="timeline__dot" />
+                <div class="timeline__box">
+                  <p class="timeline__time">{{ t.time }}</p>
+                  <h3 class="timeline__title">{{ t.title }}</h3>
+                  <p class="timeline__text">{{ t.text }}</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
           <!-- 言灵记录 -->
           <section class="dossier__sec">
             <h2 class="dossier__sec-t"><i />言灵记录</h2>
             <ul class="dossier__spirits">
-              <li v-for="(s, i) in char.spirits" :key="i" class="dossier__spirit">
+              <li
+                v-for="(s, i) in char.spirits"
+                :key="i"
+                class="dossier__spirit"
+                :style="{ '--i': i }"
+              >
                 <em>{{ String(i + 1).padStart(2, '0') }}</em>
                 {{ s }}
               </li>
@@ -124,11 +164,25 @@ function goBack() {
           <section class="dossier__sec">
             <h2 class="dossier__sec-t"><i />人物事迹</h2>
             <ol class="dossier__deeds">
-              <li v-for="(d, i) in char.deeds" :key="i" class="dossier__deed">
+              <li v-for="(d, i) in char.deeds" :key="i" class="dossier__deed" :style="{ '--i': i }">
                 <b class="dossier__deed-n">{{ String(i + 1).padStart(2, '0') }}</b>
                 <p>{{ d }}</p>
               </li>
             </ol>
+          </section>
+
+          <!-- 人物关系 -->
+          <section v-if="relations.length" class="dossier__sec">
+            <h2 class="dossier__sec-t"><i />人物关系</h2>
+            <ul class="rels">
+              <li v-for="(r, i) in relations" :key="i" class="rel">
+                <div class="rel__head">
+                  <b class="rel__name">{{ r.name }}</b>
+                  <span class="rel__tag">{{ r.rel }}</span>
+                </div>
+                <p class="rel__note">{{ r.note }}</p>
+              </li>
+            </ul>
           </section>
 
           <!-- 语录 -->
@@ -736,6 +790,226 @@ function goBack() {
   color: var(--text-2);
 }
 
+/* —— 人物介绍 —— */
+.dossier__intro {
+  position: relative;
+  padding: 16px 20px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid rgba(216, 178, 90, 0.5);
+  background: linear-gradient(120deg, rgba(216, 178, 90, 0.05), rgba(255, 255, 255, 0.015));
+}
+
+.dossier__intro-p {
+  font-size: 13px;
+  line-height: 2;
+  color: var(--text-2);
+  text-align: justify;
+}
+
+/* 首段首字下沉，强化「卷宗」的印刷感 */
+.dossier__intro-p:first-child::first-letter {
+  float: left;
+  padding: 2px 8px 0 0;
+  font-family: var(--font-serif);
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--gold-lt);
+  text-shadow: 0 0 22px var(--gold-glow);
+}
+
+.dossier__intro-p + .dossier__intro-p {
+  margin-top: 12px;
+}
+
+/* —— 生平时间线 —— */
+.timeline {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 24px;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+/* 纵向暗金轴线 */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(216, 178, 90, 0.45) 10%,
+    rgba(216, 178, 90, 0.45) 90%,
+    transparent
+  );
+  /* 竖线自上而下生长：1.2s 走完，条目随后逐条落下 */
+  transform-origin: 50% 0;
+  transform: scaleY(0);
+  animation: tl-line-grow 1.2s var(--ease-out) 0.15s forwards;
+}
+
+@keyframes tl-line-grow {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* 时间轴条目：从左侧「被誊写」进来，而不是整体淡入 */
+.timeline__item {
+  opacity: 0;
+  transform: translateX(-8px);
+  animation: tl-item-in 0.62s var(--ease-out) forwards;
+  animation-delay: calc(0.42s + var(--i, 0) * 110ms);
+}
+
+.timeline__dot {
+  /* 圆点比文字晚 120ms 亮起，像笔尖落下 */
+  animation: tl-dot-in 0.5s var(--ease-snap) both;
+  animation-delay: calc(0.52s + var(--i, 0) * 110ms);
+}
+
+@keyframes tl-item-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tl-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 言灵 / 事迹：编号条目逐条浮起 */
+.dossier__spirit,
+.dossier__deed {
+  opacity: 0;
+  animation: fade-up 0.55s var(--ease-out) forwards;
+  animation-delay: calc(0.1s + var(--i, 0) * 70ms);
+}
+
+.timeline__item {
+  position: relative;
+}
+
+.timeline__dot {
+  position: absolute;
+  left: -24px;
+  top: 16px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, var(--gold-metal-hi), var(--gold-dp));
+  box-shadow:
+    0 0 0 3px rgba(13, 11, 22, 0.9),
+    0 0 14px -2px var(--gold-glow);
+}
+
+.timeline__box {
+  padding: 13px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(140deg, rgba(26, 21, 38, 0.7), rgba(11, 9, 18, 0.86));
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+
+.timeline__box:hover {
+  border-color: rgba(216, 178, 90, 0.42);
+  transform: translateX(3px);
+  box-shadow: 0 12px 28px -18px var(--gold-glow);
+}
+
+.timeline__time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--gold-dp);
+}
+
+.timeline__title {
+  margin-top: 5px;
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+
+.timeline__text {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text-3);
+}
+
+/* —— 人物关系 —— */
+.rels {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.rel {
+  padding: 12px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(120deg, rgba(26, 21, 38, 0.66), rgba(11, 9, 18, 0.84));
+  transition: border-color 0.25s, transform 0.25s;
+}
+
+.rel:hover {
+  border-color: rgba(216, 178, 90, 0.4);
+  transform: translateY(-2px);
+}
+
+.rel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rel__name {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.rel__tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.35);
+  background: rgba(216, 178, 90, 0.08);
+  color: var(--gold-lt);
+}
+
+.rel__note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-3);
+}
+
 /* —— 语录 —— */
 .dossier__quote {
   margin: 26px 0 0;
@@ -839,6 +1113,24 @@ function goBack() {
 
   .dossier__level-note {
     display: none;
+  }
+
+  /* 首字下沉在窄屏太占位，取消 */
+  .dossier__intro-p:first-child::first-letter {
+    float: none;
+    padding: 0;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+    text-shadow: none;
+  }
+
+  .dossier__intro {
+    padding: 14px 15px;
+  }
+
+  .rels {
+    grid-template-columns: 1fr;
   }
 }
 </style>

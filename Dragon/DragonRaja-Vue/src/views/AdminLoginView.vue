@@ -8,6 +8,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AuthCard from '@/components/AuthCard.vue'
+import DragonEmblem from '@/components/DragonEmblem.vue'
 import FormField from '@/components/FormField.vue'
 import GlowButton from '@/components/GlowButton.vue'
 import { adminApi } from '@/api/admin'
@@ -62,6 +63,26 @@ async function onSubmit() {
 
 <template>
   <div class="admin-login">
+    <!-- 背景层：只留网格 + 极淡徽记，比前台更冷静，但不再是纯黑空场 -->
+    <div class="admin-login__bg" aria-hidden="true">
+      <span class="admin-login__grid" />
+      <DragonEmblem class="admin-login__seal" />
+    </div>
+
+    <!-- 顶部身份条：说明「你在哪一个系统里」，并给出回前台的出口 -->
+    <header class="admin-login__bar">
+      <div class="admin-login__brand">
+        <DragonEmblem class="admin-login__mark" />
+        <span class="admin-login__brand-text">
+          <b>卡塞尔学院</b>
+          <i>Admin Console</i>
+        </span>
+      </div>
+      <router-link class="admin-login__back" to="/home">
+        <AppIcon name="arrow" :size="12" /> 返回学院前台
+      </router-link>
+    </header>
+
     <div class="admin-login__inner">
       <AuthCard
         badge="Cassell College · Admin Console"
@@ -119,18 +140,141 @@ async function onSubmit() {
 
 <style scoped>
 .admin-login {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 40px 20px;
+  padding: 86px 20px 44px;
+  overflow: hidden;
   background:
-    radial-gradient(900px circle at 50% 8%, rgba(216, 178, 90, 0.07), transparent 62%),
-    radial-gradient(700px circle at 88% 92%, rgba(179, 39, 45, 0.06), transparent 60%),
-    var(--bg-0);
+    radial-gradient(760px circle at 16% -4%, rgba(216, 178, 90, 0.1), transparent 60%),
+    radial-gradient(680px circle at 88% 104%, rgba(42, 111, 146, 0.14), transparent 62%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 58%, #03050a 100%);
+}
+
+/* ---------- 背景层 ---------- */
+.admin-login__bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.admin-login__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(216, 178, 90, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(216, 178, 90, 0.05) 1px, transparent 1px);
+  background-size: 68px 68px;
+  -webkit-mask-image: radial-gradient(72% 62% at 50% 42%, #000 8%, transparent 76%);
+  mask-image: radial-gradient(72% 62% at 50% 42%, #000 8%, transparent 76%);
+}
+
+/* 极淡法阵徽记：给空场一个中心，但不抢卡片的注意力 */
+.admin-login__seal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(74vh, 74vw);
+  height: min(74vh, 74vw);
+  transform: translate(-50%, -50%);
+  opacity: 0.06;
+  animation: seal-spin 200s linear infinite;
+}
+
+@keyframes seal-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ---------- 顶部身份条 ---------- */
+.admin-login__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+}
+
+.admin-login__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-login__mark {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 0 8px rgba(216, 178, 90, 0.35));
+  opacity: 0.85;
+}
+
+.admin-login__brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.admin-login__brand-text b {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--text-2);
+}
+
+.admin-login__brand-text i {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.admin-login__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  transition: color 0.25s, border-color 0.25s;
+}
+
+.admin-login__back:hover {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.45);
 }
 
 .admin-login__inner {
+  position: relative;
+  z-index: 1;
   width: min(440px, 100%);
+}
+
+@media (max-width: 560px) {
+  .admin-login {
+    padding: 78px 16px 36px;
+  }
+
+  .admin-login__bar {
+    padding: 14px 16px;
+  }
+
+  .admin-login__brand-text b {
+    font-size: 13px;
+  }
 }
 
 .form {

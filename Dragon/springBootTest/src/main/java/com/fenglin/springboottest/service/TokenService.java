@@ -14,9 +14,10 @@ public interface TokenService {
      * @param userId    用户主键
      * @param account   学院编号（学号），作为 subject
      * @param remember true = 长令牌（默认 7 天），false = 短令牌（默认 12 小时）
+     * @param pwdVer    密码版本标识（取自用户密码哈希的短摘要）；改密后变化，使旧令牌自动失效
      * @return JWT 字符串
      */
-    String issue(Long userId, String account, boolean remember);
+    String issue(Long userId, String account, boolean remember, String pwdVer);
 
     /**
      * 令牌有效期（秒）。
@@ -24,7 +25,17 @@ public interface TokenService {
     long expiresIn(boolean remember);
 
     /**
-     * 解析并校验令牌。
+     * 解析并校验令牌，同时校验令牌内携带的密码版本是否与当前一致。
+     *
+     * @param token  JWT 字符串
+     * @param pwdVer 当前用户的密码版本标识；若令牌内携带的版本与其不一致则返回 null（密码已改，旧令牌作废）
+     * @return 用户主键；令牌非法 / 过期 / 密码已改返回 null
+     */
+    Long parseUserId(String token, String pwdVer);
+
+    /**
+     * 解析并校验令牌（不校验密码版本）。
+     * 仅用于无需区分「密码是否已改」的场景；常规鉴权请使用 {@link #parseUserId(String, String)}。
      *
      * @param token JWT 字符串
      * @return 用户主键；令牌非法 / 过期返回 null

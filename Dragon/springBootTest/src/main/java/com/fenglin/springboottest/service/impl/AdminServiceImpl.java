@@ -14,6 +14,7 @@ import com.fenglin.springboottest.service.TokenService;
 import com.fenglin.springboottest.vo.AdminLoginVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -116,7 +117,14 @@ public class AdminServiceImpl implements AdminService {
 
         DrSpirit spirit = new DrSpirit();
         applyFields(spirit, dto);
-        spiritMapper.insert(spirit);
+        try {
+            spiritMapper.insert(spirit);
+        } catch (DuplicateKeyException e) {
+            // 逻辑删除的条目仍然占着 uk_spirit_key 唯一索引，而上面的 selectCount 会被
+            // MyBatis-Plus 自动追加 deleted=0，看不到这些"墓碑"行，所以只能靠数据库兜底。
+            throw new BizException("言灵 key「" + dto.getKey()
+                    + "」已被占用（可能来自已删除的条目），请换一个 key");
+        }
         log.info("新增言灵：{}", spirit);
         return spirit;
     }
@@ -138,7 +146,12 @@ public class AdminServiceImpl implements AdminService {
         }
 
         applyFields(spirit, dto);
-        spiritMapper.updateById(spirit);
+        try {
+            spiritMapper.updateById(spirit);
+        } catch (DuplicateKeyException e) {
+            // 两条记录互换 key 的场景：查重查不到冲突，最终由唯一索引拦下
+            throw new BizException("言灵 key「" + dto.getKey() + "」已被其他条目占用");
+        }
         log.info("编辑言灵：{}", spirit);
         return spirit;
     }

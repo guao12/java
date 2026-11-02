@@ -7,6 +7,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import ImageLightbox from '@/components/ImageLightbox.vue'
 import SiteNav from '@/components/SiteNav.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import { ORG_GALLERY, codexPath } from '@/data/codex'
@@ -37,6 +38,23 @@ const imgOk = ref(true)
 function onImgError() {
   imgOk.value = false
 }
+
+/** 图片放大查看（点击档案头插图打开灯箱） */
+const zoomOpen = ref(false)
+/** 当前条目的原图地址（后台维护的 imageUrl 优先） */
+const imgSrc = computed(
+  () => item.value?.imageUrl || (item.value ? `/img/${dir.value}/${item.value.key}.webp` : '')
+)
+const zoomTitle = computed(() =>
+  item.value ? `${isSpirit.value ? '言灵图鉴' : '机构图鉴'} · ${item.value.name}` : ''
+)
+const zoomCaption = computed(() =>
+  !item.value
+    ? ''
+    : isSpirit.value
+      ? `${item.value.element} 系 · ${item.value.effect}`
+      : `${item.value.code} · ${item.value.duty}`
+)
 
 onMounted(async () => {
   document.documentElement.style.colorScheme = 'dark'
@@ -81,13 +99,26 @@ function go(key) {
         <!-- 档案头 -->
         <header class="dossier__head">
           <div class="dossier__avatar" :data-tone="isSpirit ? 'fire' : 'gold'">
-            <img
+            <!-- 点击插图放大查看（原图分辨率远高于 118px 缩略图） -->
+            <button
               v-if="imgOk"
-              class="dossier__avatar-img"
-              :src="item.imageUrl || `/img/${dir}/${item.key}.webp`"
-              :alt="`${catText} · ${item.name}`"
-              @error="onImgError"
-            />
+              type="button"
+              class="dossier__avatar-btn"
+              :aria-label="`放大查看${item.name}插图`"
+              :title="`放大查看 · ${item.name}`"
+              @click="zoomOpen = true"
+            >
+              <img
+                class="dossier__avatar-img"
+                :src="imgSrc"
+                :alt="`${catText} · ${item.name}`"
+                @error="onImgError"
+              />
+              <span class="dossier__avatar-zoom">
+                <AppIcon name="expand" :size="12" />
+                放大
+              </span>
+            </button>
             <span v-else class="dossier__avatar-txt">{{ item.name.slice(0, 1) }}</span>
             <i class="dossier__avatar-ring" />
             <i class="dossier__avatar-corner dossier__avatar-corner--tl" />
@@ -209,6 +240,16 @@ function go(key) {
         <button type="button" class="dossier__void-btn" @click="goBack">返回档案馆</button>
       </div>
     </main>
+
+    <!-- 插图放大查看：点击档案头图片后全屏查看原图 -->
+    <ImageLightbox
+      v-if="item"
+      v-model:open="zoomOpen"
+      :src="imgSrc"
+      :alt="`${catText} · ${item.name}`"
+      :title="zoomTitle"
+      :caption="zoomCaption"
+    />
   </div>
 </template>
 
@@ -325,6 +366,80 @@ function go(key) {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 可点击放大的插图容器：整块都是热区 */
+.dossier__avatar-btn {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+/* 热区扩展：鼠标进入整个纹章框（含角标外的 4px 留白）都算悬停，
+   避免贴着边缘时按钮的 :hover 掉出，导致「放大」提示闪断 */
+.dossier__avatar-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  /* 只负责扩大命中区域，不拦截自身事件 */
+  pointer-events: none;
+}
+
+.dossier__avatar:hover .dossier__avatar-btn,
+.dossier__avatar-btn:hover,
+.dossier__avatar-btn:focus-visible {
+  cursor: zoom-in;
+}
+
+.dossier__avatar:hover .dossier__avatar-img,
+.dossier__avatar-btn:focus-visible .dossier__avatar-img {
+  transform: scale(1.08);
+}
+
+.dossier__avatar-zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.55);
+  /* 半透明底 + 模糊：压在龙图上也能读清，不至于遮掉画面主体 */
+  background: rgba(6, 9, 16, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--gold-lt);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  /* 常驻显示（不再依赖 :hover）：反馈稳定，也解决了触屏无悬停的问题 */
+  opacity: 0.92;
+  transition: opacity 0.22s ease, transform 0.22s ease, background 0.22s ease;
+  pointer-events: none;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.95);
+}
+
+.dossier__avatar:hover .dossier__avatar-zoom,
+.dossier__avatar-btn:hover .dossier__avatar-zoom,
+.dossier__avatar-btn:focus-visible .dossier__avatar-zoom {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+  background: rgba(6, 9, 16, 0.95);
+}
+
+.dossier__avatar-btn:focus-visible {
+  outline: 1px solid var(--gold);
+  outline-offset: -2px;
 }
 
 .dossier__avatar-txt {
@@ -340,6 +455,7 @@ function go(key) {
   inset: 7px;
   border-radius: 10px;
   border: 1px solid rgba(216, 178, 90, 0.28);
+  pointer-events: none;
 }
 
 .dossier__avatar-corner {
@@ -347,6 +463,9 @@ function go(key) {
   width: 14px;
   height: 14px;
   border: 1px solid var(--gold-dp);
+  /* 纯装饰角标：必须让出指针事件，否则鼠标划过四角时会命中角标而非下方按钮，
+     button:hover 失效 →「放大」提示忽隐忽现 */
+  pointer-events: none;
 }
 
 .dossier__avatar-corner--tl {

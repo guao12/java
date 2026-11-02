@@ -1143,13 +1143,262 @@ select {
   }
 }
 
+/* =============================================================
+   动效系统
+   原则：全站只有一个「主用力点」（鎏金扫光），其余皆为克制的
+   交互反馈与滚动节奏。所有动效共用下列缓动与时长，保证同源。
+   ============================================================= */
+
+:root {
+  /* 缓动：出场用「快出慢收」，反馈用「轻微回弹」 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.25, 0.8, 0.35, 1);
+  --ease-snap: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* 时长三档：微反馈 / 常规过渡 / 编排入场 */
+  --t-fast: 0.16s;
+  --t-base: 0.32s;
+  --t-slow: 0.72s;
+}
+
+/* ---------- 1. 鎏金扫光（全站唯一的主用力点） ----------
+   一条窄高光沿文字横向掠过，模拟灯光扫过黄铜铭牌。
+   用 background-clip:text 让光只走字面，不溢出。 */
+.sheen-gold {
+  /* 作为 flex 子项时会被块级化，背景会按整个盒子铺开，
+     导致光带宽度失真。收缩到内容宽度，让扫光始终贴着字面走。 */
+  display: inline-block;
+  background-image: linear-gradient(
+    100deg,
+    var(--text) 0%,
+    var(--text) 38%,
+    var(--gold-metal-hi) 48%,
+    #fffdf3 50%,
+    var(--gold-metal-hi) 52%,
+    var(--text) 62%,
+    var(--text) 100%
+  );
+  background-size: 280% 100%;
+  background-position: 130% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: sheen-pass 7s var(--ease-soft) infinite;
+}
+
+@keyframes sheen-pass {
+  0%,
+  62% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+/* ---------- 2. 光标跟随高光 ----------
+   卡片跟随指针位置亮起一块柔光，让「可点」这件事在鼠标移动时就成立。
+   由 CSS 变量 --mx / --my 驱动，JS 只负责写入坐标。 */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+
+.spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    220px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(216, 178, 90, 0.14),
+    transparent 68%
+  );
+  opacity: 0;
+  transition: opacity var(--t-base) var(--ease-soft);
+  pointer-events: none;
+}
+
+.spotlight:hover::after,
+.spotlight:focus-visible::after {
+  opacity: 1;
+}
+
+/* ---------- 3. 抬升反馈 ----------
+   统一的卡片 hover 语言：轻微上浮 + 鎏金边亮起。 */
+.lift {
+  transition:
+    transform var(--t-base) var(--ease-out),
+    border-color var(--t-base) var(--ease-soft),
+    box-shadow var(--t-base) var(--ease-soft);
+  will-change: transform;
+}
+
+.lift:hover,
+.lift:focus-visible {
+  transform: translateY(-3px);
+  border-color: rgba(216, 178, 90, 0.42);
+  box-shadow:
+    0 20px 44px -24px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(216, 178, 90, 0.16);
+}
+
+.lift:active {
+  transform: translateY(-1px);
+  transition-duration: var(--t-fast);
+}
+
+/* ---------- 4. 滚动错峰入场 ----------
+   原 .reveal 是整体一起淡入；改为按 --d 错峰，让区块有先后次序。
+   同时把位移改为「从下 14px + 微缩放」，比纯位移更有重量感。 */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px) scale(0.994);
+  transition:
+    opacity var(--t-slow) var(--ease-out),
+    transform var(--t-slow) var(--ease-out);
+  transition-delay: var(--d, 0ms);
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- 4b. 卷宗入架（列表专用） ----------
+   与 .reveal 同源，但位移更小、时长更短：列表项动辄几十个，
+   逐个做 0.72s 的大位移会显得拖沓。--d 由模板按索引错峰。
+
+   刻意用 animation 而非 transition：入场结束后动画的 transform 不残留，
+   卡片自身的 :hover 抬升（任务卡 / 鉴定卡都有）才能正常接管，
+   不会被 .is-in 的 transform:none 长期压住。 */
+.rise {
+  opacity: 0;
+}
+
+.rise.is-in {
+  animation: rise-in 0.52s var(--ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 5. 文字逐字入场 ----------   仅用于标题这类短句；用 --i 变量逐字延迟，读完即止，不循环。 */
+.char-in {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.36em) rotate(2deg);
+  animation: char-rise 0.72s var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 46ms);
+}
+
+@keyframes char-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 6. 下划线生长 ----------
+   导航与行内链接：hover 时从中心向两侧展开一条金线。 */
+.underline-grow {
+  position: relative;
+}
+
+.underline-grow::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  transform: translateX(-50%);
+  transition: width var(--t-base) var(--ease-out);
+}
+
+.underline-grow:hover::after,
+.underline-grow:focus-visible::after {
+  width: 100%;
+}
+
+/* ---------- 7. 呼吸点 ----------
+   状态指示（在线 / 待阅）专用的低频明暗，周期刻意拉长到 3.6s，
+   避免抢注意力。 */
+.breathe-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: breathe-soft 3.6s ease-in-out infinite;
+}
+
+@keyframes breathe-soft {
+  0%,
+  100% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 var(--gold-glow);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 6px 2px rgba(216, 178, 90, 0.28);
+  }
+}
+
+/* ---------- 8. 数字滚动的视觉锚 ----------
+   统计数字变化时用等宽数字 + 短促的亮度脉冲，代替整块跳动。 */
+.num-tick {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  animation: num-pulse 0.5s var(--ease-out);
+}
+
+@keyframes num-pulse {
+  0% {
+    color: var(--gold-metal-hi);
+    transform: translateY(-0.18em);
+  }
+  100% {
+    color: inherit;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  /* 减少动态时保留最终可读状态，而不是让元素停在 opacity:0 */
+  .reveal,
+  .rise,
+  .char-in {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .sheen-gold {
+    -webkit-text-fill-color: var(--text);
+    color: var(--text);
+    background: none;
   }
 }
 

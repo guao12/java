@@ -1,11 +1,10 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthCard from '@/components/AuthCard.vue'
 import FormField from '@/components/FormField.vue'
 import GlowButton from '@/components/GlowButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import OtpInput from '@/components/OtpInput.vue'
 import IdCardPreview from '@/components/IdCardPreview.vue'
 import { authApi } from '@/api/auth'
 import { rememberAccount } from '@/utils/auth'
@@ -63,7 +62,6 @@ onMounted(async () => {
 
 const form = reactive({
   codename: '',
-  code: '',
   identity: '',
   spirit: 'none',
   password: '',
@@ -73,14 +71,13 @@ const form = reactive({
 
 const errors = reactive({
   codename: '',
-  code: '',
   identity: '',
   spirit: '',
   password: '',
   confirm: '',
   agree: ''
 })
-const touched = reactive({ codename: false, code: false, identity: false, password: false, confirm: false })
+const touched = reactive({ codename: false, identity: false, password: false, confirm: false })
 const loading = ref(false)
 const done = ref(false)
 const notice = ref(null)
@@ -110,18 +107,10 @@ const clientKey = (() => {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-6)
 })()
 
-/** 系统直接给出的验证码（演示环境不发邮件，改由后端回显） */
-const demoCode = ref('')
-/** 验证码有效期（秒） */
-const expireSeconds = ref(0)
-/** 重新获取的冷却（秒），与后端 60 秒一致 */
-const cooldown = ref(0)
-let cooldownTimer = 0
-
-/** 图形验证码：注册下发前置，防脚本批量刷取 */
+/** 图形验证码：唯一校验入口（服务端在最终提交时消费凭证） */
 const captcha = reactive({ token: '', image: '', input: '', error: '' })
 
-/** 拉取一张新的图形验证码（token 由后端签发，答案仅存服务端） */
+/** 拉取一张新的图形验证码（token 由后端签发，答案仅存服务端，一次性） */
 async function loadCaptcha() {
   try {
     const data = await authApi.captcha()
@@ -133,8 +122,6 @@ async function loadCaptcha() {
     captcha.error = '验证码加载失败，请点击刷新后重试'
   }
 }
-
-const otpRef = ref(null)
 
 const STRENGTH_LABEL = ['——', '脆弱', '一般', '良好', '坚不可摧']
 
@@ -170,11 +157,6 @@ const RULES = {
     if (v.length > 16) return '长度不超过 16 个字符'
     return ''
   },
-  code() {
-    const v = form.code.trim()
-    if (!v) return '请输入验证码'
-    return /^\d{6}$/.test(v) ? '' : '验证码应为 6 位数字'
-  },
   identity() {
     return form.identity ? '' : '请选择在校身份'
   },
@@ -192,7 +174,7 @@ const RULES = {
 }
 
 /** 每一步需要校验的字段 */
-const STEP_FIELDS = [['codename', 'identity', 'code'], ['spirit'], ['password', 'confirm']]
+const STEP_FIELDS = [['codename', 'identity'], ['spirit'], ['password', 'confirm']]
 
 function check(field) {
   if (field === 'spirit') {
@@ -209,62 +191,25 @@ const passwordValid = computed(
 )
 const confirmValid = computed(() => touched.confirm && !errors.confirm && !!form.confirm)
 
-function startCooldown(seconds) {
-  cooldown.value = seconds
-  window.clearInterval(cooldownTimer)
-  cooldownTimer = window.setInterval(() => {
-    cooldown.value -= 1
-    if (cooldown.value <= 0) window.clearInterval(cooldownTimer)
-  }, 1000)
-}
-
-onBeforeUnmount(() => window.clearInterval(cooldownTimer))
-
-/** 获取验证码：先过图形验证码，后端生成后直接回显给页面（系统给验证码，不发邮件） */
-async function sendCode() {
-  notice.value = null
-  // 前端基础校验：图形验证码必填
+/**
+ * 图形验证码前置检查（不占用后端的一次性凭证）。
+ *
+ * 关键约束：后端 captchaService.verify 命中即销毁令牌，且全站只有
+ * POST /register 真正校验它。若在第 1 步先用 /register/send 校验，
+ * 该 token 就会被消费掉，第 3 步提交时必然报「验证码错误或已过期」。
+ * 因此第 1 步只做本地必填检查，真正的服务端校验交给最终提交。
+ */
+function checkCaptchaLocal() {
+  captcha.error = ''
   if (!captcha.input.trim()) {
     captcha.error = '请输入图形验证码'
-    return
+    return false
   }
-  loading.value = true
-  try {
-    const data = await authApi.sendRegisterCode({
-      clientKey,
-      captchaToken: captcha.token,
-      captchaCode: captcha.input.trim()
-    })
-    demoCode.value = data.demoCode
-    expireSeconds.value = data.expireSeconds || 300
-    startCooldown(data.cooldownSeconds || 60)
-    notice.value = {
-      type: 'ok',
-      text: `系统已生成验证码，可直接点上方金色数字一键填入（${Math.round(expireSeconds.value / 60)} 分钟内有效）。`
-    }
-    // 本次验证码已消费，刷新一张新的备用
-    await loadCaptcha()
-  } catch (e) {
-    notice.value = { type: 'err', text: e.message }
-    // 验证码错误或已消费：刷新一张新的，避免用户卡死
-    await loadCaptcha()
-  } finally {
-    loading.value = false
+  if (!captcha.token) {
+    captcha.error = '验证码图片未加载，请点击「换一张」后重试'
+    return false
   }
-}
-
-/** 点击系统给出的验证码 → 自动填入六格 */
-function fillCode() {
-  if (!demoCode.value) return
-  form.code = demoCode.value
-  touched.code = true
-  errors.code = RULES.code()
-  nextTick(() => otpRef.value?.focus(6))
-}
-
-function onCodeComplete() {
-  touched.code = true
-  errors.code = RULES.code()
+  return true
 }
 
 /* ---------------- 密钥生成器 ---------------- */
@@ -340,6 +285,8 @@ function goNext() {
     }
     return
   }
+  // 第 1 步额外要求：图形验证码必填（服务端校验在最终提交时完成）
+  if (step.value === 0 && !checkCaptchaLocal()) return
   if (isLast.value) {
     onSubmit()
     return
@@ -369,20 +316,28 @@ async function onSubmit() {
 
   if (Object.values(errors).some(Boolean)) {
     // 若错误发生在前面的步骤，自动回退到对应步骤
-    if (errors.codename || errors.code || errors.identity) step.value = 0
+    if (errors.codename || errors.identity) step.value = 0
     notice.value = { type: 'err', text: '登记信息存在未通过校验的项目，请检查被标记的字段。' }
+    return
+  }
+
+  // 图形验证码必填兜底：万一第 1 步被绕过，这里拦一次
+  if (!checkCaptchaLocal()) {
+    step.value = 0
+    notice.value = { type: 'err', text: '请先填写图形验证码，已为你返回第 1 步。' }
     return
   }
 
   loading.value = true
   try {
-    // 调用后端 /api/auth/register，由后端校验验证码并签发账号落库
+    // 调用后端 /api/auth/register，由后端校验图形验证码并签发账号落库
     const data = await authApi.register({
       codename: form.codename.trim(),
       identity: form.identity,
       spirit: form.spirit,
       password: form.password,
-      code: form.code.trim(),
+      captchaToken: captcha.token,
+      captchaCode: captcha.input.trim(),
       clientKey
     })
     done.value = true
@@ -394,6 +349,10 @@ async function onSubmit() {
     }
     window.setTimeout(() => router.push('/login'), 2600)
   } catch (e) {
+    // 提交失败多半是验证码错误 / 已过期：换图并回到第 1 步让用户重填，避免反复点击无反应
+    await loadCaptcha()
+    step.value = 0
+    captcha.error = e.message
     notice.value = { type: 'err', text: e.message }
   } finally {
     loading.value = false
@@ -472,16 +431,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
           <AppIcon name="shield" :size="12" />{{ identityNote }}
         </p>
 
-        <!-- 验证码：系统直接给出（原「学院邮箱」验证已改为系统给验证码） -->
-        <div v-if="demoCode" class="code-reveal" role="button" @click="fillCode">
-          <span class="code-reveal__label">系统验证码 · 点击一键填入</span>
-          <span class="code-reveal__value">{{ demoCode }}</span>
-          <span class="code-reveal__meta">
-            有效期 {{ Math.round(expireSeconds / 60) }} 分钟 · 由系统直接给出，不发邮件
-          </span>
-        </div>
-
-        <!-- 图形验证码：注册下发前置，防脚本批量刷取 -->
+        <!-- 图形验证码：注册唯一人机校验，提交登记时由服务端一次性核验 -->
         <div class="captcha-row">
           <input
             v-model="captcha.input"
@@ -489,7 +439,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
             type="text"
             maxlength="4"
             placeholder="图形验证码"
-            :disabled="cooldown > 0 || loading"
+            :disabled="loading"
             @input="captcha.error = ''"
           />
           <img
@@ -507,36 +457,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
         <p v-if="captcha.error" class="field__msg">
           <AppIcon name="alert" :size="13" />{{ captcha.error }}
         </p>
-
-        <div class="code-block">
-          <label class="code-block__label">验证码</label>
-          <div class="code-row">
-            <OtpInput
-              ref="otpRef"
-              v-model="form.code"
-              :length="6"
-              :invalid="!!(touched.code && errors.code)"
-              @complete="onCodeComplete"
-            />
-            <button
-              type="button"
-              class="code-btn"
-              :disabled="cooldown > 0 || loading"
-              @click="sendCode"
-            >
-              <span v-if="cooldown > 0">{{ cooldown }}s</span>
-              <span v-else-if="demoCode">重发</span>
-              <span v-else>获取</span>
-            </button>
-          </div>
-          <p v-if="touched.code && errors.code" class="field__msg">
-            <AppIcon name="alert" :size="13" />{{ errors.code }}
-          </p>
-          <p v-else class="code-meta">
-            <AppIcon name="info" :size="12" />
-            {{ demoCode ? '照上方金色数字填入，或点击数字自动填入' : '点击右侧「获取」，由系统直接给出 6 位验证码' }}
-          </p>
-        </div>
+        <p v-else class="code-meta">
+          <AppIcon name="info" :size="12" />不区分大小写，看不清可点击图片换一张
+        </p>
       </template>
 
       <!-- ============ 第 2 步：血统鉴定 ============ -->
@@ -762,88 +685,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
 }
 
 /* ---------------- 验证码 ---------------- */
-.code-reveal {
-  border: 1px dashed var(--gold);
-  background: rgba(212, 175, 55, 0.08);
-  border-radius: 12px;
-  padding: 12px 16px 11px;
-  text-align: center;
-  cursor: pointer;
-  animation: card-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-  transition: background 0.25s, transform 0.25s, box-shadow 0.25s;
-}
-.code-reveal:hover {
-  background: rgba(212, 175, 55, 0.14);
-  transform: translateY(-1px);
-  box-shadow: 0 10px 30px -18px var(--gold-glow);
-}
-.code-reveal__label {
-  display: block;
-  font-size: 11.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-4);
-  margin-bottom: 6px;
-}
-.code-reveal__value {
-  display: block;
-  font-family: var(--font-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
-  font-size: 27px;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  text-indent: 0.32em;
-  color: var(--gold);
-  text-shadow: 0 0 18px rgba(212, 175, 55, 0.4);
-}
-.code-reveal__meta {
-  display: block;
-  font-size: 11px;
-  color: var(--text-4);
-  margin-top: 7px;
-}
-
-.code-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.code-block__label {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  letter-spacing: 0.16em;
-  color: var(--text-3);
-  text-transform: uppercase;
-}
-.code-row {
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-}
-.code-row :deep(.otp) {
-  flex: 1;
-  min-width: 0;
-}
-.code-btn {
-  flex: 0 0 78px;
-  border-radius: 10px;
-  border: 1px solid rgba(216, 178, 90, 0.34);
-  background: rgba(216, 178, 90, 0.08);
-  color: var(--gold-lt);
-  font-size: 12.5px;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  transition: background 0.22s, border-color 0.22s, color 0.22s, transform 0.22s;
-}
-.code-btn:hover:not(:disabled) {
-  background: rgba(216, 178, 90, 0.16);
-  border-color: var(--gold);
-  transform: translateY(-1px);
-}
-.code-btn:disabled {
-  color: var(--text-4);
-  border-color: var(--line-soft);
-  background: rgba(4, 7, 13, 0.6);
-  cursor: not-allowed;
-}
 .code-meta {
   display: flex;
   align-items: center;
@@ -857,6 +698,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
 /* ---------------- 图形验证码 ---------------- */
 .captcha-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
@@ -918,7 +760,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   color: var(--text-4);
   cursor: not-allowed;
 }
-
 /* ---------------- 言灵卡片 ---------------- */
 .spirits {
   display: grid;
@@ -1157,11 +998,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
     grid-template-columns: 1fr;
   }
   .code-row {
-    flex-direction: column;
+    flex-wrap: wrap;
   }
-  .code-btn {
-    flex: 0 0 auto;
-    height: 42px;
+  .captcha-input {
+    flex: 1 1 100%;
   }
   .actions__back {
     flex: 0 0 82px;

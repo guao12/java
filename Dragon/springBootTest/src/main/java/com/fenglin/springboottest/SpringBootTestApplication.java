@@ -26,7 +26,7 @@ public class SpringBootTestApplication {
 		log.info("""
 				
 				======================================================
-				  假面骑士创骑 · 骑士系统后端启动成功
+				  卡塞尔学院 · 龙族身份认证系统后端启动成功
 				  环境 profile : {}
 				  接口地址     : http://localhost:{}/api
 				  健康检查     : http://localhost:{}/api/health

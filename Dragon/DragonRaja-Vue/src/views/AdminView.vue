@@ -383,398 +383,410 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 移动端抽屉遮罩：必须放在 .adm 外，否则会被 .adm 的 z-index 困住 -->
-  <div
-    v-if="drawerOpen"
-    class="adm__scrim"
-    aria-hidden="true"
-    @click="drawerOpen = false"
-  />
+  <div class="adm-shell">
+    <!-- 移动端抽屉遮罩：必须放在 .adm 外，否则会被 .adm 的 z-index 困住 -->
+    <div
+      v-if="drawerOpen"
+      class="adm__scrim"
+      aria-hidden="true"
+      @click="drawerOpen = false"
+    />
 
-  <div class="adm">
-    <!-- 装饰背景延后一帧挂载，先让骨架和顶栏出来，避免首屏被粒子拖慢 -->
-    <RuneBackground v-if="bgReady" />
+    <div class="adm">
+      <!-- 装饰背景延后一帧挂载，先让骨架和顶栏出来，避免首屏被粒子拖慢 -->
+      <RuneBackground v-if="bgReady" />
 
-    <!-- ============ 顶栏 ============ -->
-    <header class="adm__bar">
-      <div class="adm__bar-inner">
-        <div class="adm__bar-left">
-          <!-- 移动端抽屉开关 -->
-          <button
-            type="button"
-            class="adm__burger"
-            aria-label="打开导航"
-            @click="drawerOpen = true"
-          >
-            <AppIcon name="menu" :size="18" />
-          </button>
-          <div class="adm__title">
-            <AppIcon name="shield" :size="18" />
-            <div>
-              <h1>后台管理系统</h1>
-              <p class="adm__crumb">
-                数据管理 <i>/</i>
-                <b>{{ activeMenu === 'overview' ? '数据概览' : '言灵图鉴' }}</b>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="adm__bar-side">
-          <span class="adm__sync" :class="{ 'is-busy': loading }">
-            <i class="adm__who-dot" />
-            {{ loading ? '同步中…' : `共 ${total} 条` }}
-          </span>
-          <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览">1 / 2</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- ============ 侧边栏 + 主体 ============ -->
-    <div class="adm__layout" :class="{ 'is-collapsed': collapsed }">
-      <AdminSidebar
-        v-model="activeMenu"
-        :groups="menuGroups"
-        :admin-name="adminName"
-        :collapsed="collapsed"
-        :open="drawerOpen"
-        @toggle-collapse="toggleCollapse"
-        @close="drawerOpen = false"
-        @logout="logout"
-      />
-
-      <main class="adm__body">
-        <!-- ============ 菜单：言灵图鉴 ============ -->
-        <template v-if="activeMenu === 'spirits'">
-      <!-- 工具条 -->
-      <div class="adm__tools">
-        <label class="adm__search">
-          <AppIcon name="search" :size="14" />
-          <input v-model="keyword" type="text" placeholder="按 key / 名称 / 元素 / 密级过滤本页" />
-          <button
-            v-if="keyword"
-            type="button"
-            class="adm__search-x"
-            aria-label="清空筛选"
-            @click.prevent="keyword = ''"
-          >
-            <AppIcon name="close" :size="12" />
-          </button>
-        </label>
-        <div class="adm__tools-side">
-          <span class="adm__count">
-            共 {{ total }} 条 / 本页 {{ filtered.length }} 条
-          </span>
-          <GlowButton variant="ghost" type="button" :disabled="loading" @click="refresh">
-            <AppIcon name="refresh" :size="15" :class="{ 'is-spin': loading }" />
-            刷新
-          </GlowButton>
-          <GlowButton type="button" @click="openCreate">
-            <AppIcon name="plus" :size="15" /> 新增言灵
-          </GlowButton>
-        </div>
-      </div>
-
-      <div v-if="listError" class="adm__alert">
-        <AppIcon name="alert" :size="15" />
-        <span>{{ listError }}</span>
-      </div>
-
-      <!-- 数据表 -->
-      <div class="adm__table-wrap">
-        <table class="adm__table">
-          <thead>
-            <tr>
-              <th>排序</th>
-              <th>插画</th>
-              <th>插画 Key</th>
-              <th>言灵名</th>
-              <th>元素</th>
-              <th>密级</th>
-              <th>言灵效果</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in filtered" :key="s.id">
-              <td class="num">{{ s.sort }}</td>
-              <td>
-                <span v-if="brokenImgs.has(s.key)" class="thumb thumb--fallback">{{ s.name.slice(0, 1) }}</span>
-                <img
-                  v-else
-                  class="thumb"
-                  :src="spiritImg(s)"
-                  :alt="`插画 · ${s.name}`"
-                  loading="lazy"
-                  :title="s.imageUrl ? '图片来源：网址' : '图片来源：本地文件'"
-                  @error="onThumbError(s)"
-                />
-              </td>
-              <td>
-                <code class="key">{{ s.key }}</code>
-                <em v-if="s.imageUrl" class="key-url" title="使用图片网址">网址</em>
-              </td>
-              <td class="name">{{ s.name }}</td>
-              <td>{{ s.element }}</td>
-              <td>
-                <span class="lv" :data-lv="s.level">{{ s.level }}</span>
-              </td>
-              <td class="effect">{{ s.effect }}</td>
-              <td>
-                <span class="st" :class="s.status === 1 ? 'is-on' : 'is-off'">
-                  {{ s.status === 1 ? '展示中' : '已隐藏' }}
-                </span>
-              </td>
-              <td class="ops">
-                <button type="button" class="op" @click="openEdit(s)">编辑</button>
-                <button type="button" class="op is-danger" @click="askDelete(s)">删除</button>
-              </td>
-            </tr>
-            <tr v-if="!loading && !filtered.length">
-              <td colspan="9" class="empty">
-                {{
-                  listError
-                    ? '加载失败，请刷新重试'
-                    : keyword
-                      ? '本页没有匹配「' + keyword + '」的条目'
-                      : '暂无数据，点击右上角「新增言灵」录入'
-                }}
-              </td>
-            </tr>
-            <!-- 骨架屏：首屏只有一屏占位，比转圈更早给出结构感 -->
-            <template v-if="loading && !spirits.length">
-              <tr v-for="i in 6" :key="`sk-${i}`" class="is-skel">
-                <td><span class="sk sk--xs" /></td>
-                <td><span class="sk sk--thumb" /></td>
-                <td><span class="sk sk--sm" /></td>
-                <td><span class="sk sk--md" /></td>
-                <td><span class="sk sk--xs" /></td>
-                <td><span class="sk sk--sm" /></td>
-                <td><span class="sk sk--lg" /></td>
-                <td><span class="sk sk--sm" /></td>
-                <td><span class="sk sk--md" /></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-        <div v-if="loading && spirits.length" class="adm__loading-bar" />
-      </div>
-
-      <!-- 分页 -->
-      <nav v-if="pageCount > 1" class="adm__pager" aria-label="分页">
-        <button type="button" class="pg" :disabled="page <= 1 || loading" @click="goPage(page - 1)">
-          <AppIcon name="chevron-left" :size="13" /> 上一页
-        </button>
-        <template v-for="(p, i) in pageNumbers" :key="`p-${i}`">
-          <span v-if="p === '…'" class="pg__gap">…</span>
-          <button
-            v-else
-            type="button"
-            class="pg pg--num"
-            :class="{ 'is-active': p === page }"
-            :disabled="loading"
-            @click="goPage(p)"
-          >
-            {{ p }}
-          </button>
-        </template>
-        <button
-          type="button"
-          class="pg"
-          :disabled="page >= pageCount || loading"
-          @click="goPage(page + 1)"
-        >
-          下一页 <AppIcon name="chevron-right" :size="13" />
-        </button>
-      </nav>
-
-      <p class="adm__tip">
-        <AppIcon name="alert" :size="13" />
-        插画默认按 <code>/img/spirit/&lt;key&gt;.webp</code> 放置；填写「图片网址」后前台将优先加载该网址图片。「隐藏」的条目前台不再展示，数据保留。
-      </p>
-        </template>
-
-        <!-- ============ 菜单：数据概览 ============ -->
-        <template v-else>
-          <div class="ov__grid">
-            <div class="ov__card">
-              <span class="ov__num">{{ stats.total }}</span>
-              <span class="ov__label">条目总数</span>
-            </div>
-            <div class="ov__card is-gold">
-              <span class="ov__num">{{ stats.onShelf }}</span>
-              <span class="ov__label">展示中</span>
-            </div>
-            <div class="ov__card is-dim">
-              <span class="ov__num">{{ stats.hidden }}</span>
-              <span class="ov__label">已隐藏</span>
-            </div>
-            <div class="ov__card is-gold">
-              <span class="ov__num">{{ stats.withUrl }}</span>
-              <span class="ov__label">使用图片网址</span>
-            </div>
-          </div>
-
-          <div class="ov__panel">
-            <header class="ov__head">
-              <h3><AppIcon name="info" :size="14" /> 密级分布</h3>
-              <span class="ov__head-note">按言灵密级统计条目数</span>
-            </header>
-            <div class="ov__rows">
-              <div v-for="l in LEVELS" :key="l" class="ov__row">
-                <span class="lv" :data-lv="l">{{ l }}</span>
-                <div class="ov__bar">
-                  <i
-                    class="ov__bar-fill"
-                    :style="{ width: `${stats.total ? Math.round((stats.byLevel[l] / stats.total) * 100) : 0}%` }"
-                  />
-                </div>
-                <b class="ov__bar-num">{{ stats.byLevel[l] }}</b>
+      <!-- ============ 顶栏 ============ -->
+      <header class="adm__bar">
+        <div class="adm__bar-inner">
+          <div class="adm__bar-left">
+            <!-- 移动端抽屉开关 -->
+            <button
+              type="button"
+              class="adm__burger"
+              aria-label="打开导航"
+              @click="drawerOpen = true"
+            >
+              <AppIcon name="menu" :size="18" />
+            </button>
+            <div class="adm__title">
+              <AppIcon name="shield" :size="18" />
+              <div>
+                <h1>后台管理系统</h1>
+                <p class="adm__crumb">
+                  数据管理 <i>/</i>
+                  <b>{{ activeMenu === 'overview' ? '数据概览' : '言灵图鉴' }}</b>
+                </p>
               </div>
             </div>
           </div>
 
-          <p class="adm__tip">
-            <AppIcon name="info" :size="13" />
-            数据实时来自「言灵图鉴」列表；在图鉴菜单中增删改后回到本页即可看到最新统计。
-          </p>
-        </template>
-      </main>
-    </div>
-
-    <!-- ============ 新增 / 编辑弹窗 ============ -->
-    <div v-if="showModal" class="adm__mask" @click.self="showModal = false">
-      <div class="adm__modal">
-        <header class="adm__modal-head">
-          <h2>{{ editingId == null ? '新增言灵' : `编辑 · ${form.name}` }}</h2>
-          <button type="button" class="adm__modal-x" @click="showModal = false">
-            <AppIcon name="close" :size="16" />
-          </button>
-        </header>
-
-        <div class="adm__modal-body">
-          <div v-if="modalError" class="adm__alert">
-            <AppIcon name="alert" :size="15" />
-            <span>{{ modalError }}</span>
+          <div class="adm__bar-side">
+            <span class="adm__sync" :class="{ 'is-busy': loading }">
+              <i class="adm__who-dot" />
+              {{ loading ? '同步中…' : `共 ${total} 条` }}
+            </span>
+            <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览">1 / 2</span>
           </div>
+        </div>
+      </header>
 
-          <div class="grid-2">
-            <label class="fld">
-              <span>插画 Key <em>* 路由与图片地址，新增后不建议修改</em></span>
-              <input v-model.trim="form.key" type="text" placeholder="如 junyan" />
-            </label>
-            <label class="fld">
-              <span>言灵名 *</span>
-              <input v-model.trim="form.name" type="text" placeholder="如 君焰" />
-            </label>
-            <label class="fld">
-              <span>元素系别 *</span>
-              <input v-model.trim="form.element" list="adm-elements" placeholder="如 火 / 冰 / 风暴" />
-              <datalist id="adm-elements">
-                <option v-for="e in ELEMENTS" :key="e" :value="e" />
-              </datalist>
-            </label>
-            <label class="fld">
-              <span>密级 *</span>
-              <select v-model="form.level">
-                <option v-for="l in LEVELS" :key="l" :value="l">{{ l }}</option>
-              </select>
-            </label>
-          </div>
+      <!-- ============ 侧边栏 + 主体 ============ -->
+      <div class="adm__layout" :class="{ 'is-collapsed': collapsed }">
+        <AdminSidebar
+          v-model="activeMenu"
+          :groups="menuGroups"
+          :admin-name="adminName"
+          :collapsed="collapsed"
+          :open="drawerOpen"
+          @toggle-collapse="toggleCollapse"
+          @close="drawerOpen = false"
+          @logout="logout"
+        />
 
-          <label class="fld">
-            <span>言灵效果 *（一句话，列表与详情页标题）</span>
-            <input v-model.trim="form.effect" type="text" maxlength="100" placeholder="如 领域内可燃物瞬间爆燃" />
+        <main class="adm__body">
+          <!-- ============ 菜单：言灵图鉴 ============ -->
+          <template v-if="activeMenu === 'spirits'">
+        <!-- 工具条 -->
+        <div class="adm__tools">
+          <label class="adm__search">
+            <AppIcon name="search" :size="14" />
+            <input v-model="keyword" type="text" placeholder="按 key / 名称 / 元素 / 密级过滤本页" />
+            <button
+              v-if="keyword"
+              type="button"
+              class="adm__search-x"
+              aria-label="清空筛选"
+              @click.prevent="keyword = ''"
+            >
+              <AppIcon name="close" :size="12" />
+            </button>
           </label>
-
-          <label class="fld">
-            <span>详细介绍 *</span>
-            <textarea v-model.trim="form.desc" rows="4" maxlength="2000" placeholder="展示在首页卡片与详情页的介绍文字" />
-          </label>
-
-          <label class="fld">
-            <span>典型持有者</span>
-            <input v-model.trim="form.holder" type="text" maxlength="100" placeholder="如 攻坚型混血种 · 多见于战斗编制" />
-          </label>
-
-          <label class="fld">
-            <span>使用禁忌 / 备注</span>
-            <textarea v-model.trim="form.note" rows="2" maxlength="200" placeholder="如 持续释放会灼伤自身血脉" />
-          </label>
-
-          <div class="imgurl">
-            <label class="fld">
-              <span>插画图片网址 <em>* 可选，填写后前台优先加载该网址图片，留空则用本地 /img/spirit/&lt;key&gt;.webp</em></span>
-              <input
-                v-model.trim="form.imageUrl"
-                type="text"
-                maxlength="500"
-                inputmode="url"
-                placeholder="https://example.com/spirit.jpg"
-              />
-            </label>
-            <div class="imgurl__preview" :class="{ 'is-empty': !form.imageUrl.trim() || modalImgBroken }">
-              <img
-                v-if="form.imageUrl.trim() && !modalImgBroken"
-                :src="form.imageUrl"
-                alt="插画预览"
-                @error="modalImgBroken = true"
-              />
-              <span v-else-if="form.imageUrl.trim()" class="imgurl__empty">图片加载失败，请检查网址</span>
-              <span v-else class="imgurl__empty">网址预览</span>
-            </div>
-          </div>
-
-          <div class="grid-2">
-            <label class="fld">
-              <span>排序（越小越靠前）</span>
-              <input v-model.number="form.sort" type="number" min="0" max="9999" />
-            </label>
-            <label class="fld">
-              <span>状态</span>
-              <select v-model.number="form.status">
-                <option :value="1">展示中（前台可见）</option>
-                <option :value="0">隐藏（前台不可见）</option>
-              </select>
-            </label>
+          <div class="adm__tools-side">
+            <span class="adm__count">
+              共 {{ total }} 条 / 本页 {{ filtered.length }} 条
+            </span>
+            <GlowButton variant="ghost" type="button" :disabled="loading" @click="refresh">
+              <AppIcon name="refresh" :size="15" :class="{ 'is-spin': loading }" />
+              刷新
+            </GlowButton>
+            <GlowButton type="button" @click="openCreate">
+              <AppIcon name="plus" :size="15" /> 新增言灵
+            </GlowButton>
           </div>
         </div>
 
-        <footer class="adm__modal-foot">
-          <GlowButton variant="ghost" type="button" @click="showModal = false">取消</GlowButton>
-          <GlowButton type="button" :disabled="saving" @click="onSave">
-            {{ saving ? '保存中…' : '保存' }}
-          </GlowButton>
-        </footer>
-      </div>
-    </div>
+        <div v-if="listError" class="adm__alert">
+          <AppIcon name="alert" :size="15" />
+          <span>{{ listError }}</span>
+        </div>
 
-    <!-- ============ 删除确认 ============ -->
-    <div v-if="confirmTarget" class="adm__mask" @click.self="confirmTarget = null">
-      <div class="adm__modal adm__modal--sm">
-        <header class="adm__modal-head">
-          <h2>删除确认</h2>
-          <button type="button" class="adm__modal-x" @click="confirmTarget = null">
-            <AppIcon name="close" :size="16" />
+        <!-- 数据表 -->
+        <div class="adm__table-wrap">
+          <table class="adm__table">
+            <thead>
+              <tr>
+                <th>排序</th>
+                <th>插画</th>
+                <th>插画 Key</th>
+                <th>言灵名</th>
+                <th>元素</th>
+                <th>密级</th>
+                <th>言灵效果</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in filtered" :key="s.id">
+                <td class="num">{{ s.sort }}</td>
+                <td>
+                  <span v-if="brokenImgs.has(s.key)" class="thumb thumb--fallback">{{ s.name.slice(0, 1) }}</span>
+                  <img
+                    v-else
+                    class="thumb"
+                    :src="spiritImg(s)"
+                    :alt="`插画 · ${s.name}`"
+                    loading="lazy"
+                    :title="s.imageUrl ? '图片来源：网址' : '图片来源：本地文件'"
+                    @error="onThumbError(s)"
+                  />
+                </td>
+                <td>
+                  <code class="key">{{ s.key }}</code>
+                  <em v-if="s.imageUrl" class="key-url" title="使用图片网址">网址</em>
+                </td>
+                <td class="name">{{ s.name }}</td>
+                <td>{{ s.element }}</td>
+                <td>
+                  <span class="lv" :data-lv="s.level">{{ s.level }}</span>
+                </td>
+                <td class="effect">{{ s.effect }}</td>
+                <td>
+                  <span class="st" :class="s.status === 1 ? 'is-on' : 'is-off'">
+                    {{ s.status === 1 ? '展示中' : '已隐藏' }}
+                  </span>
+                </td>
+                <td class="ops">
+                  <button type="button" class="op" @click="openEdit(s)">编辑</button>
+                  <button type="button" class="op is-danger" @click="askDelete(s)">删除</button>
+                </td>
+              </tr>
+              <tr v-if="!loading && !filtered.length">
+                <td colspan="9" class="empty">
+                  {{
+                    listError
+                      ? '加载失败，请刷新重试'
+                      : keyword
+                        ? '本页没有匹配「' + keyword + '」的条目'
+                        : '暂无数据，点击右上角「新增言灵」录入'
+                  }}
+                </td>
+              </tr>
+              <!-- 骨架屏：首屏只有一屏占位，比转圈更早给出结构感 -->
+              <template v-if="loading && !spirits.length">
+                <tr v-for="i in 6" :key="`sk-${i}`" class="is-skel">
+                  <td><span class="sk sk--xs" /></td>
+                  <td><span class="sk sk--thumb" /></td>
+                  <td><span class="sk sk--sm" /></td>
+                  <td><span class="sk sk--md" /></td>
+                  <td><span class="sk sk--xs" /></td>
+                  <td><span class="sk sk--sm" /></td>
+                  <td><span class="sk sk--lg" /></td>
+                  <td><span class="sk sk--sm" /></td>
+                  <td><span class="sk sk--md" /></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div v-if="loading && spirits.length" class="adm__loading-bar" />
+        </div>
+
+        <!-- 分页 -->
+        <nav v-if="pageCount > 1" class="adm__pager" aria-label="分页">
+          <button type="button" class="pg" :disabled="page <= 1 || loading" @click="goPage(page - 1)">
+            <AppIcon name="chevron-left" :size="13" /> 上一页
           </button>
-        </header>
-        <p class="adm__confirm-txt">
-          确定要删除言灵「<b>{{ confirmTarget.name }}</b>（key: {{ confirmTarget.key }}）」吗？
-          删除后首页图鉴与详情页将不再展示该条目。
+          <template v-for="(p, i) in pageNumbers" :key="`p-${i}`">
+            <span v-if="p === '…'" class="pg__gap">…</span>
+            <button
+              v-else
+              type="button"
+              class="pg pg--num"
+              :class="{ 'is-active': p === page }"
+              :disabled="loading"
+              @click="goPage(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
+          <button
+            type="button"
+            class="pg"
+            :disabled="page >= pageCount || loading"
+            @click="goPage(page + 1)"
+          >
+            下一页 <AppIcon name="chevron-right" :size="13" />
+          </button>
+        </nav>
+
+        <p class="adm__tip">
+          <AppIcon name="alert" :size="13" />
+          插画默认按 <code>/img/spirit/&lt;key&gt;.webp</code> 放置；填写「图片网址」后前台将优先加载该网址图片。「隐藏」的条目前台不再展示，数据保留。
         </p>
-        <footer class="adm__modal-foot">
-          <GlowButton variant="ghost" type="button" @click="confirmTarget = null">取消</GlowButton>
-          <GlowButton type="button" class="is-danger" :disabled="deleting" @click="onDelete">
-            {{ deleting ? '删除中…' : '确认删除' }}
-          </GlowButton>
-        </footer>
+          </template>
+
+          <!-- ============ 菜单：数据概览 ============ -->
+          <template v-else>
+            <div class="ov__grid">
+              <div class="ov__card">
+                <span class="ov__num">{{ stats.total }}</span>
+                <span class="ov__label">条目总数</span>
+              </div>
+              <div class="ov__card is-gold">
+                <span class="ov__num">{{ stats.onShelf }}</span>
+                <span class="ov__label">展示中</span>
+              </div>
+              <div class="ov__card is-dim">
+                <span class="ov__num">{{ stats.hidden }}</span>
+                <span class="ov__label">已隐藏</span>
+              </div>
+              <div class="ov__card is-gold">
+                <span class="ov__num">{{ stats.withUrl }}</span>
+                <span class="ov__label">使用图片网址</span>
+              </div>
+            </div>
+
+            <div class="ov__panel">
+              <header class="ov__head">
+                <h3><AppIcon name="info" :size="14" /> 密级分布</h3>
+                <span class="ov__head-note">按言灵密级统计条目数</span>
+              </header>
+              <div class="ov__rows">
+                <div v-for="l in LEVELS" :key="l" class="ov__row">
+                  <span class="lv" :data-lv="l">{{ l }}</span>
+                  <div class="ov__bar">
+                    <i
+                      class="ov__bar-fill"
+                      :style="{ width: `${stats.total ? Math.round((stats.byLevel[l] / stats.total) * 100) : 0}%` }"
+                    />
+                  </div>
+                  <b class="ov__bar-num">{{ stats.byLevel[l] }}</b>
+                </div>
+              </div>
+            </div>
+
+            <p class="adm__tip">
+              <AppIcon name="info" :size="13" />
+              数据实时来自「言灵图鉴」列表；在图鉴菜单中增删改后回到本页即可看到最新统计。
+            </p>
+          </template>
+        </main>
+      </div>
+
+      <!-- ============ 新增 / 编辑弹窗 ============ -->
+      <div v-if="showModal" class="adm__mask" @click.self="showModal = false">
+        <div class="adm__modal">
+          <header class="adm__modal-head">
+            <h2>{{ editingId == null ? '新增言灵' : `编辑 · ${form.name}` }}</h2>
+            <button type="button" class="adm__modal-x" @click="showModal = false">
+              <AppIcon name="close" :size="16" />
+            </button>
+          </header>
+
+          <div class="adm__modal-body">
+            <div v-if="modalError" class="adm__alert">
+              <AppIcon name="alert" :size="15" />
+              <span>{{ modalError }}</span>
+            </div>
+
+            <div class="grid-2">
+              <label class="fld">
+                <span>插画 Key <em>* 路由与图片地址，新增后不建议修改</em></span>
+                <input v-model.trim="form.key" type="text" placeholder="如 junyan" />
+              </label>
+              <label class="fld">
+                <span>言灵名 *</span>
+                <input v-model.trim="form.name" type="text" placeholder="如 君焰" />
+              </label>
+              <label class="fld">
+                <span>元素系别 *</span>
+                <input v-model.trim="form.element" list="adm-elements" placeholder="如 火 / 冰 / 风暴" />
+                <datalist id="adm-elements">
+                  <option v-for="e in ELEMENTS" :key="e" :value="e" />
+                </datalist>
+              </label>
+              <label class="fld">
+                <span>密级 *</span>
+                <select v-model="form.level">
+                  <option v-for="l in LEVELS" :key="l" :value="l">{{ l }}</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="fld">
+              <span>言灵效果 *（一句话，列表与详情页标题）</span>
+              <input v-model.trim="form.effect" type="text" maxlength="100" placeholder="如 领域内可燃物瞬间爆燃" />
+            </label>
+
+            <label class="fld">
+              <span>详细介绍 *</span>
+              <textarea v-model.trim="form.desc" rows="4" maxlength="2000" placeholder="展示在首页卡片与详情页的介绍文字" />
+            </label>
+
+            <label class="fld">
+              <span>典型持有者</span>
+              <input v-model.trim="form.holder" type="text" maxlength="100" placeholder="如 攻坚型混血种 · 多见于战斗编制" />
+            </label>
+
+            <label class="fld">
+              <span>使用禁忌 / 备注</span>
+              <textarea v-model.trim="form.note" rows="2" maxlength="200" placeholder="如 持续释放会灼伤自身血脉" />
+            </label>
+
+            <div class="imgurl">
+              <label class="fld">
+                <span>插画图片网址 <em>* 可选，填写后前台优先加载该网址图片，留空则用本地 /img/spirit/&lt;key&gt;.webp</em></span>
+                <input
+                  v-model.trim="form.imageUrl"
+                  type="text"
+                  maxlength="500"
+                  inputmode="url"
+                  placeholder="https://example.com/spirit.jpg"
+                />
+              </label>
+              <div class="imgurl__preview" :class="{ 'is-empty': !form.imageUrl.trim() || modalImgBroken }">
+                <img
+                  v-if="form.imageUrl.trim() && !modalImgBroken"
+                  :src="form.imageUrl"
+                  alt="插画预览"
+                  @error="modalImgBroken = true"
+                />
+                <span v-else-if="form.imageUrl.trim()" class="imgurl__empty">图片加载失败，请检查网址</span>
+                <span v-else class="imgurl__empty">网址预览</span>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <label class="fld">
+                <span>排序（越小越靠前）</span>
+                <input v-model.number="form.sort" type="number" min="0" max="9999" />
+              </label>
+              <label class="fld">
+                <span>状态</span>
+                <select v-model.number="form.status">
+                  <option :value="1">展示中（前台可见）</option>
+                  <option :value="0">隐藏（前台不可见）</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <footer class="adm__modal-foot">
+            <GlowButton variant="ghost" type="button" @click="showModal = false">取消</GlowButton>
+            <GlowButton type="button" :disabled="saving" @click="onSave">
+              {{ saving ? '保存中…' : '保存' }}
+            </GlowButton>
+          </footer>
+        </div>
+      </div>
+
+      <!-- ============ 删除确认 ============ -->
+      <div v-if="confirmTarget" class="adm__mask" @click.self="confirmTarget = null">
+        <div class="adm__modal adm__modal--sm">
+          <header class="adm__modal-head">
+            <h2>删除确认</h2>
+            <button type="button" class="adm__modal-x" @click="confirmTarget = null">
+              <AppIcon name="close" :size="16" />
+            </button>
+          </header>
+          <p class="adm__confirm-txt">
+            确定要删除言灵「<b>{{ confirmTarget.name }}</b>（key: {{ confirmTarget.key }}）」吗？
+            删除后首页图鉴与详情页将不再展示该条目。
+          </p>
+          <footer class="adm__modal-foot">
+            <GlowButton variant="ghost" type="button" @click="confirmTarget = null">取消</GlowButton>
+            <GlowButton type="button" class="is-danger" :disabled="deleting" @click="onDelete">
+              {{ deleting ? '删除中…' : '确认删除' }}
+            </GlowButton>
+          </footer>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/**
+ * 路由外壳：唯一作用是让本视图只有「一个根节点」。
+ * App.vue 用 <transition mode="out-in"> 包裹路由组件，而 Vue 无法对多根 fragment 做过渡：
+ * 旧页面离场动画永远不结束 → 新页面永不挂载 → 整页空白（曾导致「后台点学院前台白屏」）。
+ * 这里刻意不设 position / transform / opacity，避免新增层叠上下文，遮罩的 z-index 仍能盖住 .adm。
+ */
+.adm-shell {
+  min-height: 100vh;
+}
+
 .adm {
   position: relative;
   z-index: 1;

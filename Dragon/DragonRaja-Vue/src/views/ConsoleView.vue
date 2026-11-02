@@ -6,7 +6,7 @@ import GlowButton from '@/components/GlowButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
-import { CODE_UNAUTHORIZED } from '@/api/http'
+import { CODE_UNAUTHORIZED, request } from '@/api/http'
 import { clearSession, getUser } from '@/utils/auth'
 
 const router = useRouter()
@@ -44,6 +44,7 @@ async function logout() {
     /* 令牌可能已过期，本地清理即可 */
   }
   clearSession()
+  request.clearCache() // 清空 GET 缓存，避免下一位登录者读到本账号的缓存
   router.replace('/login')
 }
 
@@ -223,12 +224,31 @@ onMounted(load)
   word-break: break-all;
 }
 
+/* 三个按钮并排时每列只有约 118px，而 .btn 的 22px 内边距 + 0.2em 字距
+   会让「刷新档案」这类四字标签必定折行。改成 grid 定宽列 + 收紧内边距与字距。 */
 .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 20px;
 }
 .actions > * {
-  flex: 1;
+  min-width: 0;
+}
+.actions .btn {
+  padding: 12px 8px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* 极窄屏不硬塞三列，直接竖排 */
+@media (max-width: 420px) {
+  .actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .actions .btn {
+    padding: 13px 16px;
+    letter-spacing: 0.1em;
+  }
 }
 </style>

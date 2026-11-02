@@ -18,14 +18,15 @@ import org.apache.ibatis.annotations.Select;
 public interface DrUserMapper extends BaseMapper<DrUser> {
 
     /**
-     * 按学院编号（学号）查用户。逻辑删除条件由 MyBatis-Plus 自动追加。
+     * 按学院编号（学号）查用户。
+     * 注意：这里是手写 SQL，MyBatis-Plus 不会自动追加逻辑删除条件，故显式带 deleted = 0。
      */
     @Select("SELECT * FROM dr_user WHERE account = #{account} AND deleted = 0 LIMIT 1")
     DrUser selectByAccount(@Param("account") String account);
 
     /**
      * 按行动代号（姓名）查用户。codename 在注册时做了唯一校验，因此可唯一确定一位用户。
-     * 逻辑删除条件由 MyBatis-Plus 自动追加。
+     * 注意：这里是手写 SQL，MyBatis-Plus 不会自动追加逻辑删除条件，故显式带 deleted = 0。
      */
     @Select("SELECT * FROM dr_user WHERE codename = #{codename} AND deleted = 0 LIMIT 1")
     DrUser selectByCodename(@Param("codename") String codename);

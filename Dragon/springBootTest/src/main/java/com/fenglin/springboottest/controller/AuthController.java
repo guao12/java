@@ -73,12 +73,14 @@ public class AuthController {
         return R.ok("验证码已生成", authService.sendRegisterCode(dto, clientIp(request)));
     }
 
-    /** 解析客户端真实 IP：优先取 X-Forwarded-For 首段（反向代理场景），否则取直连地址 */
+    /**
+     * 解析客户端真实 IP。
+     * 安全修复：不再信任客户端可伪造的 X-Forwarded-For 头（否则换 XFF 即可绕过 IP 限流）。
+     * 当前项目本地 / 单机部署，直接使用 TCP 对端地址；若将来置于反向代理之后，
+     * 应改用 Spring 的 ForwardedHeaderFilter + server.forward-headers-strategy=framework，
+     * 并只信任内网代理 IP 写入的 XFF。
+     */
     private String clientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
         return request.getRemoteAddr();
     }
 
