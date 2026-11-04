@@ -16,6 +16,7 @@ import {
   todayKey,
   todayUsedCount
 } from '@/utils/bloodline'
+import { markIn } from '@/utils/reveal'
 
 
 /* ---------------- 当前登录者 ---------------- */
@@ -303,22 +304,22 @@ function bindBodyObserver() {
     (entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue
-        entry.target.classList.add('is-in')
+        markIn(entry.target)
         bodyIO.unobserve(entry.target)
       }
     },
     { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }
   )
 
-  for (const el of root.querySelectorAll('.rise:not(.is-in)')) bodyIO.observe(el)
+  for (const el of root.querySelectorAll('.rise:not([data-rise])')) bodyIO.observe(el)
 }
 
 watch(visibleRecords, () =>
   nextTick(() => {
     bindBodyObserver()
     requestAnimationFrame(() => {
-      for (const el of bodyEl.value?.querySelectorAll('.rise:not(.is-in)') ?? []) {
-        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
+      for (const el of bodyEl.value?.querySelectorAll('.rise:not([data-rise])') ?? []) {
+        if (el.getBoundingClientRect().top < window.innerHeight) markIn(el)
       }
     })
   })

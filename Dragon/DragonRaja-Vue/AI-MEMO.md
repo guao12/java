@@ -589,3 +589,151 @@ npm run dev          # 端口 5177
 > **上一条（2026-10-15）**：新增档案库 5 张表 + 首页展示 + 分级分类检索 + 卷宗详情弹窗；后端新增 OptionalAuthInterceptor 软鉴权与 SecurityLevel 密级体系
 
 > **上一条（同日早些时候）**：项目迁至 Desktop\Dragon（前后端平级）、首页 /home 上线（导航栏+搜索栏，/api/search 预留）、登录改纯学号体系、脚本后端路径改 `..\springBootTest`
+
+---
+
+## 10. 图鉴详情 / 任务记录详情（2026-11-04 修订）
+
+**涉及页面**
+- `views/CodexDetailView.vue` —— `/spirit/:key`（言灵）与 `/org/:key`（机构）共用
+- `views/TaskLogView.vue` —— `/log/:code/:person`（任务执行记录详情）
+- `components/ImageLightbox.vue` —— 两者共用的全屏看图（滚轮缩放 / 双击 2 倍 / 拖动平移 / Esc）
+
+### 坑 1：详情页「放大」按钮有时整个不出现
+
+`/spirit/:key` 之间互跳（底部「相关档案」）时**组件实例是复用的，只有 key 变**。
+原来的 `imgOk` 只在 `@error` 时置 `false`，不随 key 复位 —— 某一条插图 404 之后，
+后面所有条目都被判定成「没有图」，放大按钮随之消失，看起来就像「有时悬停没反应」。
+现在改成 `imgState = loading | ok | error`，在 `watch(() => item.value?.key)` 里复位。
+
+另外 `public/img/spirit/` 原先**缺** `guzhong.webp`（骨冢）与 `yulei.webp`（御雷），
+那两条没有原图时显示「暂无插图」标签，不再让人误以为是按钮坏了。
+**（2026-11-04 已补齐这两张图，规格见文末「言灵插图的制作规格」；新条目的缺图兜底逻辑仍然保留。）**
+
+### 坑 2：`.gcard__hint` 只写了 `.gcard:hover`
+
+首页「学院机构」卡片复用了 `.gcard__hint`（挂在 `.rcard__img` 里），
+但浮出规则只有 `.gcard:hover` → 机构卡片的「查看详情」提示永远不显示。
+必须同时挂 `.rcard:hover` 与两者的 `:focus-visible`。
+
+### 任务执行记录
+
+- **整张卡片可点**（`role="button"` + `tabindex` + Enter/Space），不再只有右下角那个小按钮能点；
+  未解锁 → 抖动 + toast，提示还差多少权限点。
+- 详情数据在 `src/data/logDetail.js` 的 `MISSION_META`，键为 **`任务编号|人物名`**。
+  22 条记录全覆盖，每条都有 `canon`（原作背景）/ `brief` / `steps` / `outcome` / `figures` / `relics`。
+  → 新增任务记录时**必须同步补一条 MISSION_META**，否则详情页会退化成 fallback（内容很薄）。
+- 器物标签 `relicLink()`：命中 `DRAGON_ARMS` → 跳档案室「龙族武器」卷；命中 `SPIRIT_GALLERY` → 跳言灵详情；
+  两者都没命中的（常暗 / 时间回廊 / 冰锥王座 / 狮心斩 / 血怒 / 拟态）在 `UNLISTED` 里给「归类 + 释义」，
+  **不要再用「言灵谱未收录」这种敷衍文案**。
+
+### 陈墨瞳言灵已统一为「炽日」（2026-11-04 补）
+
+原来 `data/archive.js`（人物卷宗 + 武器）写作「炽阳（短促释放）」，而 `data/codex.js`（言灵谱）
+与 `data/logDetail.js`（任务详情 ×3）都作「炽日」。**统一到「炽日」**，理由：
+言灵谱有词条、有插图（`img/spirit/chiri.webp` 上的标题就是「炽日」），任务详情也已按此名链接跳转。
+「（短促释放）」保留为她的释放档位，与她「中危」的实际评级对应；
+言灵谱那条「绝密 / 凝出微型恒星」写的是该言灵的完整形态，两者不冲突。
+
+> 原作口径：诺诺的档案写「没有言灵」，真正擅长的是**侧写**。
+> 本站在档案室给她配火焰言灵属二次设定，若日后要对齐原作，改动面是
+> `characters.js` + `archive.js` 的 spirits/weapon 两处，任务详情的 relics 也要跟着换。
+
+### 言灵插图的制作规格（新增条目照这个来）
+
+现成的插图是同一套规格，补图不要另起风格：
+
+| 项 | 取值 |
+| --- | --- |
+| 文件 | `public/img/spirit/{codex 条目的 key}.webp`（key 直接拼路径，见 `CodexDetailView` 的 `imgSrc`） |
+| 画布 | 1536 × 1152（4:3），webp q=88，单张约 140–500 KB |
+| 画面 | 近黑底 + 居中发光本体 + 单一主色 + 四角暗角；底部渐隐入纯黑，给标题留净场 |
+| 标题 | 楷体（`C:/Windows/Fonts/simkai.ttf`）118px，字距 0.1em，视觉中心 y≈1082；字面渐变 `#f6e3ad → #b8862f`，外加 16px 高斯光晕 |
+
+流程：先用图像生成出 **1536×1024、不带任何文字** 的底图（提示词里明确 no text / no watermark），
+再合成四步：盖掉生成器角标 → 暗角 → 底部渐隐 → 压金色标题。
+生成器的水印在右下角，必须用「取邻近暗部色 + 左/上羽化」的方式覆盖，硬裁会把构图切坏。
+`guzhong`（骨冢）与 `yulei`（御雷）就是这样补出来的，可与既有 13 张混排。
+
+## 档案室「部门人物」只剩一两张卡（2026-11-04 修）
+
+**症状**：进档案室点「部门人物」，卡片区一片空白，只剩恺撒那一张；其余 7 人的卡片
+数据上都在（右上角照样写「已解锁 8 / 8 人」），就是看不见。
+
+**根因不是数据、不是布局，是入场动画**：
+`.rise { opacity: 0 }` 靠 IntersectionObserver 加 `is-in` 才显形，而 ArchiveView
+原来是 `el.classList.add('is-in')` —— **手写 class 会被 Vue 冲掉**。人物卡模板上有
+`:class="{ 'is-locked': ... }"` / `'is-open'` 这类动态绑定，Vue 每次重渲染都会把
+class 整串重写成「静态类 + 当前动态类」，`is-in` 就被安静地删了，`opacity` 立刻回到 0。
+
+**触发路径（本机实测）**：
+1. 进页面时权限点还是本地缓存的 0 → 8 张卡全是 `is-locked`，观察器把它们标成已入场；
+2. `hydrateClearance()` 拿到后端 34 点 → 密级从「公开」跳到「绝密」；
+3. `is-locked` 同时翻转 → class 重写 → 入场态全丢 → 只剩没被重写的那一张。
+   同理，点部门筛选（列表重建）、点卡片展开（`is-open`）也会踩到。
+
+**修法**：入场态改走 `utils/reveal.js` 的 `markIn()`（写 `data-rise="in"` 属性）。
+Vue 只会覆盖它在模板里声明过的 class / 属性，`data-rise` 不会被碰，重渲染不掉。
+配套三件事：
+- 观察器里用 `markIn` + `isIn` 跳过已入场的，别再手写 class；
+- `watch(tab)` / `watch(filteredPeople)` / `watch([logs, lockedLogs])` 都接 `refreshShelf()`
+  （= nextTick 重挂观察器 + rAF `revealInView`），筛选、切卷、权限同步后新节点能立刻入场；
+- 无 IntersectionObserver 的环境直接全部 `markIn`，否则整页停在 opacity: 0。
+
+**排查手法**（下次再遇到「卡片莫名消失」直接照做）：用 CDP 打开页面，打印每张卡的
+`getComputedStyle(el).opacity` + `el.className` + `getBoundingClientRect()`。
+若 opacity=0 但 rect 正常且落在视口内，就是入场态丢了，跟数据/布局无关。
+
+---
+
+## 11. 权限进度「换电脑就清零」的三个真实断点
+
+现象：档案里的密级解锁状态在另一台电脑上回到「公开」。
+链路本身是 `utils/clearance.js` 双写（localStorage 缓存 + `/api/user/clearance` 权威存档），
+后端 `ClearanceServiceImpl.mergeAndSave` 做合并落库。断在下面三处：
+
+### 断点 1：权限表可能压根不存在（已修）
+
+`dr_user_clearance` 原先只写在 `sql/dragon_raja_clearance.sql`，而 `初始化数据库.bat`
+只导入 `dragon_raja.sql` —— **没有任何脚本会执行那个文件**。表缺了，接口直接 500，
+前端 `catch {}` 又静默降级，表现就是「权限没了」。
+
+现在两条保险：
+- `application.properties` 里 `spring.sql.init.mode=always` +
+  `spring.sql.init.schema-locations=classpath:db/clearance-schema.sql`，
+  后端启动时幂等补表（源文件 `src/main/resources/db/clearance-schema.sql`）；
+- `sql/dragon_raja.sql` 末尾也补了同一段 `CREATE TABLE IF NOT EXISTS`
+  （**故意不写 DROP**，重跑初始化不会清掉任何人的权限点）。
+
+### 断点 2：同步失败是静默的（已修）
+
+`clearance.js` 新增 `syncState`（`idle | guest | syncing | ok | offline`），
+失败时记 `error` 并进入退避重试（4/12/30/60/120 秒），另外监听
+`online` 与 `visibilitychange` 补同步。档案室权限面板会显示
+「已同步到账号存档 / 同步失败，进度只在本机 + 原因」并给「重新同步」。
+**不要再把 catch 写成空的** —— 静默失败是这次用户完全无法自查的根因。
+
+### 断点 3：两台机器可能各有各的 MySQL（只能靠人搬）
+
+后端存档按 `user_id` 存在 MySQL 里。如果另一台电脑也装了 MySQL、也用
+`启动.bat` 起后端，那账号能登录，但那台机器**在另一个库里**，自然没有你的行。
+这种情况加什么同步逻辑都没用，所以补了备份码：
+
+- `exportClearanceCode()` → `DRC1.<base64>`（UTF-8 安全，中文任务名不会炸）
+- `importClearanceCode(raw)` → 与本地取并集（不降级），随后自动上报
+- UI 在档案室权限面板「备份码 · 换电脑用」，导出/导入两个 textarea
+
+> 若希望真正自动跨机：两台机器把 `spring.datasource.url` 指向同一台 MySQL
+> （局域网 IP），后端口径一致即可，不需要备份码。
+
+### 本机怎么验证后端（这台机器没有可用的 mvn）
+
+`mvn` / `mvnw` 在当前环境起不来（classworlds 找不到），可用下面的土办法直跑 `target/classes`：
+
+1. 扫 `~/.m2/repository` 下所有 jar，按 artifact 去重只留最高版本（否则会撞上
+   其他项目的老 `slf4j-api 1.7` 和 `commons-logging`），拼成 `-cp` 写进一个 argfile
+   —— 注意 **argfile 里必须用正斜杠**，反斜杠会被当转义符吃掉；
+2. `java @args com.fenglin.springboottest.SpringBootTestApplication --server.port=8082`
+   —— 必须显式给端口，环境里有个隐藏变量让 `server.port` 跑到了 54471；
+3. curl 发中文请求体要点：用 `--data-binary @utf8.json`，否则命令行编码变成 GBK，
+   后端报 `JSON parse error: Invalid UTF-8 start byte`（这个 400 是测试姿势的问题，不是接口的）。

@@ -33,10 +33,12 @@ public class PageVO<T> implements Serializable {
 
     public PageVO(List<T> list, Long total, Long page, Long size) {
         this.list = list;
-        this.total = total;
+        // total 可能为 null（聚合查询未返回值），先归一化再参与运算，避免拆箱 NPE
+        long safeTotal = total == null ? 0L : total;
+        this.total = safeTotal;
         this.page = page;
         this.size = size;
-        this.pages = size == null || size <= 0 ? 0L : (total + size - 1) / size;
+        this.pages = size == null || size <= 0 ? 0L : (safeTotal + size - 1) / size;
     }
 
     public List<T> getList() {

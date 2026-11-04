@@ -118,21 +118,26 @@ async function sendCode() {
   loading.value = true
   notice.value = null
   try {
-    // 调用后端下发验证龙文：演示环境由后端直接回显验证码（你给验证码）
+    // 下发验证龙文：是否直接带回验证码由后端下发通道决定
+    // （dev 演示 = 回显；生产 = 仅日志 / 真实短信邮件，demoCode 为 null）
     const data = await authApi.sendResetCode({
       account: form.account.trim(),
       captchaToken: captcha.token,
       captchaCode: captcha.input.trim()
     })
-    resetCode.value = data.demoCode
+    resetCode.value = data.demoCode || ''
     expireSeconds.value = data.expireSeconds
     startCooldown(60)
-    notice.value = {
-      type: 'info',
-      text: `验证龙文已生成（${Math.round(
-        data.expireSeconds / 60
-      )} 分钟内有效）。演示环境请到后端控制台 / 日志（log/springBootTest.log）查看「【重置验证龙文】」一行的 6 位数字并填入。`
-    }
+    const minutes = Math.round((data.expireSeconds || 300) / 60)
+    notice.value = resetCode.value
+      ? {
+          type: 'ok',
+          text: `验证龙文已生成（${minutes} 分钟内有效），下方已直接显示，照此填入即可。`
+        }
+      : {
+          type: 'info',
+          text: `重置指令已下发（${minutes} 分钟内有效）。当前为日志通道，请到后端 log/springBootTest.log 查看「【重置验证龙文】」一行的 6 位数字并填入。`
+        }
     await loadCaptcha()
     step.value = 2
   } catch (e) {
@@ -250,18 +255,22 @@ function goLogin() {
 
       <p class="card-note">
         校验由后端 <b>Spring Boot + MySQL</b> 完成，验证龙文 5 分钟内有效<br />
-        演示环境：验证龙文写入后端日志，请到控制台 / log/springBootTest.log 查看后填入
+        演示环境会把验证龙文直接回显到下页，无需去翻日志
       </p>
     </form>
 
     <!-- 第 2 步：重置密钥 -->
     <form v-else-if="step === 2" class="form" novalidate @submit.prevent="resetKey">
-      <!-- 系统验证龙文：由后端写入日志，前端不再回显 -->
+      <!-- 验证龙文：回显通道下由后端随响应返回；日志通道下不显示此块 -->
       <div v-if="resetCode" class="code-reveal">
         <span class="code-reveal__label">系统验证龙文 · 请照此输入</span>
         <span class="code-reveal__value">{{ resetCode }}</span>
         <span class="code-reveal__meta">有效期 {{ Math.round(expireSeconds / 60) }} 分钟 · 重新获取请点右侧</span>
       </div>
+      <p v-else class="channel-hint">
+        <AppIcon name="info" :size="13" />当前为日志通道，验证龙文未在此显示，请到后端
+        <code>log/springBootTest.log</code> 查看「【重置验证龙文】」一行。
+      </p>
 
       <FormField
         v-model="form.code"
@@ -399,6 +408,30 @@ function goLogin() {
   font-size: 11px;
   color: var(--text-4);
   margin-top: 9px;
+}
+
+/* 日志通道提示：验证码不在页面显示时的替代说明 */
+.channel-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-soft);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-4);
+}
+.channel-hint svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--gold-dp);
+}
+.channel-hint code {
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  color: var(--gold-lt);
 }
 
 .as-link {

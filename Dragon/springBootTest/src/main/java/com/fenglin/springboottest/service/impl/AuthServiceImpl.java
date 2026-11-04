@@ -22,8 +22,11 @@ import com.fenglin.springboottest.vo.ProfileVO;
 import com.fenglin.springboottest.vo.RegisterCodeVO;
 import com.fenglin.springboottest.vo.RegisterVO;
 import com.fenglin.springboottest.vo.SendCodeVO;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -51,12 +56,19 @@ public class AuthServiceImpl implements AuthService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /** 验证龙文下发通道：true=随响应回显（仅本地演示），false=只写日志 */
+    private final boolean resetCodeEchoRequested;
+
+    /** 实际生效的回显开关：生产环境强制关闭 */
+    private boolean resetCodeEcho = false;
+
     private final DrUserMapper userMapper;
     private final DrResetCodeMapper resetCodeMapper;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final DictService dictService;
     private final CaptchaService captchaService;
+    private final Environment environment;
 
     /** 验证龙文下发冷却：按客户端真实 IP 限流（防脚本批量探测 / 刷取） */
     private final Map<String, Long> resetIpCooldown = new ConcurrentHashMap<>();
@@ -77,13 +89,36 @@ public class AuthServiceImpl implements AuthService {
                            PasswordEncoder passwordEncoder,
                            TokenService tokenService,
                            DictService dictService,
-                           CaptchaService captchaService) {
+                           CaptchaService captchaService,
+                           Environment environment,
+                           @Value("${dr.auth.reset-code-echo:false}") boolean resetCodeEchoRequested) {
         this.userMapper = userMapper;
         this.resetCodeMapper = resetCodeMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.dictService = dictService;
         this.captchaService = captchaService;
+        this.environment = environment;
+        this.resetCodeEchoRequested = resetCodeEchoRequested;
+    }
+
+    /**
+     * 确定验证龙文下发通道。
+     *
+     * <p>回显模式（把验证码直接放在响应里）等价于「谁都能重置别人的密钥」，
+     * 只允许在本地演示环境打开；只要激活了 prod 环境，无论配置怎么写都强制关闭。</p>
+     */
+    @PostConstruct
+    void initResetCodeChannel() {
+        boolean prod = Arrays.stream(environment.getActiveProfiles()).anyMatch("prod"::equalsIgnoreCase);
+        this.resetCodeEcho = resetCodeEchoRequested && !prod;
+        if (resetCodeEchoRequested && prod) {
+            log.error("生产环境配置了 dr.auth.reset-code-echo=true，已强制关闭：回显验证码等同于任意账号可被接管");
+        }
+        if (!this.resetCodeEcho) {
+            log.warn("验证龙文通道 = log：验证码仅写入日志，用户收不到。"
+                    + "上线前请实现真实下发（短信 / 邮件 / 站内信），或在 dev 环境用 dr.auth.reset-code-echo=true 走演示回显");
+        }
     }
 
     // ------------------------------------------------------------
@@ -170,6 +205,11 @@ public class AuthServiceImpl implements AuthService {
             if (msg.contains("uk_account")) {
                 throw new BizException("系统繁忙，请稍后重试（学号签发冲突）");
             }
+            if (msg.contains("uk_codename") || msg.contains("codename")) {
+                throw new BizException("行动代号「" + codename + "」已被使用，换一个吧");
+            }
+            // 兜底：索引名未命中（驱动 / 版本差异）时按代号冲突提示，至少不暴露 500
+            log.warn("注册落库唯一键冲突（未识别索引名）：{}", msg);
             throw new BizException("行动代号「" + codename + "」已被使用，换一个吧");
         }
         log.info("新生登记完成：{}（学号={}）", user.getCodename(), user.getAccount());
@@ -203,22 +243,25 @@ public class AuthServiceImpl implements AuthService {
     public LoginVO login(LoginDTO dto) {
         String input = dto.getAccount().trim();
 
+        // 1. 先解析用户：锁定键必须绑定到「真实用户」，而不是用户输入的字符串。
+        //    否则同一账号可用「大小写变体」或「学号 / 姓名」两种写法绕开计数（库中比较大小写不敏感）。
+        DrUser user = resolveUser(input);
+        String lockKey = user != null ? "u:" + user.getId() : "i:" + lockKeyOf(input);
+
         // 0. 登录失败锁定：同一账号连续失败过多时临时锁定，防撞库 / 暴力破解
-        if (isLoginLocked(input)) {
+        if (isLoginLocked(lockKey)) {
             throw new BizException("尝试过于频繁，请 15 分钟后再试");
         }
 
-        // 1. 按学号或行动代号（姓名）查找（二者在库中均唯一）
-        DrUser user = resolveUser(input);
         // 统一提示语，避免暴露"该账号是否存在"
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            recordLoginFailure(input);
+            recordLoginFailure(lockKey);
             throw new BizException("学号或言灵密钥不正确");
         }
         if (user.getStatus() == null || user.getStatus() == 0) {
             throw new BizException("该身份卡已被学院封印，请联系执行部");
         }
-        clearLoginFailure(input);
+        clearLoginFailure(lockKey);
 
         // 2. 累计登录次数 + 最近登录时间
         userMapper.update(null, new LambdaUpdateWrapper<DrUser>()
@@ -267,6 +310,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException("图形验证码错误或已过期，请点击图片刷新后重试");
         }
 
+        String echoedCode = null;
         DrUser user = resolveUser(dto.getAccount());
         if (user != null) {
             // 已登记：生成验证龙文并落库（5 分钟有效）
@@ -277,10 +321,19 @@ public class AuthServiceImpl implements AuthService {
             entity.setExpireTime(LocalDateTime.now().plusSeconds(CODE_EXPIRE_SECONDS));
             entity.setUsed(0);
             resetCodeMapper.insert(entity);
-            log.info("【重置验证龙文】学号={} code={}（演示环境：验证码只写日志，请到控制台/日志查看）", user.getAccount(), code);
+            if (resetCodeEcho) {
+                echoedCode = code;
+                log.warn("【重置验证龙文】学号={} code={}（dev 回显通道：已随响应返回给前端）", user.getAccount(), code);
+            } else {
+                log.info("【重置验证龙文】学号={} code={}（日志通道：用户无法收到，需接入短信 / 邮件下发）", user.getAccount(), code);
+            }
         } else {
             // 未登记：不下发真实验证龙文、不落库，仅记录日志（防枚举）
             log.info("验证龙文下发请求命中未登记账号（已做统一返回，不泄露存在性）：{}", dto.getAccount());
+            // 回显模式下也要回一个假码，否则「响应里有没有 demoCode」本身就成了账号存在性探针
+            if (resetCodeEcho) {
+                echoedCode = String.format("%06d", RANDOM.nextInt(1_000_000));
+            }
         }
 
         resetIpCooldown.put(clientIp, now);
@@ -290,9 +343,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 统一返回：无论账号是否存在，响应结构一致，杜绝"账号是否注册"的批量探测。
-        // 安全修复：验证码不再回显给前端，只写日志（log/springBootTest.log）。
-        // 真实项目在这里接邮件 / 短信服务。
-        return new SendCodeVO(dto.getAccount(), null, CODE_EXPIRE_SECONDS);
+        // 是否带回验证码由下发通道决定（生产恒为 null，只走日志 / 真实下发）。
+        return new SendCodeVO(dto.getAccount(), echoedCode, CODE_EXPIRE_SECONDS);
     }
 
     @Override
@@ -389,6 +441,15 @@ public class AuthServiceImpl implements AuthService {
     // 登录失败锁定（内存计数，防暴力破解）
     // ------------------------------------------------------------
 
+    /**
+     * 未登记账号的锁定键：统一小写。
+     * 数据库排序规则 utf8mb4_0900_ai_ci 大小写不敏感，
+     * 若计数用原始输入，"ABC" 与 "abc" 会被当成两个账号，从而绕开锁定。
+     */
+    private static String lockKeyOf(String identifier) {
+        return identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
+    }
+
     /** 账号是否处于锁定状态 */
     private boolean isLoginLocked(String account) {
         long[] rec = loginFailures.get(account);
@@ -407,8 +468,7 @@ public class AuthServiceImpl implements AuthService {
     private void recordLoginFailure(String account) {
         if (account == null || account.isBlank()) {
             return;
-        }
-        long now = System.currentTimeMillis();
+        }        long now = System.currentTimeMillis();
         long[] rec = loginFailures.compute(account, (k, v) -> {
             if (v == null || now - v[1] > LOGIN_FAIL_WINDOW_MS) {
                 return new long[]{1, now};

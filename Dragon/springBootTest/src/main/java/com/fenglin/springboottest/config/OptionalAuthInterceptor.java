@@ -47,7 +47,8 @@ public class OptionalAuthInterceptor implements HandlerInterceptor {
                 return true;
             }
             DrUser user = authService.getUserById(userId);
-            if (user != null) {
+            // 被封印的账号按未登录处理：否则首页 access 区仍会显示其代号，且任何新增的软鉴权接口都会误判
+            if (user != null && user.getStatus() != null && user.getStatus() != 0) {
                 // 密码已改 → 该令牌对应的身份作废，按未登录处理
                 String pwdVer = com.fenglin.springboottest.service.impl.AuthServiceImpl.pwdVer(user.getPassword());
                 if (tokenService.parseUserId(token, pwdVer) != null) {

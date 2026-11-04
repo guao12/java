@@ -169,7 +169,7 @@ const RAW_CHARACTERS = [
     blood: 'A',
     bloodPct: 37.5,
     bloodNote: 'A 级 · 血脉亲和火焰，情绪波动会引燃周边可燃物。',
-    spirits: ['炽阳（短促释放）', '血怒'],
+    spirits: ['炽日（短促释放）', '血怒'],
     tone: 'fire',
     desc: '风风火火的学生会主席，敢在全院大会上点名校董会的不是。',
     intro: [

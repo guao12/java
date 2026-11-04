@@ -13,7 +13,6 @@ import com.fenglin.springboottest.service.DictService;
 import com.fenglin.springboottest.service.HomeService;
 import com.fenglin.springboottest.service.SearchService;
 import com.fenglin.springboottest.vo.ArchiveVO;
-import com.fenglin.springboottest.vo.CategoryVO;
 import com.fenglin.springboottest.vo.HomeOverviewVO;
 import com.fenglin.springboottest.vo.NoticeVO;
 import org.springframework.stereotype.Service;
@@ -77,6 +76,8 @@ public class HomeServiceImpl implements HomeService {
         vo.setAccess(buildAccess(maxLevel));
         vo.setStats(buildStats(maxLevel));
         vo.setNotices(toNoticeVOList(noticeMapper.listPublished(LIMIT_NOTICE)));
+        // 分类树只构建一次：原先 loadCategoryNames() 内部也调 categories()，
+        // 导致首页每次都跑两遍分类统计（2 次 GROUP BY），翻倍开销。
         vo.setCategories(searchService.categories());
         vo.setSpotlight(toArchiveVOList(archiveMapper.listSpotlight(maxLevel, LIMIT_ARCHIVE), categoryNames));
         vo.setHot(toArchiveVOList(archiveMapper.listHot(maxLevel, LIMIT_ARCHIVE), categoryNames));
@@ -111,22 +112,14 @@ public class HomeServiceImpl implements HomeService {
         return stats;
     }
 
+    /**
+     * 分类 id → 名称映射。
+     * 直接取全量分类建映射：原先依赖 categories() 的树做扁平化，树里丢掉的孤儿/停用父级分类
+     * 会让 archive 的 topCategoryName / categoryName 变成 null。
+     */
     private Map<Long, String> loadCategoryNames() {
         Map<Long, String> names = new LinkedHashMap<>();
-        List<CategoryVO> cats = searchService.categories();
-        // categories() 返回树，这里扁平化取名字
-        for (CategoryVO top : cats) {
-            names.put(top.getId(), top.getName());
-            if (top.getChildren() != null) {
-                for (CategoryVO sub : top.getChildren()) {
-                    names.put(sub.getId(), sub.getName());
-                }
-            }
-        }
-        // 兜底：若分类表里还有未挂到树上的分类，直接从 Mapper 补齐
-        if (names.isEmpty()) {
-            categoryMapper.listAllEnabled().forEach(c -> names.put(c.getId(), c.getName()));
-        }
+        categoryMapper.listAllEnabled().forEach(c -> names.put(c.getId(), c.getName()));
         return names;
     }
 

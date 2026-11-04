@@ -7,6 +7,7 @@ import GlowButton from '@/components/GlowButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import IdCardPreview from '@/components/IdCardPreview.vue'
 import { authApi } from '@/api/auth'
+import { hydrateClearance } from '@/utils/clearance'
 import {
   clearHistoryAccounts,
   historyAccounts,
@@ -308,6 +309,8 @@ async function onSubmit() {
       remember: form.remember
     })
     saveSession({ token: data.token, user: data.user }, form.remember)
+    // 登录成功即拉取该账号的权限进度（换设备后在这里恢复）
+    hydrateClearance(true)
     rememberAccount(form.remember ? form.account.trim() : '')
     if (form.remember) history.value = pushHistoryAccount(form.account.trim())
     if (data.user?.codename) {

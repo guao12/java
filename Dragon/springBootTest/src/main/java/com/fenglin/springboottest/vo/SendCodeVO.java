@@ -2,8 +2,13 @@ package com.fenglin.springboottest.vo;
 
 /**
  * 下发验证龙文返回。
- * 安全修复：验证码不再回显给前端（demoCode 恒为 null），仅写入后端日志；
- * 真实项目应改为短信 / 站内信下发。前端 ForgotView.vue 使用字段：account / demoCode / expireSeconds。
+ *
+ * <p>是否带回验证码由下发通道决定：</p>
+ * <ul>
+ *   <li>{@code log}（生产默认）：demoCode 恒为 null，验证码只写日志，需接入短信 / 邮件才真正送达；</li>
+ *   <li>{@code echo}（{@code dr.auth.reset-code-echo=true}，仅本地演示）：demoCode 直接返回，前端展示给用户照填。</li>
+ * </ul>
+ * <p>未登记账号在 echo 通道下也会返回一个假码，保证响应形状一致，避免用「有没有 demoCode」探测账号存在性。</p>
  *
  * @author fenglin
  */
@@ -12,7 +17,7 @@ public class SendCodeVO {
     /** 验证码所属的学院编号（学号），前端用于回显确认 */
     private String account;
 
-    /** 已废弃：安全修复后不再回显验证码，恒为 null（验证码仅写入后端日志） */
+    /** 验证码：echo 通道下为真实值（或未登记账号的假码），log 通道下恒为 null */
     private String demoCode;
 
     /** 有效期（秒），5 分钟 = 300 */

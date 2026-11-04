@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
@@ -9,6 +9,7 @@ import {
   LEVELS,
   RANK_POINTS,
   completeMission,
+  hydrateClearance,
   isCompleted,
   level,
   levelLabel,
@@ -17,6 +18,7 @@ import {
   records
 } from '@/utils/clearance'
 import { generateMissions } from '@/data/missions'
+import { isIn, markIn } from '@/utils/reveal'
 
 const router = useRouter()
 const route = useRoute()
@@ -185,27 +187,55 @@ function bindBoardObserver() {
     (entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue
-        entry.target.classList.add('is-in')
+        markIn(entry.target)
         boardIO.unobserve(entry.target)
       }
     },
     { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }
   )
 
-  for (const el of root.querySelectorAll('.rise')) boardIO.observe(el)
+  for (const el of root.querySelectorAll('.rise')) {
+    // 已经入场的卡片跳过，避免重挂观察器时重复播放入场动画
+    if (isIn(el)) continue
+    boardIO.observe(el)
+  }
+}
+
+/**
+ * 让视口内的卡片立即入场。
+ *
+ * 关键：领取 / 放弃 / 完成 / 刷新看板都会让卡片在三条泳道之间重建，
+ * 新建出来的 <article class="mcard rise"> 没有被首屏的观察器覆盖过，
+ * 而 .rise 的初始样式是 opacity: 0 —— 不主动补 is-in 的话，
+ * 卡片数据上已经进了「进行中」，视觉上却完全透明（看起来像任务凭空消失了）。
+ */
+function revealInView() {
+  const root = boardEl.value
+  if (!root) return
+  for (const el of root.querySelectorAll('.rise')) {
+    if (isIn(el)) continue
+    const r = el.getBoundingClientRect()
+    if (r.top < window.innerHeight && r.bottom > 0) markIn(el)
+  }
+}
+
+/** 看板内容变化后：重挂观察器（管视口外的）+ 让视口内的新卡片立刻入场 */
+function syncBoardReveal() {
+  nextTick(() => {
+    bindBoardObserver()
+    requestAnimationFrame(revealInView)
+  })
 }
 
 onMounted(() =>
   nextTick(() => {
     bindBoardObserver()
     // 首屏的卡片立即入场，别让用户盯着空泳道
-    requestAnimationFrame(() => {
-      for (const el of boardEl.value?.querySelectorAll('.rise') ?? []) {
-        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
-      }
-    })
+    requestAnimationFrame(revealInView)
   })
 )
+// 进任务页时补一次权限同步：登录后 / 上次拉取失败时都能在这里恢复进度
+hydrateClearance()
 onBeforeUnmount(() => boardIO?.disconnect())
 
 const groups = computed(() => [
@@ -246,6 +276,20 @@ const counts = computed(() => ({
 }))
 
 const total = computed(() => counts.value.todo + counts.value.doing + counts.value.done)
+
+/**
+ * 看板内容一变（领取转入「进行中」、放弃退回「未完成」、刷新下发新卡……）
+ * 就重新同步一次入场状态，保证新渲染出来的卡片一定可见。
+ * flush: 'post' —— 等 DOM 更新完再量位置。
+ */
+watch(
+  () =>
+    groups.value
+      .map((g) => g.items.map((m) => `${m.code}/${stateOf(m)}`).join(','))
+      .join('|'),
+  syncBoardReveal,
+  { flush: 'post' }
+)
 
 /** 该任务完成可获得的权限点 */
 function gainOf(m) {

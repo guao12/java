@@ -13,12 +13,16 @@ import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
 import {
   LEVELS,
+  exportClearanceCode,
   hasClearance,
+  importClearanceCode,
   level,
   levelLabel,
   nextLevel,
   points,
-  pointsTo
+  pointsTo,
+  syncNow,
+  syncState
 } from '@/utils/clearance'
 import {
   ARCHIVE_ARMS,
@@ -28,6 +32,7 @@ import {
   ARCHIVE_PEOPLE
 } from '@/data/archive'
 import { logPath } from '@/data/logDetail'
+import { isIn, markIn, revealInView } from '@/utils/reveal'
 
 const router = useRouter()
 const route = useRoute()
@@ -45,6 +50,61 @@ function go(to) {
 const lv = computed(() => level.value)
 const lvLabel = computed(() => levelLabel.value)
 const next = computed(() => nextLevel.value)
+
+/* ---------------- 存档状态 / 备份码 ---------------- */
+const codeOpen = ref(false)
+const code = ref('')
+const codeInput = ref('')
+const codeMsg = ref('')
+
+const syncTone = computed(
+  () =>
+    ({
+      ok: 'is-ok',
+      offline: 'is-bad',
+      syncing: 'is-busy',
+      guest: 'is-idle'
+    })[syncState.status] || 'is-idle'
+)
+
+const syncText = computed(() => {
+  switch (syncState.status) {
+    case 'ok':
+      return '已同步到账号存档 · 换设备登录可恢复'
+    case 'syncing':
+      return '正在与账号存档同步…'
+    case 'offline':
+      return `同步失败，进度只在本机${syncState.error ? ` · ${syncState.error}` : ''}`
+    case 'guest':
+      return '未登录 · 进度只存在这台电脑'
+    default:
+      return '权限进度尚未同步'
+  }
+})
+
+function retrySync() {
+  syncNow()
+}
+
+function toggleCode() {
+  codeOpen.value = !codeOpen.value
+  if (codeOpen.value && !code.value) code.value = exportClearanceCode()
+}
+
+function doExport() {
+  code.value = exportClearanceCode()
+  codeMsg.value = '已生成 · 点一下文本框即可全选复制'
+}
+
+function doImport() {
+  const r = importClearanceCode(codeInput.value)
+  codeMsg.value = r.message
+  if (r.ok) {
+    codeInput.value = ''
+    code.value = exportClearanceCode()
+  }
+}
+
 const progress = computed(() => (lv.value >= LEVELS.length ? 100 : (next.value?.pct ?? 100)))
 
 /** 解锁提示语：按目标密级实际门槛计算，还差多少权限点 */
@@ -99,16 +159,23 @@ const TABS = [
 const tab = ref('kings')
 
 /**
- * 支持用 hash 直达某个卷宗：#tab-kings / #tab-people / #tab-arms / #tab-logs
+ * 支持 hash 直达某个卷宗：#tab-kings / #tab-people / #tab-arms / #tab-logs
  * 任务记录详情页的「返回」会带 #tab-logs 回来，方便用户接着看列表。
+ * 同时兼容查询串写法（/archive?tab=people）：早期分享出去的链接长这样，
+ * 不认 query 的话点进去会停在「龙王卷宗」，看起来像跳错了页。
  */
 function tabFromHash() {
+  const q = String(route.query?.tab || '')
+  if (TABS.some((t) => t.id === q)) {
+    tab.value = q
+    return
+  }
   const h = String(route.hash || '').replace(/^#/, '')
   const m = h.match(/^tab-(\w+)$/)
   if (m && TABS.some((t) => t.id === m[1])) tab.value = m[1]
 }
 tabFromHash()
-watch(() => route.hash, tabFromHash)
+watch([() => route.hash, () => route.query?.tab], tabFromHash)
 
 /** 切换分卷时同步 hash（用 replace 避免污染浏览器历史） */
 function selectTab(id) {
@@ -145,46 +212,83 @@ function toggleKing(code) {
 const logs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => hasClearance(m.req)))
 const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearance(m.req)))
 
+/**
+ * 整张卡片就是入口：已解锁 → 打开详情页；未解锁 → 抖一下并提示还差多少权限点。
+ * （原来只有右下角那个小按钮能点，卡身看着可点却没反应。）
+ */
+function openLog(e, m) {
+  if (hasClearance(m.req)) go(logPath(m))
+  else lockHint(e, m.req)
+}
+
 /* ---------------- 卷宗入架动效 ----------------
    档案馆的隐喻是「一卷一卷从架上抽出」。切卷时让卡片依次入场，
    而不是整块同时淡入。观察器只盯当前这一卷，切入时重建，
-   避免跨卷残留的旧观察目标。 */
+   避免跨卷残留的旧观察目标。
+
+   入场态一律走 utils/reveal 的 markIn（= data-rise 属性），不要用
+   classList.add('is-in')：卡片模板上有 :class="{ 'is-locked': ... }" 这类动态
+   class 绑定，Vue 重渲染会把整串 class 重写，手上的 is-in 被冲掉，
+   .rise 的 opacity: 0 立刻生效 —— 「进档案室先 0 点全封存、同步到 34 点后
+   密级翻转」就会把入场态全清掉，表现正是「部门人物只剩一两张卡，其余全空」。 */
 const shelfEl = ref(null)
 let shelfIO = null
 
 function bindShelfObserver() {
   shelfIO?.disconnect()
   const root = shelfEl.value
-  if (!root || typeof IntersectionObserver === 'undefined') return
+  if (!root) return
+
+  // 不支持 IntersectionObserver 的环境：直接全部入场，别让整页停在 opacity: 0
+  if (typeof IntersectionObserver === 'undefined') {
+    for (const el of root.querySelectorAll('.rise')) markIn(el)
+    return
+  }
 
   shelfIO = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue
-        entry.target.classList.add('is-in')
+        markIn(entry.target)
         shelfIO.unobserve(entry.target)
       }
     },
     { rootMargin: '0px 0px -8% 0px', threshold: 0.06 }
   )
 
-  for (const el of root.querySelectorAll('.rise')) shelfIO.observe(el)
+  for (const el of root.querySelectorAll('.rise')) {
+    // 已经入场的跳过，避免重挂观察器时重复播放入场动画
+    if (isIn(el)) continue
+    shelfIO.observe(el)
+  }
 }
 
-// 切卷时 DOM 换了一整批卡片：等下一帧再挂观察器
-watch(tab, () => {
+/** 视口内的卡片立即入场（筛选 / 切卷重建出来的新节点没有进过观察器） */
+function revealShelf() {
+  revealInView(shelfEl.value)
+}
+
+/** 列表结构变化后：等 DOM 落地 → 重挂观察器 → 补首屏入场 */
+function refreshShelf() {
   nextTick(() => {
     bindShelfObserver()
-    // 新一卷总是在可视区顶部，立即让首屏那批入场，不必等滚动
-    requestAnimationFrame(() => {
-      for (const el of shelfEl.value?.querySelectorAll('.rise') ?? []) {
-        if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in')
-      }
-    })
+    requestAnimationFrame(revealShelf)
   })
-})
+}
 
-onMounted(() => nextTick(bindShelfObserver))
+// 切卷时 DOM 换了一整批卡片
+watch(tab, refreshShelf)
+// 按部门筛选会重建卡片（不补入场就是「点一次筛选，卡片全消失」）
+watch(filteredPeople, refreshShelf)
+// 权限点异步同步（0 → 34）会让 is-locked 整体翻转，同样是重渲染
+watch([logs, lockedLogs], refreshShelf)
+
+onMounted(() =>
+  nextTick(() => {
+    bindShelfObserver()
+    revealShelf()
+  })
+)
 onBeforeUnmount(() => shelfIO?.disconnect())
 </script>
 
@@ -240,6 +344,50 @@ onBeforeUnmount(() => shelfIO?.disconnect())
           >
             {{ l.label }}
           </span>
+        </div>
+
+        <!-- 存档状态：让「权限为什么没了」有答案，而不是安静地归零 -->
+        <div class="perm__sync">
+          <i class="perm__dot" :class="syncTone" />
+          <span class="perm__sync-txt">{{ syncText }}</span>
+          <button
+            v-if="syncState.status === 'offline'"
+            type="button"
+            class="perm__link"
+            @click="retrySync"
+          >
+            重新同步
+          </button>
+          <button type="button" class="perm__link" @click="toggleCode">
+            {{ codeOpen ? '收起备份码' : '备份码 · 换电脑用' }}
+          </button>
+        </div>
+
+        <!-- 备份码：两台电脑各有一套本地库时，作为后端存档之外的搬运通道 -->
+        <div v-if="codeOpen" class="perm__code">
+          <div class="perm__code-row">
+            <span>导出 · 复制整段，到另一台电脑导入</span>
+            <button type="button" class="perm__mini" @click="doExport">生成</button>
+          </div>
+          <textarea
+            class="perm__area"
+            readonly
+            :value="code"
+            placeholder="点「生成」后这里出现备份码"
+            @focus="$event.target.select()"
+          />
+
+          <div class="perm__code-row">
+            <span>导入 · 粘贴另一台电脑的备份码</span>
+            <button type="button" class="perm__mini" @click="doImport">导入</button>
+          </div>
+          <textarea
+            v-model="codeInput"
+            class="perm__area"
+            placeholder="DRC1...."
+            spellcheck="false"
+          />
+          <p v-if="codeMsg" class="perm__code-msg">{{ codeMsg }}</p>
         </div>
       </section>
 
@@ -556,7 +704,18 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             v-for="(m, i) in ARCHIVE_MISSION_LOGS"
             :key="m.code + i"
             class="log rise"
+            :class="{ 'log--open': hasClearance(m.req) }"
             :style="{ '--d': `${(i % 8) * 50}ms` }"
+            role="button"
+            tabindex="0"
+            :aria-label="
+              hasClearance(m.req)
+                ? `查看任务详情：${m.code} ${m.name}`
+                : `该记录已封存：${m.code} ${m.name}`
+            "
+            @click="openLog($event, m)"
+            @keydown.enter.prevent="openLog($event, m)"
+            @keydown.space.prevent="openLog($event, m)"
           >
             <div class="log__head">
               <span class="log__code">{{ m.code }}</span>
@@ -570,11 +729,9 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             <template v-if="hasClearance(m.req)">
               <p class="log__p"><i>执行过程</i>{{ m.process }}</p>
               <p class="log__r"><i>完成结果</i>{{ m.result }}</p>
-              <button class="log__more" type="button" @click="go(logPath(m))">
-                查看详情 <AppIcon name="arrow" :size="12" />
-              </button>
+              <span class="log__more">查看详情 <AppIcon name="arrow" :size="12" /></span>
             </template>
-            <div v-else class="log__lock" @click="lockHint($event, m.req)">
+            <div v-else class="log__lock" @click.stop="lockHint($event, m.req)">
               <AppIcon name="lock" :size="14" /> 过程与结果已封存 · {{ needText(m.req) }}
             </div>
           </article>
@@ -759,6 +916,151 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   color: var(--gold-lt);
   border-color: rgba(216, 178, 90, 0.5);
   background: rgba(216, 178, 90, 0.1);
+}
+
+/* 存档状态行：一行小字交代「进度到底存在哪」 */
+.perm__sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px dashed var(--line-soft);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+.perm__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.perm__dot.is-ok {
+  background: #6fbf88;
+  box-shadow: 0 0 8px rgba(111, 191, 136, 0.55);
+}
+
+.perm__dot.is-bad {
+  background: #cf6b5c;
+  box-shadow: 0 0 8px rgba(207, 107, 92, 0.55);
+}
+
+.perm__dot.is-busy {
+  background: var(--gold-lt);
+  animation: perm-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes perm-pulse {
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.perm__sync-txt {
+  margin-right: auto;
+}
+
+.perm__link {
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.perm__link:hover {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.45);
+  background: rgba(216, 178, 90, 0.07);
+}
+
+.perm__link:focus-visible {
+  outline: none;
+  border-color: var(--gold-dp);
+  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.18);
+}
+
+/* 备份码面板 */
+.perm__code {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(9, 7, 15, 0.6);
+}
+
+.perm__code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+.perm__mini {
+  flex: none;
+  padding: 4px 11px;
+  border: 1px solid rgba(216, 178, 90, 0.35);
+  border-radius: 999px;
+  background: rgba(216, 178, 90, 0.08);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--gold-lt);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.perm__mini:hover {
+  background: rgba(216, 178, 90, 0.16);
+  border-color: rgba(216, 178, 90, 0.55);
+}
+
+.perm__area {
+  width: 100%;
+  min-height: 64px;
+  max-height: 128px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.34);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  word-break: break-all;
+  resize: vertical;
+}
+
+.perm__area:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.45);
+  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.12);
+}
+
+.perm__code-msg {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--gold-lt);
 }
 
 /* ================= 密级提示条 ================= */
@@ -1204,6 +1506,7 @@ onBeforeUnmount(() => shelfIO?.disconnect())
 .kcard__locked.is-shake,
 .person__locked.is-shake,
 .acard__locked.is-shake,
+.log.is-shake,
 .log__lock.is-shake {
   animation: lock-shake 0.5s ease;
 }
@@ -1672,6 +1975,24 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   border-radius: var(--r-lg);
   border: 1px solid var(--line-soft);
   background: linear-gradient(165deg, rgba(33, 28, 47, 0.85), rgba(14, 11, 23, 0.94));
+  /* 整张卡片都是入口 */
+  cursor: pointer;
+  transition: border-color 0.24s ease, background 0.24s ease, box-shadow 0.24s ease;
+}
+
+/* 已解锁：悬停给出「可以进去」的信号。
+   这里刻意不用 transform 抬升 —— 卡片带 .rise 入场动画，
+   animation 的前景填充会压住 :hover 的 transform，抬升会失效。 */
+.log--open:hover {
+  border-color: rgba(216, 178, 90, 0.42);
+  background: linear-gradient(165deg, rgba(41, 35, 58, 0.9), rgba(16, 13, 26, 0.96));
+  box-shadow: 0 20px 44px -26px rgba(0, 0, 0, 0.95), 0 0 22px -16px var(--gold-glow);
+}
+
+.log:focus-visible {
+  outline: none;
+  border-color: var(--gold-dp);
+  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.18);
 }
 
 .log__head {
@@ -1740,7 +2061,8 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   color: var(--text-4);
 }
 
-/* 「查看详情」：卡片右下角的细边框小按钮，不抢正文注意力 */
+/* 「查看详情」：卡片右下角的细边框指示片。
+   真正的点击热区是整张卡片，所以这里是 span 而不是 button —— 避免按钮套按钮。 */
 .log__more {
   display: inline-flex;
   align-items: center;
@@ -1754,25 +2076,14 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   font-size: 10.5px;
   letter-spacing: 0.12em;
   color: var(--text-3);
-  cursor: pointer;
-  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease,
-    transform 0.22s ease;
+  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
-.log__more:hover {
+.log--open:hover .log__more,
+.log:focus-visible .log__more {
   color: var(--gold-lt);
   border-color: var(--gold-dp);
   background: rgba(216, 178, 90, 0.08);
-}
-
-.log__more:active {
-  transform: translateX(2px);
-}
-
-.log__more:focus-visible {
-  outline: none;
-  border-color: var(--gold-dp);
-  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.18);
 }
 
 /* ================= 页脚 ================= */

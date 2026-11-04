@@ -19,14 +19,13 @@ const IDENTITIES = [
   { value: 'guest', label: '访客 · 临时通行' }
 ]
 
-/** 各身份的通行权限说明（选完即时提示，纯前端文案） */
-const IDENTITY_NOTE = {
-  freshman: '权限：公开档案 + 内部档案（密级 ≤ 2）',
-  student: '权限：公开档案 + 内部档案（密级 ≤ 2）',
-  executor: '权限：追加机密级档案（密级 ≤ 3）',
-  teacher: '权限：全密级档案，含绝密卷宗（密级 ≤ 4）',
-  guest: '权限：仅公开档案（密级 ≤ 1），30 天后自动失效'
-}
+/**
+ * 注册阶段身份固定为「新生」。
+ * 后端 register() 会忽略前端提交的 identity 并强制写成 freshman
+ * （否则攻击者自选 teacher 即可直接查阅绝密档案），
+ * 因此这里的文案必须与后端一致，不能给用户「可以自选身份」的错觉。
+ */
+const REGISTER_IDENTITY = 'freshman'
 
 /** 言灵卡片：value 与后端字典 code 一致，desc 为前端展示文案 */
 const SPIRIT_CARDS = [
@@ -62,7 +61,7 @@ onMounted(async () => {
 
 const form = reactive({
   codename: '',
-  identity: '',
+  identity: REGISTER_IDENTITY,
   spirit: 'none',
   password: '',
   confirm: '',
@@ -71,13 +70,12 @@ const form = reactive({
 
 const errors = reactive({
   codename: '',
-  identity: '',
   spirit: '',
   password: '',
   confirm: '',
   agree: ''
 })
-const touched = reactive({ codename: false, identity: false, password: false, confirm: false })
+const touched = reactive({ codename: false, password: false, confirm: false })
 const loading = ref(false)
 const done = ref(false)
 const notice = ref(null)
@@ -144,10 +142,9 @@ const checks = computed(() => ({
 
 /** 身份卡预览用：身份 / 言灵文案 */
 const identityLabel = computed(
-  () => identities.value.find((i) => i.value === form.identity)?.label || ''
+  () => identities.value.find((i) => i.value === form.identity)?.label || '新生'
 )
 const spiritLabel = computed(() => spirits.value.find((s) => s.value === form.spirit)?.label || '')
-const identityNote = computed(() => (form.identity ? IDENTITY_NOTE[form.identity] || '' : ''))
 
 const RULES = {
   codename() {
@@ -156,9 +153,6 @@ const RULES = {
     if (v.length < 2) return '长度至少 2 个字符'
     if (v.length > 16) return '长度不超过 16 个字符'
     return ''
-  },
-  identity() {
-    return form.identity ? '' : '请选择在校身份'
   },
   password() {
     if (!form.password) return '请设置言灵密钥'
@@ -174,7 +168,7 @@ const RULES = {
 }
 
 /** 每一步需要校验的字段 */
-const STEP_FIELDS = [['codename', 'identity'], ['spirit'], ['password', 'confirm']]
+const STEP_FIELDS = [['codename'], ['spirit'], ['password', 'confirm']]
 
 function check(field) {
   if (field === 'spirit') {
@@ -316,7 +310,7 @@ async function onSubmit() {
 
   if (Object.values(errors).some(Boolean)) {
     // 若错误发生在前面的步骤，自动回退到对应步骤
-    if (errors.codename || errors.identity) step.value = 0
+    if (errors.codename) step.value = 0
     notice.value = { type: 'err', text: '登记信息存在未通过校验的项目，请检查被标记的字段。' }
     return
   }
@@ -415,20 +409,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
             :error="touched.codename ? errors.codename : ''"
             @blur="check('codename')"
           />
-          <FormField
-            v-model="form.identity"
-            label="在校身份"
-            icon="id"
-            type="select"
-            placeholder="请选择身份"
-            :options="identities"
-            :error="touched.identity ? errors.identity : ''"
-            @blur="check('identity')"
-          />
+          <!-- 身份固定为新生：后端注册接口会忽略前端提交值并强制 freshman -->
+          <div class="field-static">
+            <span class="field-static__label">在校身份</span>
+            <span class="field-static__value">
+              <AppIcon name="id" :size="15" />{{ identityLabel }}
+            </span>
+          </div>
         </div>
 
-        <p v-if="identityNote" class="note-line">
-          <AppIcon name="shield" :size="12" />{{ identityNote }}
+        <p class="note-line">
+          <AppIcon name="shield" :size="12" />注册一律签发「新生」身份，仅可查阅公开与内部档案；身份升级需由执行部后台审核变更。
         </p>
 
         <!-- 图形验证码：注册唯一人机校验，提交登记时由服务端一次性核验 -->
@@ -682,6 +673,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+/* 只读字段：身份由后端固定签发，不可选 */
+.field-static {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-static__label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.field-static__value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-soft);
+  background: rgba(216, 178, 90, 0.05);
+  color: var(--gold-lt);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.field-static__value svg {
+  flex: 0 0 auto;
+  color: var(--gold-dp);
 }
 
 /* ---------------- 验证码 ---------------- */

@@ -52,8 +52,14 @@ const sameOp = computed(() => {
   return ARCHIVE_MISSION_LOGS.filter((m) => m.code === l.code && m.person !== l.person)
 })
 
-/** 武器 / 言灵标签：能在图鉴里找到的就渲染成可跳转 */
+/** 武器 / 言灵标签：能跳图鉴的渲染成可跳转，跳不了的给归类 + 释义（见 relicLink） */
 const relics = computed(() => (log.value?.relics || []).map(relicLink))
+
+/** 器物标签的去向：言灵 → 言灵谱详情；兵器 → 档案室「龙族武器」卷 */
+function openRelic(r) {
+  if (r.kind === 'spirit') go(`/spirit/${r.key}`)
+  else if (r.kind === 'arm') go('/archive#tab-arms')
+}
 
 onMounted(() => {
   document.documentElement.style.colorScheme = 'dark'
@@ -225,18 +231,19 @@ function goLog(m) {
           <h2 class="dossier__sec-t"><i />涉及武器 · 言灵</h2>
           <div class="figs">
             <component
-              :is="r.kind === 'spirit' ? 'button' : 'span'"
+              :is="r.kind ? 'button' : 'span'"
               v-for="r in relics"
               :key="r.name"
               class="fig fig--relic"
-              :class="{ 'is-link': r.kind === 'spirit' }"
-              :type="r.kind === 'spirit' ? 'button' : undefined"
-              @click="r.kind === 'spirit' && go(`/spirit/${r.key}`)"
+              :class="{ 'is-link': !!r.kind }"
+              :type="r.kind ? 'button' : undefined"
+              :title="r.hint || undefined"
+              @click="openRelic(r)"
             >
               <b>{{ r.name }}</b>
               <em v-if="r.code" class="fig__code">{{ r.code }}</em>
-              <em v-else-if="r.note" class="fig__code">{{ r.note }}</em>
-              <AppIcon v-if="r.kind === 'spirit'" name="arrow" :size="12" class="fig__ic" />
+              <em v-else-if="r.tag" class="fig__code">{{ r.tag }}</em>
+              <AppIcon v-if="r.kind" name="arrow" :size="12" class="fig__ic" />
             </component>
           </div>
         </section>

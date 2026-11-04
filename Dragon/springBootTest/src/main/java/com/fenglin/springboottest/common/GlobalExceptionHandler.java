@@ -8,6 +8,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -87,6 +88,13 @@ public class GlobalExceptionHandler {
             return R.fail(404, "接口不存在：" + path);
         }
         throw e;
+    }
+
+    /** 请求方法不支持（如用 GET 调 POST 接口）→ 405 而非兜底 500 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public R<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        return R.fail(405, "请求方法不支持：" + e.getMethod());
     }
 
     /** 兜底：任何未捕获的异常 */

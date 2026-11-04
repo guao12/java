@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import { hydrateClearance } from './utils/clearance'
 import './styles/theme.css'
 
 const app = createApp(App).use(router)
@@ -26,3 +27,9 @@ app.config.errorHandler = (err, instance, info) => {
 }
 
 app.mount('#app')
+
+/**
+ * 权限进度异地恢复：已登录时从后端拉取并合并（换电脑/换浏览器后自动恢复）。
+ * 异步执行、失败静默，不阻塞首屏渲染。
+ */
+hydrateClearance()

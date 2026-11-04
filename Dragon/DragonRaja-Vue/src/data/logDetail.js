@@ -785,13 +785,61 @@ export function logPath(log) {
   return `/log/${log.code}/${encodeURIComponent(log.person)}`
 }
 
-/** 武器 / 言灵名 → 是否能在图鉴里找到（用于详情页渲染成可跳转标签） */
+/**
+ * 原作里确实存在、但《言灵谱》《兵器志》尚未编目的条目。
+ *
+ * 这些条目以前在详情页上只能写「言灵谱未收录」，读起来像一句道歉，
+ * 也对不上原作——苍白的占位不如把它的原文定位说清楚：
+ * 属于哪一类、在原作里是什么东西。
+ */
+const UNLISTED = {
+  常暗: {
+    tag: '言灵',
+    hint: '无意识展开时，光与声一并消失；范围内的电子设备全部失效。绘梨衣无法控制它，它随她的情绪自己打开。'
+  },
+  '时间回廊（疑似）': {
+    tag: '疑似言灵',
+    hint: '多处观测到局部时间流速异常的读数，医疗部至今未出具结论，档案科标注为「疑似」。'
+  },
+  冰锥王座: {
+    tag: '言灵',
+    hint: '以自身为中心生成冰锥领域。首次无约束展开时冻结了半个训练场，事故报告至今只有编号。'
+  },
+  狮心斩: {
+    tag: '言灵',
+    hint: '加图索血系的单次点爆发，冲击集中于一点，命中后形成短暂真空。'
+  },
+  血怒: {
+    tag: '言灵',
+    hint: '以自身血统短暂换取爆发，用后龙血读数上升，须立即接受医疗部监护。'
+  },
+  拟态: {
+    tag: '言灵',
+    hint: '短时模仿他人的气息与声纹。强度不足以致命，但足以骗过门禁与熟人。'
+  }
+}
+
+/** 武器 / 言灵名 → 详情页渲染用的标签（能跳图鉴的给 kind，跳不了的给归类 + 释义） */
 export function relicLink(name) {
   const arm = DRAGON_ARMS.find((a) => a.name === name)
-  if (arm) return { name, kind: 'arm', code: arm.code }
+  if (arm) return { name, kind: 'arm', code: arm.code, tag: '兵器', hint: arm.desc || '' }
   const spirit = SPIRIT_GALLERY.find((s) => s.name === name)
-  if (spirit) return { name, kind: 'spirit', key: spirit.key }
-  // 部分条目（如绘梨衣的「常暗」、恺撒的「冰锥王座」）是原作里存在、
-  // 但言灵谱尚未收录的能力：不渲染成按钮，只作静态标签，避免点了没反应。
-  return { name, kind: '', code: '', note: '言灵谱未收录' }
+  if (spirit) {
+    return {
+      name,
+      kind: 'spirit',
+      key: spirit.key,
+      tag: spirit.element,
+      hint: `${spirit.element}系 · ${spirit.effect || ''}`
+    }
+  }
+  const extra = UNLISTED[name]
+  // 归类未知的（理论上不会有）也给一个中性标签，避免出现空白药丸
+  return {
+    name,
+    kind: '',
+    code: '',
+    tag: extra?.tag || '未编目',
+    hint: extra?.hint || '档案中仅存名称，暂无对应条目。'
+  }
 }

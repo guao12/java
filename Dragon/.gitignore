@@ -27,10 +27,19 @@ dist-ssr/
 .vite/
 *.local
 
+# 前端构建产物一律不入库：本地验证时常用 --outDir dist-xxx / dist_xxx 输出到临时目录，
+# 这些目录体积大且每次构建都变，曾经被误提交过（dist-b095715 等 204 个文件）。
+DragonRaja-Vue/dist-*/
+DragonRaja-Vue/dist_*/
+
 # 环境变量文件（按规范不入库；如需示例请保留 .env.example）
 .env
 .env.*
 !.env.example
+
+# 本地私有配置（数据库口令 / JWT 密钥等），覆盖 application.properties 中的同名项，严禁入库
+application-local.properties
+springBootTest/src/main/resources/application-local.properties
 
 # ===================== 操作系统 / 编辑器 =====================
 .DS_Store

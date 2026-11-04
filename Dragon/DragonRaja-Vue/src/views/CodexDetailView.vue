@@ -4,7 +4,7 @@
  * 人物志走 /codex/:key（CharacterView.vue）。
  * 视觉语言与人物档案页同源：鎏金卷宗卡 + 密级条 + 分节档案。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
@@ -33,11 +33,28 @@ const related = computed(() => list.value.filter((i) => i.key !== route.params.k
 const catText = computed(() => (isSpirit.value ? '言灵谱 · 言灵档案' : '机构志 · 机构档案'))
 const dir = computed(() => (isSpirit.value ? 'spirit' : 'org'))
 
-/** 头像：图片加载失败时回退为「首字 + 纹章框」 */
-const imgOk = ref(true)
-function onImgError() {
-  imgOk.value = false
+/**
+ * 插图状态：loading | ok | error
+ *
+ * 关键点：状态必须跟随条目重置。详情页在 /spirit/:key 之间互跳（底部「相关档案」）
+ * 时组件实例是复用的，只有 key 变。若不在 key 变化时复位，某一条插图加载失败后
+ * 「error」会一直挂到后面所有条目上 —— 表现为「有的条目怎么悬停都没有放大按钮」。
+ */
+const imgState = ref('loading')
+/** 有可放大的原图才渲染放大入口；占位首字只作装饰，不可点 */
+const hasArt = computed(() => !!item.value && imgState.value !== 'error')
+function onImgLoad() {
+  imgState.value = 'ok'
 }
+function onImgError() {
+  imgState.value = 'error'
+}
+watch(
+  () => item.value?.key,
+  (k) => {
+    imgState.value = k ? 'loading' : 'error'
+  }
+)
 
 /** 图片放大查看（点击档案头插图打开灯箱） */
 const zoomOpen = ref(false)
@@ -101,7 +118,7 @@ function go(key) {
           <div class="dossier__avatar" :data-tone="isSpirit ? 'fire' : 'gold'">
             <!-- 点击插图放大查看（原图分辨率远高于 118px 缩略图） -->
             <button
-              v-if="imgOk"
+              v-if="hasArt"
               type="button"
               class="dossier__avatar-btn"
               :aria-label="`放大查看${item.name}插图`"
@@ -112,6 +129,7 @@ function go(key) {
                 class="dossier__avatar-img"
                 :src="imgSrc"
                 :alt="`${catText} · ${item.name}`"
+                @load="onImgLoad"
                 @error="onImgError"
               />
               <span class="dossier__avatar-zoom">
@@ -119,7 +137,13 @@ function go(key) {
                 放大
               </span>
             </button>
-            <span v-else class="dossier__avatar-txt">{{ item.name.slice(0, 1) }}</span>
+            <span v-else class="dossier__avatar-txt" :title="`${item.name} · 暂无插图`">
+              {{ item.name.slice(0, 1) }}
+            </span>
+            <!-- 没有原图时给一句明说：读者不会以为是「放大按钮又没出来」 -->
+            <span v-if="!hasArt" class="dossier__avatar-zoom dossier__avatar-zoom--none">
+              暂无插图
+            </span>
             <i class="dossier__avatar-ring" />
             <i class="dossier__avatar-corner dossier__avatar-corner--tl" />
             <i class="dossier__avatar-corner dossier__avatar-corner--br" />
@@ -435,6 +459,16 @@ function go(key) {
   opacity: 1;
   transform: translateX(-50%) translateY(-2px);
   background: rgba(6, 9, 16, 0.95);
+}
+
+/* 「暂无插图」：同一位置的弱化版标签，说明这里没有可放大的原图 */
+.dossier__avatar-zoom--none,
+.dossier__avatar:hover .dossier__avatar-zoom--none {
+  color: var(--text-4);
+  border-color: var(--line);
+  background: rgba(6, 9, 16, 0.72);
+  transform: translateX(-50%);
+  opacity: 0.8;
 }
 
 .dossier__avatar-btn:focus-visible {

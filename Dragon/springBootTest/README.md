@@ -46,6 +46,7 @@ src/main/java/com/fenglin/springboottest
 └── vo/      ProfileVO / LoginVO / RegisterVO / DictVO / CheckAccountVO / SendCodeVO
 
 sql/dragon_raja.sql                  建库建表脚本（dragon_raja / dragon_raja_test）
+sql/dragon_raja_clearance.sql        权限进度表（跨设备保存权限点 / 已完成任务）
 ```
 
 ---
@@ -79,6 +80,17 @@ sql/dragon_raja.sql                  建库建表脚本（dragon_raja / dragon_r
 
 **全部是 `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`，不含任何 `DROP`，可放心重复执行**，
 且完全不动 `dr_user`。
+
+### 1.6 建权限进度表（权限点跨设备保存）
+
+```bash
+"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -uroot -p密码 < sql/dragon_raja_clearance.sql
+```
+
+创建 `dr_user_clearance` 一张表，按 `user_id` 保存权限点、已完成任务编号与任务卡快照。
+
+> 不建这张表也能启动前端，但权限进度只能留在浏览器 localStorage 里，换电脑会归零；
+> 建表后登录任意设备都会自动从后端拉回并合并。脚本为 `CREATE TABLE IF NOT EXISTS`，可重复执行。
 
 ### 1.8 配置 JWT 密钥（必做，漏了会启动失败）
 

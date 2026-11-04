@@ -11,6 +11,7 @@ import { gradeOf, myLatestReport } from '@/utils/bloodline'
 import { ORG_GALLERY, codexPath, matchCodexByArchive } from '@/data/codex'
 import { ensureSpirits, useSpirits } from '@/data/spiritStore'
 import { MISSION_GALLERY } from '@/data/missions'
+import { markIn } from '@/utils/reveal'
 
 const router = useRouter()
 
@@ -404,7 +405,7 @@ let revealObs = null
 function observeReveals() {
   if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
     // 不支持时直接全部显示
-    document.querySelectorAll('.reveal').forEach((el) => el.classList.add('is-in'))
+    document.querySelectorAll('.reveal').forEach((el) => markIn(el))
     return
   }
   if (!revealObs) {
@@ -412,7 +413,7 @@ function observeReveals() {
       (entries) => {
         for (const en of entries) {
           if (en.isIntersecting) {
-            en.target.classList.add('is-in')
+            markIn(en.target)
             revealObs.unobserve(en.target)
           }
         }
@@ -420,7 +421,7 @@ function observeReveals() {
       { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }
     )
   }
-  document.querySelectorAll('.reveal:not(.is-in)').forEach((el) => revealObs.observe(el))
+  document.querySelectorAll('.reveal:not([data-rise])').forEach((el) => revealObs.observe(el))
 }
 
 /* ---------------- 光标跟随高光（事件委托，不给每张卡单独绑监听） ---------------- */
@@ -2652,7 +2653,13 @@ onBeforeUnmount(() => {
   transition: opacity 0.28s, transform 0.28s;
 }
 
-.gcard:hover .gcard__hint {
+/* 卡片右下角的「查看详情」提示：悬停 / 键盘聚焦时浮出。
+   注意 .rcard（学院机构）复用了同一个 .gcard__hint，
+   只写 .gcard:hover 的话机构卡片永远不会显示这个提示 —— 两个类都要挂。 */
+.gcard:hover .gcard__hint,
+.rcard:hover .gcard__hint,
+.gcard:focus-visible .gcard__hint,
+.rcard:focus-visible .gcard__hint {
   opacity: 1;
   transform: none;
 }

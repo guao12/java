@@ -1262,7 +1262,10 @@ select {
   transition-delay: var(--d, 0ms);
 }
 
-.reveal.is-in {
+/* 入场态以 data-rise 属性为准（见 utils/reveal.js）：
+   Vue 重写动态 :class 时不会动属性，入场态因此不会被冲掉。 */
+.reveal.is-in,
+.reveal[data-rise='in'] {
   opacity: 1;
   transform: none;
 }
@@ -1278,7 +1281,8 @@ select {
   opacity: 0;
 }
 
-.rise.is-in {
+.rise.is-in,
+.rise[data-rise='in'] {
   animation: rise-in 0.52s var(--ease-out) forwards;
   animation-delay: var(--d, 0ms);
 }

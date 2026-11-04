@@ -54,6 +54,9 @@ public class SearchServiceImpl implements SearchService {
     /** 每页条数上限，防止一次性拉取全表 */
     private static final int SIZE_MAX = 50;
 
+    /** 页码上限：防止 page=2000000000 拼出巨大 OFFSET 拖垮数据库 */
+    private static final long PAGE_MAX = 1000L;
+
     private static final long LIMIT_DEFAULT = 12L;
 
     private final DrArchiveMapper archiveMapper;
@@ -88,7 +91,7 @@ public class SearchServiceImpl implements SearchService {
         if (level != null && level > maxLevel) {
             level = maxLevel;
         }
-        long page = q.getPage() == null || q.getPage() < 1 ? 1L : q.getPage();
+        long page = q.getPage() == null || q.getPage() < 1 ? 1L : Math.min(q.getPage(), PAGE_MAX);
         long size = q.getSize() == null || q.getSize() < 1 ? LIMIT_DEFAULT : Math.min(q.getSize(), SIZE_MAX);
         String sort = q.getSort() == null ? "heat" : q.getSort();
 
@@ -228,8 +231,9 @@ public class SearchServiceImpl implements SearchService {
             return "";
         }
         String kw = raw.trim();
-        if (kw.length() > KEYWORD_MAX) {
-            kw = kw.substring(0, KEYWORD_MAX);
+        // 按码点截断：直接用 substring 会切断 emoji / 生僻字的代理对，产生非法字符
+        if (kw.codePointCount(0, kw.length()) > KEYWORD_MAX) {
+            kw = kw.substring(0, kw.offsetByCodePoints(0, KEYWORD_MAX));
         }
         // 去掉 LIKE 通配符，避免用户输入 % 就全表命中
         return kw.replace("%", "").replace("_", "");
@@ -339,11 +343,17 @@ public class SearchServiceImpl implements SearchService {
 
     /** 检索日志 + 热词加热。任何异常都吞掉，绝不影响检索主流程。 */
     private void writeLog(String keyword, Long topCategory, Long category, Integer level, int resultCount) {
+        // 纯筛选（无关键词）不计入检索日志：否则每次翻页 / 切分类都插一行空 keyword，
+        // 表只涨不降，且对「热词统计 / 用户检索行为」没有任何分析价值。
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        if (!hasKeyword && topCategory == null && category == null && level == null) {
+            return;
+        }
         try {
             DrUser user = CurrentUser.get();
             DrSearchLog logRow = new DrSearchLog();
             logRow.setUserId(user == null ? null : user.getId());
-            logRow.setKeyword(keyword == null ? "" : keyword);
+            logRow.setKeyword(hasKeyword ? keyword : "");
             logRow.setTopCategory(topCategory);
             logRow.setCategoryId(category);
             logRow.setLevel(level);
@@ -351,7 +361,7 @@ public class SearchServiceImpl implements SearchService {
             logRow.setClientIp(clientIp());
             searchLogMapper.insert(logRow);
 
-            if (keyword != null && !keyword.isEmpty()) {
+            if (hasKeyword) {
                 hotKeywordMapper.bumpHeat(keyword);
             }
         } catch (Exception e) {

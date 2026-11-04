@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 后台管理系统服务实现。
@@ -33,6 +36,13 @@ public class AdminServiceImpl implements AdminService {
 
     /** 言灵密级（与首页展示约定一致） */
     private static final List<String> SPIRIT_LEVELS = List.of("内部", "机密", "高危", "绝密");
+
+    /** 后台登录失败锁定：5 次 / 15 分钟（后台权限高于学员端，必须防爆破） */
+    private static final int LOGIN_MAX_FAIL = 5;
+    private static final long LOGIN_LOCK_MS = 15 * 60 * 1000L;
+
+    /** username(小写) -> {失败次数, 最近失败时间} */
+    private final Map<String, long[]> loginFailures = new ConcurrentHashMap<>();
 
     private final DrAdminMapper adminMapper;
     private final DrSpiritMapper spiritMapper;
@@ -53,15 +63,22 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto) {
+        String lockKey = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase(Locale.ROOT);
+        if (isLoginLocked(lockKey)) {
+            throw new BizException("尝试过于频繁，请 15 分钟后再试");
+        }
+
         DrAdmin admin = adminMapper.selectOne(
                 new LambdaQueryWrapper<DrAdmin>().eq(DrAdmin::getUsername, dto.getUsername()));
         if (admin == null || !passwordEncoder.matches(dto.getPassword(), admin.getPassword())) {
             // 账号不存在与密码错误给同一句话，不向探测者泄露账号是否存在
+            recordLoginFailure(lockKey);
             throw new BizException("管理员账号或密码不正确");
         }
         if (admin.getStatus() == null || admin.getStatus() == 0) {
             throw new BizException("该管理员账号已被封禁，请联系学院负责人");
         }
+        clearLoginFailure(lockKey);
 
         boolean remember = Boolean.TRUE.equals(dto.getRemember());
         String token = tokenService.issueAdmin(admin.getId(), admin.getUsername(), remember);
@@ -167,6 +184,43 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /* ================= 内部方法 ================= */
+
+    private boolean isLoginLocked(String key) {
+        long[] rec = loginFailures.get(key);
+        if (rec == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() - rec[1] > LOGIN_LOCK_MS) {
+            loginFailures.remove(key);
+            return false;
+        }
+        return rec[0] >= LOGIN_MAX_FAIL;
+    }
+
+    private void recordLoginFailure(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        loginFailures.compute(key, (k, v) -> {
+            if (v == null || now - v[1] > LOGIN_LOCK_MS) {
+                return new long[]{1, now};
+            }
+            v[0] += 1;
+            v[1] = now;
+            return v;
+        });
+        // 惰性清理，避免内存无限增长
+        if (loginFailures.size() > 1024) {
+            loginFailures.entrySet().removeIf(e -> now - e.getValue()[1] > LOGIN_LOCK_MS);
+        }
+    }
+
+    private void clearLoginFailure(String key) {
+        if (key != null) {
+            loginFailures.remove(key);
+        }
+    }
 
     private void checkLevel(String level) {
         if (!SPIRIT_LEVELS.contains(level)) {

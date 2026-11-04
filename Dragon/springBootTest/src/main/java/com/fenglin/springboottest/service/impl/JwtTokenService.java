@@ -8,10 +8,12 @@ import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -37,8 +39,31 @@ public class JwtTokenService implements TokenService {
     @Value("${dr.jwt.expire-seconds-remember:604800}")
     private long expireSecondsRemember;
 
-    public JwtTokenService(@Value("${dr.jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    /** HS256 最小密钥长度（字节） */
+    private static final int MIN_SECRET_BYTES = 32;
+
+    /** 仓库 application-dev.properties 里的 dev 兜底密钥前缀：一旦出现在 prod 即视为泄露 */
+    private static final String DEV_FALLBACK_SECRET_PREFIX = "qIGgHT5EjUPbrOiRHVSArkF5";
+
+    public JwtTokenService(@Value("${dr.jwt.secret:}") String secret, Environment environment) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "dr.jwt.secret 未配置：请通过环境变量 DR_JWT_SECRET 注入至少 " + MIN_SECRET_BYTES + " 字节的随机密钥");
+        }
+        byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
+        if (raw.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("dr.jwt.secret 太短（" + raw.length + " 字节，HS256 要求至少 "
+                    + MIN_SECRET_BYTES + " 字节），请重新生成");
+        }
+        boolean prod = Arrays.stream(environment.getActiveProfiles()).anyMatch("prod"::equalsIgnoreCase);
+        if (secret.startsWith(DEV_FALLBACK_SECRET_PREFIX)) {
+            if (prod) {
+                throw new IllegalStateException("prod 环境检测到仓库内置的 dev 兜底 JWT 密钥，该值已公开视为泄露："
+                        + "请通过环境变量 DR_JWT_SECRET 注入真实密钥后再启动");
+            }
+            log.warn("JWT 正在使用仓库内置的 dev 兜底密钥，仅限本地开发，切勿用于生产环境");
+        }
+        this.key = Keys.hmacShaKeyFor(raw);
     }
 
     @Override
