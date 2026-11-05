@@ -9,8 +9,9 @@ import { request } from './http'
  * 返回内容按访问者身份的可见密级过滤，不同身份看到的首页不一样。
  */
 
-/** 后端不可用时的兜底数据，保证首页不白屏 */
+/** 后端不可用时的兜底数据，保证首页不白屏（fallback=true 供页面提示「后端未连接」） */
 const FALLBACK = {
+  fallback: true,
   access: { logged: false, codename: '', identityName: '未认证访客', maxLevel: 1, maxLevelLabel: '公开' },
   stats: { archiveCount: 0, categoryCount: 0, topSecretCount: 0, spotlightCount: 0, searchCount: 0 },
   notices: [],

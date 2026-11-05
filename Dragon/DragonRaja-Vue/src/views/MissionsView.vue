@@ -9,13 +9,17 @@ import {
   LEVELS,
   RANK_POINTS,
   completeMission,
+  exportClearanceCode,
   hydrateClearance,
+  importClearanceCode,
   isCompleted,
   level,
   levelLabel,
   nextLevel,
   points,
-  records
+  records,
+  syncNow,
+  syncState
 } from '@/utils/clearance'
 import { generateMissions } from '@/data/missions'
 import { isIn, markIn } from '@/utils/reveal'
@@ -238,6 +242,81 @@ onMounted(() =>
 hydrateClearance()
 onBeforeUnmount(() => boardIO?.disconnect())
 
+/* ---------------- 权限存档同步状态 ----------------
+   权限点存两份：浏览器本地缓存 + 账号存档（后端 dr_user_clearance 表）。
+   这里把「到底存到哪一份了」明确显示出来 —— 以前同步失败是静默的，
+   用户只会看到换电脑后权限归零，却不知道是后端没起来 / 没登录 / 两台
+   电脑连的不是同一个数据库。 */
+const syncText = computed(() => {
+  switch (syncState.status) {
+    case 'ok':
+      return '已同步到账号存档 · 换设备登录同一账号可恢复'
+    case 'syncing':
+      return '正在与账号存档同步…'
+    case 'offline':
+      return `同步失败，进度只在本机${syncState.error ? ` · ${syncState.error}` : ''}`
+    case 'guest':
+      return '未登录 · 进度只存在这台电脑'
+    default:
+      return '权限进度尚未同步'
+  }
+})
+
+/** 同步状态胶囊的颜色语义 */
+const syncTone = computed(() => {
+  switch (syncState.status) {
+    case 'ok':
+      return 'ok'
+    case 'syncing':
+      return 'busy'
+    case 'offline':
+      return 'warn'
+    default:
+      return 'idle'
+  }
+})
+
+const retrying = ref(false)
+async function retrySync() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await syncNow()
+    showToast(
+      syncState.status === 'ok' ? '已与账号存档对齐' : `同步失败 · ${syncState.error || '请稍后重试'}`
+    )
+  } finally {
+    retrying.value = false
+  }
+}
+
+/* 备份码：两台电脑各自装了 MySQL（不是同一个库）时，后端存不了同一份进度，
+   只能由人把这串文本搬过去。平时用不到，换机器时是唯一可靠的办法。 */
+const codeOpen = ref(false)
+const code = ref('')
+const codeInput = ref('')
+const codeMsg = ref('')
+
+function toggleCode() {
+  codeOpen.value = !codeOpen.value
+  if (codeOpen.value && !code.value) code.value = exportClearanceCode()
+}
+
+function doExport() {
+  code.value = exportClearanceCode()
+  codeMsg.value = '已生成 · 点一下文本框即可全选复制'
+}
+
+function doImport() {
+  const r = importClearanceCode(codeInput.value)
+  codeMsg.value = r.message
+  if (r.ok) {
+    codeInput.value = ''
+    code.value = exportClearanceCode()
+    showToast(r.message)
+  }
+}
+
 const groups = computed(() => [
   {
     key: 'todo',
@@ -349,6 +428,44 @@ function gainOf(m) {
           >
             {{ l.label }}
           </span>
+        </div>
+
+        <!-- 存档状态：进度到底存在哪一份（本机 / 账号存档） -->
+        <div class="perm__sync" :data-tone="syncTone">
+          <span class="perm__dot" />
+          <span class="perm__sync-text">{{ syncText }}</span>
+          <button
+            v-if="syncTone !== 'ok'"
+            type="button"
+            class="perm__link"
+            :disabled="retrying"
+            @click="retrySync"
+          >
+            {{ retrying ? '同步中…' : '重新同步' }}
+          </button>
+          <button type="button" class="perm__link" @click="toggleCode">
+            {{ codeOpen ? '收起备份码' : '跨设备搬运' }}
+          </button>
+        </div>
+
+        <div v-if="codeOpen" class="perm__code">
+          <p class="perm__code-tip">
+            备份码是本机进度的完整快照。换电脑且两台机器<b>不是同一个数据库</b>时，
+            在这台「导出」、到那台「导入」，权限点会取并集，不会覆盖变小。
+          </p>
+          <div class="perm__code-row">
+            <input class="perm__code-in" :value="code" readonly @focus="$event.target.select()" />
+            <button type="button" class="perm__link" @click="doExport">重新导出</button>
+          </div>
+          <div class="perm__code-row">
+            <input
+              v-model="codeInput"
+              class="perm__code-in"
+              placeholder="粘贴另一台电脑的备份码（DRC1....）"
+            />
+            <button type="button" class="perm__link" @click="doImport">导入</button>
+          </div>
+          <p v-if="codeMsg" class="perm__code-msg">{{ codeMsg }}</p>
         </div>
       </section>
 
@@ -1197,6 +1314,138 @@ function gainOf(m) {
   color: var(--gold-lt);
   border-color: rgba(216, 178, 90, 0.5);
   background: rgba(216, 178, 90, 0.1);
+}
+
+/* ---------- 存档状态 / 备份码 ---------- */
+.perm__sync {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px dashed var(--line-soft);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+.perm__dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.perm__sync[data-tone='ok'] .perm__dot {
+  background: #57cfa0;
+  box-shadow: 0 0 8px rgba(87, 207, 160, 0.8);
+}
+
+.perm__sync[data-tone='ok'] .perm__sync-text {
+  color: #7fdcb8;
+}
+
+.perm__sync[data-tone='busy'] .perm__dot {
+  background: var(--gold-lt);
+  animation: permPulse 1.1s ease-in-out infinite;
+}
+
+.perm__sync[data-tone='warn'] .perm__dot {
+  background: #e08a7e;
+  box-shadow: 0 0 8px rgba(224, 138, 126, 0.8);
+}
+
+.perm__sync[data-tone='warn'] .perm__sync-text {
+  color: #eda79c;
+}
+
+@keyframes permPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.perm__link {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.perm__link + .perm__link {
+  margin-left: 0;
+}
+
+.perm__link:hover:not(:disabled) {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.5);
+  background: rgba(216, 178, 90, 0.1);
+}
+
+.perm__link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.perm__code {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.perm__code-tip {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--text-4);
+}
+
+.perm__code-tip b {
+  color: var(--gold-lt);
+  font-weight: 500;
+}
+
+.perm__code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.perm__code-in {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-2, var(--text-3));
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.perm__code-in:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.5);
+}
+
+.perm__code-msg {
+  margin: 0;
+  color: var(--gold-lt);
 }
 
 /* ================= 轻提示 ================= */

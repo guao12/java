@@ -99,12 +99,27 @@ echo                   若是数据库连接失败，请确认 MySQL 服务已启动，并核对
 echo                   springBootTest\src\main\resources\application-dev.properties 里的账号密码。
 :READY
 echo.
+REM 取本机局域网 IP：优先「有默认网关且已连接」的网卡，避开 VMware / Hyper-V 虚拟网卡
+set "LANIP="
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' } | Select-Object -First 1).IPv4Address.IPAddress" 2^>nul`) do set "LANIP=%%i"
+if not defined LANIP (
+    for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do if not defined LANIP set "LANIP=%%a"
+    if defined LANIP set "LANIP=!LANIP: =!"
+)
+
 echo ============================================================
 echo    启动完成
 echo.
-echo      前端页面 http://127.0.0.1:5177
-echo      后端接口 http://127.0.0.1:8082
+echo      本机访问   http://127.0.0.1:5177
+echo      后端接口   http://127.0.0.1:8082
+if defined LANIP echo      局域网访问 http://!LANIP!:5177
 echo      演示账号 CC20260001   密钥 Dragon@2026
+echo.
+echo    换电脑 / 多设备同步请注意：
+echo      不要在另一台电脑上再点一次「启动.bat」——
+echo      那样它会连自己那套 MySQL，权限进度在那边读不到，看起来就像被重置。
+echo      正确做法：本机保持运行，另一台电脑浏览器打开上面的「局域网访问」地址，
+echo                登录同一个账号，权限点与已完成任务会自动恢复。
 echo.
 echo    停止项目请双击  停止.bat
 echo ============================================================

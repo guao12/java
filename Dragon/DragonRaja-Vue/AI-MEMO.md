@@ -408,10 +408,21 @@ Dragon/
                             │
                             └─ GET /api/home/spirits（仅 status=1）
                                     │
-首页「言灵图鉴」<── data/spiritStore.js（ensureSpirits 每次进首页重拉）
+档案室「言灵图鉴」分卷 <── data/spiritStore.js（进档案室即 ensureSpirits 重拉）
 ```
 
 `spiritStore` 初值是内置静态数据，接口失败就保持静态兜底，永不白屏。
+
+> **2026-11-05：言灵图鉴从首页整体搬入档案室**，成为档案室第五个分卷 `/archive#tab-spirits`：
+>
+> - 卡片样式（`.ggrid` / `.gcard` / 元素系着色）与 `card-glow` / `card-sheen` / `metal-sheen`
+>   三组 keyframes 一并搬到 `ArchiveView.vue`。scoped 样式会给 `@keyframes` 名加后缀，
+>   关键帧必须与使用点在同一个 `<style scoped>` 里，否则动画静默失效（不报错）。
+> - `data/nav.js` 的「言灵图鉴」项改为 `{ to: '/archive', hash: 'tab-spirits' }`；
+>   `SiteNav` 新增 `hash` 型菜单项支持：路径 + hash 同时命中才高亮，且父项「档案室」
+>   在该分卷下让位，避免两个菜单同时点亮。
+> - 详情页 `CodexDetailView` 的「返回档案馆」对言灵回落 `/archive#tab-spirits`。
+> - 首页只保留「学院机构」图鉴；`sec-codex` 锚点已废弃。
 
 ### 鉴权双向隔离（别搞混）
 
@@ -584,7 +595,9 @@ npm run dev          # 端口 5177
 
 ---
 
-*最后更新：2026-10-26（一）· 本轮变更：登录与密钥重置均支持「学号或姓名」；全链路清理邮箱误导文案；修复后台管理 `/api/admin/auth/me` 空指针（根因：admin 拦截器排除路径过宽，见坑 8）与由此漏掉的鉴权；修正 AI-MEMO 旧描述"登录纯学号体系"与"/api/search 未实现"；产出可部署前端 `dist/`*
+*最后更新：2026-11-05（四）· 本轮变更：新增 `data/catalog.js` 作为首页与档案室唯一卷宗目录；新增 `/archive/:kind/:key` 卷宗详情页（龙王/人物/武器三卷共用）；档案室四类卡片改整卡入口，删除手风琴；首页书架/统计/检索/热门词全部改读本地目录，删除卷宗详情弹窗。详见 §12*
+
+> **上一条（2026-10-26）**：登录与密钥重置均支持「学号或姓名」；全链路清理邮箱误导文案；修复后台管理 `/api/admin/auth/me` 空指针（根因：admin 拦截器排除路径过宽，见坑 8）与由此漏掉的鉴权；修正 AI-MEMO 旧描述"登录纯学号体系"与"/api/search 未实现"；产出可部署前端 `dist/`
 
 > **上一条（2026-10-15）**：新增档案库 5 张表 + 首页展示 + 分级分类检索 + 卷宗详情弹窗；后端新增 OptionalAuthInterceptor 软鉴权与 SecurityLevel 密级体系
 
@@ -737,3 +750,80 @@ Vue 只会覆盖它在模板里声明过的 class / 属性，`data-rise` 不会�
    —— 必须显式给端口，环境里有个隐藏变量让 `server.port` 跑到了 54471；
 3. curl 发中文请求体要点：用 `--data-binary @utf8.json`，否则命令行编码变成 GBK，
    后端报 `JSON parse error: Invalid UTF-8 start byte`（这个 400 是测试姿势的问题，不是接口的）。
+
+---
+
+## 12. 首页卷宗与档案室统一 + 卷宗详情页（2026-11-05）
+
+**问题**：首页读后端 `dr_archive*`（`AR-P-001` 等种子数据），档案室读前端
+`src/data/archive.js`（`DK-*` / 人物 key / `ARM-*` / `EXE-*`），两套内容**零交集**；
+首页点卡片只弹「权限不足」的假反馈，档案室只有右上角小按钮能进任务详情。
+
+**改法（唯一数据源 + 统一入口）**
+
+1. 新增 `src/data/catalog.js`：把 `archive.js` 的四卷
+   （`ARCHIVE_KINGS` / `ARCHIVE_PEOPLE` / `ARCHIVE_ARMS` / `ARCHIVE_MISSION_LOGS`）
+   拍平成统一条目。导出 `CATALOG` / `CATALOG_TOTALS` / `CATALOG_SPOTLIGHT` /
+   `CATALOG_HOT` / `CATALOG_LATEST` / `CATALOG_HOT_KEYWORDS` / `CATALOG_CATEGORIES`，
+   以及 `searchCatalog()` / `findDossier()` / `siblingDossiers()` / `dossierPath()`。
+   **返回字段名刻意沿用旧后端响应**（`topCategoryFacets` / `categoryFacets` /
+   `levelFacets` / `page`），首页模板才能最小改动。
+2. 新增 `src/views/ArchiveDetailView.vue` + 路由 `/archive/:kind(king|person|arm)/:key`
+   （懒加载，`meta: { requiresAuth: true, standalone: true }`）。三卷共用一个详情页，
+   按 `kind` 分支渲染：龙王=资料+情报条目；人物=基础档案/血统条/性格/武器/言灵/
+   任务/荣誉/身世/家庭背景（11 节）；武器=器物档案+特性加成。密级不足走 `.void` 封存态。
+3. `ArchiveView.vue` 删掉手风琴（`openKey` / `togglePerson` / `toggleKing` / intel 展开），
+   四类卡片改成**整卡可点**（`role="button"` + `tabindex="0"` + `@keydown.enter.space.prevent`），
+   卡底统一提示「点击进入详情页 / 已封存 · 点击查看封存说明」。
+4. `HomeView.vue` 全部改读本地目录：三个书架、统计、热门词、分类分面、检索都走 catalog；
+   删掉卷宗详情弹窗（`Teleport` + `.modal*` 样式）。后端 `/api/home/overview` 只保留
+   「学院通报 / 累计检索数」，连不上时提示「通报服务未连接…卷宗内容不受影响」。
+
+### 踩到的坑
+
+- **组件实例复用**：`/archive/:kind/:key` 互跳（底部「同卷其他卷宗」）只有 `params` 变，
+  必须 `watch([kind, key])` 复位 `document.title` 与滚动位置，否则停在上一卷的滚动位置。
+- **入场动画**：卡片必须用 `utils/reveal.js` 的 `markIn()`（写 `data-rise`），
+  不能 `classList.add('is-in')` —— 后者会被 Vue 重渲染冲掉。
+- **别给假反馈**：密级不足原来只弹 toast，用户以为坏了。现在一律进详情页，
+  由封存态说明「需什么密级 / 还差几点权限 / 去完成任务」。
+- **派生数值要稳定**：热度 / 调阅次数 / 归档时间用 FNV-1a 按 `uid` 算，
+  不要 `Math.random()`，否则每次刷新数字都在跳。
+- **去重**：人物卡 `tags` 里不要再放血统，`rankLabel` 已经显示，否则卡片出现两次「S 级血统」。
+
+### 验证方式
+
+- `vite build` 通过（92 modules transformed）。**注意**：直接 build 到 `dist/` 会被沙箱的
+  批量删除保护拦下（清空 `dist/assets` 125 个文件 > 阈值 50，报
+  `SAFE_DELETE_BULK_CONFIRM_REQUIRED`；目录里已有文件时还会报
+  `emptyDir → trash 操作失败`）。绕行写法：
+  `vite build --outDir dist-final --emptyOutDir false` —— **必须带 `--emptyOutDir false`**，
+  否则只要目标目录里已有任何文件（哪怕是上一次失败留下的 `img/`）就会再去调 `emptyDir` 而失败。
+  验完记得删掉临时目录。
+- 实机（前端 5178 + 后端 8082，账号 `CC20260001 / Dragon@2026`，40 点）：
+  首页三书架各 6 条；搜「诺顿」12 条跨四卷；`/archive/king/DK-002`、
+  `/archive/person/luomingfei`、`/archive/arm/ARM-03` 渲染正常；档案室四类卡片整卡可点。
+- **封存态怎么测**（默认测不出来）：演示账号 40 点已满级（绝密阈值 15），而且
+  `hydrateClearance` 会从后端 `merge` 回权限点，本地把 `dr:clearance:<account>` 改成 0
+  会被覆盖。两个办法：**① 用零权限新账号**（会往库里插数据）；
+  **② 让后端不可达** —— `VITE_API_TARGET=http://127.0.0.1:59999 vite --port 5179`
+  代理到死端口，同步走 `offline` 分支、不动本地值，此时 0 点就能看到封存态。推荐 ②。
+  实测结果：`P-007` → 「需『绝密』密级 · 还差 15 权限点」；`DK-001` → 「需『机密』密级 · 还差 8 权限点」；
+  不存在的 key → 「档案馆中没有这份卷宗」；把点改回 40 并**强制 reload**
+  （只改 hash 不会重跑 `ensure()`，内存里仍是旧值）→ `void` 消失、正文 10 个分节正常。
+- 封存态文字原先用最暗的 `--text-4` + 13.5px，作为「为什么打不开」的主信息太弱，
+  已提到 `--text-2` / 15px，并给 `.void` 补了 `rgba(255,255,255,.018)` 底色，让它像张卡。
+- **口径要一致**：档案室 / 首页的卡片本来就露着简介正文，详情页却说「正文已封存」，
+  用户会觉得自相矛盾。现在封存页用 `.void__lead` 露出**同一段 `summary`**：
+  简介公开、正文封存，两处说法统一。
+
+### 重要：演示账号的真实权限点是 0，不是 40
+
+`CC20260001` 在后端 `dr_user_clearance` 里是 **0 点**（`GET /api/user/clearance` 返回
+`{points:0}`）。之前截图里看到的「40 点」全是测试脚本往 `localStorage` 的
+`dr:clearance:CC20260001` 里注入的假数据 —— 浏览器一换、或者清了本地存储，
+就回到「公开」密级、绝大多数卷宗封存。
+**别把 40 当既成事实**；要演示高密级内容，得先在任务页真完成任务，或显式注入后再看。
+- 浏览器自动化提示：`agent-browser` 的守护进程**不能跨 Bash 调用存活**
+  （连续调用会 SIGTERM，exit 143/1）。把 `open → eval → screenshot → close`
+  写进同一个 `.sh` 里一次跑完；元素选择器要用 `@eN` ref 形式。

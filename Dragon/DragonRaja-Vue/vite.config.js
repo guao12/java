@@ -30,7 +30,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 700
   },
   server: {
-    host: '127.0.0.1',
+    // 监听 0.0.0.0：本机仍可用 127.0.0.1:5177；同一局域网内的其它电脑
+    // 用 http://<本机IP>:5177 打开时，/api 由「本机」代理到同一套
+    // Spring Boot + MySQL —— 多台电脑共用一份数据库，权限进度才会跟着账号走。
+    // 反过来说：每台电脑各跑自己那套（各自装 MySQL），就等于各有各的库，
+    // 换机器登录同一个账号也只能读到 0 点，跟同步代码没关系。
+    // 只想本机访问时：VITE_HOST=127.0.0.1 npm run dev
+    host: process.env.VITE_HOST || '0.0.0.0',
     port: 5177,
     open: false,
     // 预构建常改的入口依赖，减少 dev 首屏的按需编译卡顿

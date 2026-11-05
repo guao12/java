@@ -14,6 +14,7 @@ const ConsoleView = () => import('@/views/ConsoleView.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const MissionsView = () => import('@/views/MissionsView.vue')
 const ArchiveView = () => import('@/views/ArchiveView.vue')
+const ArchiveDetailView = () => import('@/views/ArchiveDetailView.vue')
 const CharacterView = () => import('@/views/CharacterView.vue')
 const AppraisalView = () => import('@/views/AppraisalView.vue')
 const CodexDetailView = () => import('@/views/CodexDetailView.vue')
@@ -40,6 +41,14 @@ const routes = [
     name: 'archive',
     component: ArchiveView,
     meta: { title: '档案室 · 龙王与人物卷宗', requiresAuth: true, standalone: true }
+  },
+  {
+    // 档案室卷宗详情：kind = king（龙王）/ person（部门人物）/ arm（龙族武器）
+    // 卷四任务执行记录仍走 /log/:code/:person（内容更细）
+    path: '/archive/:kind(king|person|arm)/:key',
+    name: 'archive-dossier',
+    component: ArchiveDetailView,
+    meta: { title: '卷宗详情 · 中央档案馆', requiresAuth: true, standalone: true }
   },
   {
     path: '/codex/:key',

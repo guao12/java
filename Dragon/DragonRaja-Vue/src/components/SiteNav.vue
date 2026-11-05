@@ -142,8 +142,17 @@ function scrollToId(id, tries = 0) {
   window.scrollTo({ top: Math.max(top, 0), behavior: reduceMotion ? 'auto' : 'smooth' })
 }
 
+/** 菜单里所有「页面内分卷」目标（如 言灵图鉴 → /archive#tab-spirits） */
+const hashClaims = computed(() =>
+  props.items.filter((i) => i.hash).map((i) => ({ path: i.to, hash: `#${i.hash}` }))
+)
+
 function isActive(item) {
   if (item.id) return onHome.value && activeId.value === item.id
+  // 带 hash 的分卷项：路径 + hash 同时命中才算
+  if (item.hash) return route.path === item.to && route.hash === `#${item.hash}`
+  // 父级页面项让位：该页已有分卷项被选中时不再双重高亮（否则「档案室」「言灵图鉴」同时亮）
+  if (hashClaims.value.some((c) => c.path === item.to && route.hash === c.hash)) return false
   const list = item.match?.length ? item.match : [item.to]
   return list.some((p) => route.path === p || route.path.startsWith(`${p}/`))
 }
@@ -161,6 +170,16 @@ function onNav(item) {
     } else {
       router.push(item.to || HOME_PATH).then(() => scrollToId(item.id))
     }
+    return
+  }
+  // 目标页内的分卷：跨页直达 / 同页切换都走同一个 hash（目标页监听 route.hash 自行切卷）
+  if (item.hash) {
+    const hash = `#${item.hash}`
+    if (route.path === item.to && route.hash === hash) {
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+      return
+    }
+    router.push({ path: item.to, hash })
     return
   }
   if (!item.to) return

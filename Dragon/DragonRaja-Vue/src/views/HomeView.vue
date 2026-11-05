@@ -1,27 +1,44 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
-import { searchApi } from '@/api/search'
 import { homeApi } from '@/api/home'
 import { getUser } from '@/utils/auth'
 import { gradeOf, myLatestReport } from '@/utils/bloodline'
-import { ORG_GALLERY, codexPath, matchCodexByArchive } from '@/data/codex'
-import { ensureSpirits, useSpirits } from '@/data/spiritStore'
-import { MISSION_GALLERY } from '@/data/missions'
+import { ORG_GALLERY, codexPath } from '@/data/codex'
+import { useSpirits } from '@/data/spiritStore'
+import { level as clearanceLevel, levelLabel, points } from '@/utils/clearance'
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_HOT,
+  CATALOG_HOT_KEYWORDS,
+  CATALOG_LATEST,
+  CATALOG_SPOTLIGHT,
+  CATALOG_TOTALS,
+  searchCatalog
+} from '@/data/catalog'
 import { markIn } from '@/utils/reveal'
 
+const route = useRoute()
 const router = useRouter()
 
-/* ---------------- 言灵图鉴（后台维护的数据源，静态兜底） ---------------- */
-
-const spiritList = useSpirits()
-
-/* ---------------- 当前登录者 ---------------- */
-
+/**
+ * 当前登录者
+ */
 const user = ref(getUser())
+
+/* ---------------- 老锚点改道（言灵图鉴已迁至档案室） ----------------
+ * 书签 / 历史记录里还留着 /home#sec-codex，那个区块已经不存在了。
+ * 首次加载靠 onMounted 兜，同页内改 hash 走 watcher —— 否则点了会「什么都没发生」。
+ */
+function leaveLegacyCodexAnchor() {
+  if (route.hash !== '#sec-codex') return false
+  router.replace({ path: '/archive', hash: '#tab-spirits' })
+  return true
+}
+watch(() => route.hash, leaveLegacyCodexAnchor)
 
 /**
  * 顶部导航统一由 components/SiteNav.vue 渲染（与任务 / 档案室 / 血统鉴定同源）。
@@ -38,11 +55,29 @@ const overviewError = ref(false)
 
 /** 当前访问者的档案权限（可见密级上限） */
 const access = computed(() => overview.value?.access || {})
-const maxLevel = computed(() => access.value.maxLevel || 1)
-const stats = computed(() => overview.value?.stats || {})
-const categories = computed(() => overview.value?.categories || [])
+
+/**
+ * 可查阅密级：直接取档案室那套「权限点 → 密级」（utils/clearance.js），
+ * 不再用后端按身份给的上限 —— 否则首页说「可查阅公开」，档案室却因为
+ * 攒了 34 点能看绝密，同一个用户在两个页面看到两套权限。
+ */
+const maxLevel = computed(() => clearanceLevel.value)
+
+/** 四卷分类：与档案室同源（data/catalog.js），条数为真实馆藏数 */
+const categories = computed(() =>
+  CATALOG_CATEGORIES.map((c) => ({ ...c, count: CATALOG_TOTALS[c.id] ?? 0 }))
+)
+
 const notices = computed(() => overview.value?.notices || [])
-const hotKeywords = computed(() => overview.value?.hotKeywords || searchApi.hotKeywords)
+/** 热门检索词：取自卷宗目录里确实存在的关键词，点了必有结果 */
+const hotKeywords = computed(() => (CATALOG_HOT_KEYWORDS.length ? CATALOG_HOT_KEYWORDS : []))
+
+/** 首页三大书架：精选 / 热门 / 最新，全部来自同一份卷宗目录 */
+const SHELVES = [
+  { key: 'spotlight', title: '精选卷宗', icon: 'sparkle', list: CATALOG_SPOTLIGHT },
+  { key: 'hot', title: '热门卷宗', icon: 'flame', list: CATALOG_HOT },
+  { key: 'latest', title: '最新归档', icon: 'ticket', list: CATALOG_LATEST }
+]
 
 /** 首页大标题逐字入场：拆成单字交给 .char-in 按序升起（--i 控制延迟） */
 const HERO_TITLE = '龙文档案馆'
@@ -51,14 +86,14 @@ const heroChars = Array.from(HERO_TITLE)
 async function loadOverview() {
   const data = await homeApi.overview()
   overview.value = data
-  // 兜底数据与真实数据的区分标志：没有任何分类说明后端未就绪
-  overviewError.value = !data || !data.categories || data.categories.length === 0
+  // 卷宗内容已改为读本地卷宗目录（data/catalog.js），后端只负责通报；
+  // 这里只标记「后端是否连上」，用于提示通报可能为空。
+  overviewError.value = !data || data.fallback === true
 }
 
 /* ---------------- 检索 ---------------- */
 
 const keyword = ref('')
-const searching = ref(false)
 /** 是否已显式执行过检索：false 时展示首页内容，true 时展示检索结果 */
 const searched = ref(false)
 const lastKeyword = ref('')
@@ -75,29 +110,33 @@ const SIZE = 12
 const result = ref(null)
 const searchError = ref('')
 
-/* 卷宗卡片：编号 / 摘要截断 / 点击「权限不足」假反馈 */
-function dossierNo(item) {
-  const base = String(item?.code ?? item?.id ?? 0)
-  const digits = base.replace(/\D/g, '') || '0'
-  return String(Number(digits)).padStart(4, '0')
-}
+/** 摘要截断：结果卡只留一行 */
 function clip(text, n = 30) {
   if (!text) return ''
   return text.length > n ? `${text.slice(0, n)}…` : text
 }
 
-/** 点击卷宗卡片的“假反馈”：弹出权限提示，2.6s 后自动消失（闭环但不真开详情） */
-const accessToast = ref('')
-let accessTimer = 0
-function denyAccess() {
-  accessToast.value = '权限不足・需执行部授权'
-  clearTimeout(accessTimer)
-  accessTimer = setTimeout(() => (accessToast.value = ''), 2600)
-}
-
 const list = computed(() => result.value?.page?.list || [])
 const total = computed(() => result.value?.total || 0)
 const pages = computed(() => result.value?.page?.pages || 0)
+
+/* ---------------- 检索空态里的「言灵图鉴」指路 ----------------
+   检索只覆盖卷宗目录（四卷），不包含言灵卡片 —— 图鉴整体搬到档案室后，
+   按老印象搜「言灵图鉴」会零结果。空态里给一条明确出路，
+   避免用户以为图鉴被删了。命中具体言灵名时直接送到它的档案页。 */
+const spiritList = useSpirits()
+
+const spiritHint = computed(() => {
+  if (!searched.value) return null
+  const kw = (lastKeyword.value || '').trim()
+  if (!kw) return null
+  const hit = spiritList.value.find((s) => s.key === kw || s.name === kw || s.name.includes(kw))
+  if (hit) return { to: { path: `/spirit/${hit.key}` }, label: `言灵「${hit.name}」已收录，点此查阅` }
+  if (/言灵|图鉴/.test(kw)) {
+    return { to: { path: '/archive', hash: '#tab-spirits' }, label: '言灵图鉴已迁至档案室，点此打开' }
+  }
+  return null
+})
 
 /** 当前选中的一级分类对象 */
 const activeTop = computed(
@@ -116,17 +155,13 @@ const subFacets = computed(() => {
   return subCategories.value.map((s) => ({ ...s, count: map.get(s.id) ?? 0 }))
 })
 
-/** 一级分类条数：检索过用分面数据；未检索时后端未下发，用占位数字（观感像有内容库） */
-const PLACEHOLDER_TOP = [12, 8, 5, 6, 3, 4, 2, 9]
+/** 一级分类条数：检索过用分面数据；未检索时用馆藏真实条数 */
 const topFacets = computed(() => {
   if (result.value?.topCategoryFacets?.length) {
     const map = new Map(result.value.topCategoryFacets.map((f) => [f.key, f.total]))
     return categories.value.map((c) => ({ ...c, count: map.get(c.id) ?? 0 }))
   }
-  return categories.value.map((c, i) => ({
-    ...c,
-    count: c.count ?? PLACEHOLDER_TOP[i % PLACEHOLDER_TOP.length]
-  }))
+  return categories.value.map((c) => ({ ...c, count: c.count ?? 0 }))
 })
 
 /** 密级选项：1 公开 / 2 内部 / 3 机密 / 4 绝密 */
@@ -159,12 +194,12 @@ const hasFilter = computed(
   () => !!keyword.value.trim() || topCategory.value || category.value || level.value
 )
 
-/** 构造检索参数 */
+/** 构造检索参数（口径与 data/catalog.js 的 searchCatalog 对应） */
 function buildParams() {
   return {
     keyword: keyword.value.trim() || undefined,
-    topCategory: topCategory.value || undefined,
-    category: category.value || undefined,
+    top: topCategory.value || undefined,
+    sub: category.value || undefined,
     level: level.value || undefined,
     sort: sort.value,
     page: page.value,
@@ -174,14 +209,15 @@ function buildParams() {
 
 /**
  * 执行检索。
- * @param {boolean} silent true = 只更新分面统计，不切换到结果视图（首屏各区块条数用）
+ * 数据源是 data/catalog.js（档案室四卷目录），不再是后端 dr_archive ——
+ * 这样首页搜到的每一条，在档案室里都能找到同一份卷宗，点进去也是同一个详情页。
+ *
+ * @param {boolean} silent true = 只更新分面统计，不切换到结果视图（首屏 chips 条数用）
  */
-async function runSearch(silent = false) {
-  if (searching.value) return
-  searching.value = true
+function runSearch(silent = false) {
   searchError.value = ''
   try {
-    result.value = await searchApi.search(buildParams())
+    result.value = searchCatalog(buildParams())
     if (!silent) {
       searched.value = true
       lastKeyword.value = keyword.value.trim()
@@ -189,8 +225,6 @@ async function runSearch(silent = false) {
   } catch (e) {
     searchError.value = e?.message || '检索失败，请稍后重试'
     if (!silent) result.value = null
-  } finally {
-    searching.value = false
   }
 }
 
@@ -262,68 +296,22 @@ function goPage(p) {
 
 /* ---------------- 卷宗详情 ---------------- */
 
-const detail = ref(null)
-const detailLoading = ref(false)
-const detailError = ref('')
-
-async function openDetail(id) {
-  detail.value = null
-  detailError.value = ''
-  detailLoading.value = true
-  try {
-    detail.value = await searchApi.detail(id)
-  } catch (e) {
-    detailError.value = e?.message || '卷宗读取失败'
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-function closeDetail() {
-  detail.value = null
-  detailError.value = ''
-}
-
 /**
- * 精选 / 热门 / 最新卷宗卡片的点击分发：
- * 人物志 / 言灵谱 / 机构志 的卷宗若在图鉴中有对应条目 → 跳该条目的独立详情页；
- * 其余卷宗维持原行为（打开卷宗详情弹窗）。
+ * 所有卷宗卡片（精选 / 热门 / 最新 / 检索结果）都直接进各自的详情页：
+ *   龙王 / 部门人物 / 龙族武器 → /archive/:kind/:key
+ *   任务执行记录             → /log/:code/:person
+ * 密级不足时不在这里拦——详情页会给「已封存 + 还差多少权限点」，
+ * 比首页弹一句「权限不足」更有下文（原来点高级别卡片是纯假反馈）。
  */
-function openArchiveOrCodex(item) {
-  const hit = matchCodexByArchive(item)
-  if (hit) router.push(hit.path)
-  else openDetail(item.id)
+function openDossier(item) {
+  if (!item?.path) return
+  router.push(item.path)
 }
 
-/**
- * 检索结果卡片点击分发：
- * 命中文图鉴的条目（言灵 / 机构 / 人物）直达独立详情页；
- * 其余卷宗按密级判定 —— 在权限范围内才解封详情，超出则提示权限不足（denyAccess）。
- */
-function canRead(item) {
-  return (item?.securityLevel || 1) <= maxLevel.value
-}
-function openResult(item) {
-  const hit = matchCodexByArchive(item)
-  if (hit) {
-    router.push(hit.path)
-    return
-  }
-  if (!canRead(item)) {
-    denyAccess()
-    return
-  }
-  openDetail(item.id)
-}
+/* ---------------- 机构图鉴 ----------------
+   言灵图鉴已搬到档案室（第五个分卷），首页只剩「学院机构」这一个图鉴区块。 */
 
-function onKeydown(e) {
-  if (e.key !== 'Escape') return
-  if (detail.value || detailError.value) closeDetail()
-}
-
-/* ---------------- 言灵 / 机构 / 人物 三大图鉴 ---------------- */
-
-/** 图鉴卡片点击 → 各自独立详情页；卷宗卡片命中图鉴时同样跳转（见 openArchiveOrCodex） */
+/** 机构卡片点击 → /org/:key 机构档案 */
 function goCodex(kind, key) {
   router.push(codexPath(kind, key))
 }
@@ -442,7 +430,7 @@ function onPointerMove(e) {
 function onImgError(e) {
   const img = e.target
   img.style.display = 'none'
-  const wrap = img.closest('.gcard__img, .rcard__img')
+  const wrap = img.closest('.rcard__img')
   if (wrap) wrap.classList.add('is-broken')
 }
 
@@ -455,15 +443,15 @@ const QUICK = [
 ]
 
 onMounted(async () => {
+  // 老链接兼容：言灵图鉴区块已搬到档案室，旧的 /home#sec-codex 直接改道，
+  // 否则从收藏夹/历史记录点进来会停在首页且毫无反应（锚点已经不存在）。
+  if (leaveLegacyCodexAnchor()) return
   document.documentElement.style.colorScheme = 'dark'
   // 每次进入首页都重读一次血统鉴定档案，确保与 /appraisal 的最新报告一致
   bloodTick.value++
-  window.addEventListener('keydown', onKeydown)
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   await loadOverview()
-  // 言灵图鉴：拉取后台管理系统维护的最新数据（失败时保持静态兜底）
-  ensureSpirits()
-  // 首屏：静默拉一次，只为拿到各筛选项的条数（不切到结果视图）
+  // 首屏：静默跑一次检索，只为拿到各筛选项的真实条数（不切到结果视图）
   runSearch(true)
   // 渐进显现：等首屏区块渲染完成后再挂观察器
   await nextTick()
@@ -471,7 +459,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('pointermove', onPointerMove)
   revealObs?.disconnect()
   revealObs = null
@@ -521,20 +508,20 @@ onBeforeUnmount(() => {
         </button>
       </transition>
 
-      <!-- 权限提示条 -->
+      <!-- 权限提示条：与档案室同一套口径（权限点 → 密级） -->
       <div class="access">
         <AppIcon name="shield" :size="14" />
         <span>
           当前身份
           <b>{{ access.identityName || '未认证访客' }}</b>
-          · 可查阅
-          <b class="access__lv">「{{ access.maxLevelLabel || '公开' }}」</b>
-          及以下密级卷宗
+          · 档案室密级
+          <b class="access__lv">「{{ levelLabel }}」</b>
+          （{{ points }} 点）· 可查阅该密级及以下卷宗
         </span>
-        <em v-if="maxLevel < 4" class="access__hint">
-          更高密级需执行部 / 教员权限
+        <router-link v-if="maxLevel < 4" class="access__hint" to="/missions">
+          更高密级需完成任务累积权限点
           <AppIcon name="lock" :size="12" />
-        </em>
+        </router-link>
       </div>
 
       <!-- 英雄区 + 搜索栏 -->
@@ -570,9 +557,8 @@ onBeforeUnmount(() => {
             maxlength="40"
             autocomplete="off"
           />
-          <button class="search__btn" type="submit" :disabled="searching">
-            <AppIcon v-if="searching" name="refresh" :size="15" class="is-spinning" />
-            <span>{{ searching ? '检索中' : '检索' }}</span>
+          <button class="search__btn" type="submit">
+            <span>检索</span>
           </button>
         </form>
 
@@ -707,46 +693,47 @@ onBeforeUnmount(() => {
             检索结果
             <span v-if="lastKeyword" class="results__kw">「{{ lastKeyword }}」</span>
           </h2>
-          <span class="results__count">
-            {{ searching ? '检索中…' : `共 ${total} 条卷宗` }}
-          </span>
+          <span class="results__count">共 {{ total }} 条卷宗</span>
         </header>
 
         <div v-if="list.length" class="results__grid">
           <article
             v-for="item in list"
-            :key="item.id"
+            :key="item.uid"
             class="dcard"
-            :data-lv="item.securityLevel"
+            :data-lv="item.level"
             role="button"
             tabindex="0"
-            :aria-label="canRead(item) ? `查阅卷宗：${item.title}` : `权限不足：${item.title}`"
-            @click="openResult(item)"
-            @keydown.enter.prevent="openResult(item)"
-            @keydown.space.prevent="openResult(item)"
+            :aria-label="`查阅卷宗：${item.topName} ${item.title}`"
+            @click="openDossier(item)"
+            @keydown.enter.prevent="openDossier(item)"
+            @keydown.space.prevent="openDossier(item)"
           >
             <div class="dcard__top">
-              <span class="dcard__code">卷·字第{{ dossierNo(item) }}号</span>
+              <span class="dcard__code">{{ item.topName }} · {{ item.code }}</span>
               <span class="dcard__lvl">
                 <span v-if="item.rankLabel" class="dcard__rank">{{ item.rankLabel }}</span>
-                <span class="dcard__sec" :data-lv="item.securityLevel">[{{ item.securityLabel }}]</span>
+                <span class="dcard__sec" :data-lv="item.level">[{{ item.levelLabel }}]</span>
               </span>
             </div>
             <h3 class="dcard__title">{{ item.title }}</h3>
             <p class="dcard__desc">{{ clip(item.summary, 30) }}</p>
             <div class="dcard__foot">
-              <span class="dcard__dept">{{ item.source || item.categoryName || '档案馆' }}</span>
+              <span class="dcard__dept">{{ item.subName || item.source }}</span>
               <span class="dcard__dot">·</span>
-              <span class="dcard__time">{{ formatDate(item.createTime || item.publishAt) }}</span>
+              <span class="dcard__time">{{ formatDate(item.savedAt) }}</span>
             </div>
             <span class="dcard__arrow"><AppIcon name="arrow" :size="13" /> 查阅→</span>
           </article>
         </div>
 
-        <div v-else-if="!searching" class="results__empty">
+        <div v-else class="results__empty">
           <AppIcon name="archive" :size="34" :stroke="1.2" />
           <p>档案馆中未检索到相关卷宗</p>
           <p class="results__empty-sub">换个关键词，或放宽密级 / 分类筛选试试</p>
+          <router-link v-if="spiritHint" :to="spiritHint.to" class="results__empty-go">
+            <AppIcon name="flame" :size="13" /> {{ spiritHint.label }}
+          </router-link>
         </div>
 
         <!-- 分页 -->
@@ -759,12 +746,6 @@ onBeforeUnmount(() => {
             下一页
           </button>
         </nav>
-
-        <transition name="toast">
-          <div v-if="accessToast" class="toast toast--deny">
-            <AppIcon name="lock" :size="14" /> {{ accessToast }}
-          </div>
-        </transition>
       </section>
 
       <!-- ============ 首页展示（未检索时） ============ -->
@@ -797,115 +778,48 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <!-- 统计面板 -->
-        <section class="stats reveal">
-          <div class="stats__item">
-            <b>{{ stats.archiveCount ?? 0 }}</b>
-            <span>可查阅卷宗</span>
-          </div>
-          <div class="stats__item">
-            <b>{{ stats.categoryCount ?? 0 }}</b>
-            <span>档案分类</span>
-          </div>
-          <div class="stats__item">
-            <b>{{ stats.spotlightCount ?? 0 }}</b>
-            <span>精选卷宗</span>
-          </div>
-          <div class="stats__item">
-            <b>{{ stats.searchCount ?? 0 }}</b>
-            <span>累计检索</span>
-          </div>
-        </section>
-
-        <!-- 精选 / 热门 / 最新 -->
-        <section
-          v-for="shelf in [
-            { key: 'spotlight', title: '精选卷宗', icon: 'sparkle' },
-            { key: 'hot', title: '热门卷宗', icon: 'flame' },
-            { key: 'latest', title: '最新归档', icon: 'ticket' }
-          ]"
-          :key="shelf.key"
-          class="shelf reveal"
-        >
+        <!-- 精选 / 热门 / 最新：同源于档案室四卷目录 -->
+        <section v-for="shelf in SHELVES" :key="shelf.key" class="shelf reveal">
           <header class="shelf__head">
             <h2 class="shelf__title">
               <AppIcon :name="shelf.icon" :size="15" /> {{ shelf.title }}
             </h2>
-            <span class="shelf__more">
-              共 {{ (overview?.[shelf.key] || []).length }} 条
-            </span>
+            <span class="shelf__more">共 {{ shelf.list.length }} 条 · 点击卡片查看详情</span>
           </header>
-          <div v-if="(overview?.[shelf.key] || []).length" class="results__grid">
+          <div v-if="shelf.list.length" class="results__grid">
             <article
-              v-for="item in overview[shelf.key]"
-              :key="item.id"
+              v-for="item in shelf.list"
+              :key="item.uid"
               class="card"
-              @click="openArchiveOrCodex(item)"
+              role="button"
+              tabindex="0"
+              :aria-label="`查阅卷宗：${item.topName} ${item.title}`"
+              @click="openDossier(item)"
+              @keydown.enter.prevent="openDossier(item)"
+              @keydown.space.prevent="openDossier(item)"
             >
               <div class="card__top">
-                <span class="card__type">{{ item.topCategoryName }}</span>
-                <span
-                  v-if="matchCodexByArchive(item)"
-                  class="card__codex"
-                  title="可查看图鉴详情页"
-                >
-                  <AppIcon name="arrow" :size="10" />图鉴
-                </span>
-                <span class="card__rank" :data-lv="item.securityLevel">
-                  {{ item.securityLabel }}
-                </span>
+                <span class="card__type">{{ item.topName }}</span>
+                <span class="card__rank" :data-lv="item.level">{{ item.levelLabel }}</span>
               </div>
               <h3 class="card__title">{{ item.title }}</h3>
               <p class="card__desc">{{ item.summary }}</p>
               <div class="card__tags">
                 <span v-if="item.rankLabel" class="card__tag card__tag--rank">{{ item.rankLabel }}</span>
-                <span v-for="tag in (item.tags || []).slice(0, 3)" :key="tag" class="card__tag">
+                <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="card__tag">
                   {{ tag }}
                 </span>
               </div>
+              <p class="card__foot">
+                <span>{{ item.code }} · {{ item.subName }}</span>
+                <span>{{ formatDate(item.savedAt) }}</span>
+              </p>
             </article>
           </div>
           <p v-else class="shelf__empty">暂无内容</p>
         </section>
 
-        <!-- 言灵图鉴 -->
-        <section id="sec-codex" class="gallery reveal">
-          <header class="shelf__head">
-            <h2 class="shelf__title"><AppIcon name="flame" :size="15" /> 言灵图鉴</h2>
-            <span class="shelf__more">点击卡片查看详情</span>
-          </header>
-          <div class="gallery__grid">
-            <article
-              v-for="s in spiritList"
-              :key="s.key"
-              class="gcard"
-              :data-element="s.element"
-              role="button"
-              tabindex="0"
-              @click="goCodex('spirit', s.key)"
-              @keydown.enter.prevent="goCodex('spirit', s.key)"
-              @keydown.space.prevent="goCodex('spirit', s.key)"
-            >
-              <div class="gcard__img">
-                <img
-                  :src="s.imageUrl || `/img/spirit/${s.key}.webp`"
-                  :alt="`言灵 · ${s.name}`"
-                  loading="lazy"
-                  @error="onImgError"
-                />
-                <span class="gcard__element">{{ s.element }}</span>
-                <span class="gcard__hint">查看详情</span>
-              </div>
-              <div class="gcard__body">
-                <div class="gcard__row">
-                  <h3 class="gcard__name">{{ s.name }}</h3>
-                  <span class="gcard__level" :data-level="s.level">{{ s.level }}</span>
-                </div>
-                <p class="gcard__effect">{{ s.effect }}</p>
-              </div>
-            </article>
-          </div>
-        </section>
+        <!-- 言灵图鉴：已整体搬入档案室（/archive#tab-spirits），首页不再展示 -->
 
         <!-- 学院机构 -->
         <section id="sec-org" class="gallery reveal">
@@ -959,7 +873,7 @@ onBeforeUnmount(() => {
 
         <p v-if="overviewError" class="tip tip--warn">
           <AppIcon name="alert" :size="14" />
-          档案服务未连接（后端 /api/home/overview 不可用），当前为空白首页
+          通报服务未连接（后端 /api/home/overview 不可用）：学院通报暂缺，卷宗内容不受影响
         </p>
       </template>
     </main>
@@ -969,56 +883,6 @@ onBeforeUnmount(() => {
       <span>以龙档案馆 · 同人兴趣站 · 非商用</span>
       <span class="home__foot-meta">版权归原作者所有 · 仅作学习交流</span>
     </footer>
-
-    <!-- ============ 卷宗详情弹窗 ============ -->
-    <Teleport to="body">
-      <transition name="modal">
-        <div
-          v-if="detail || detailLoading || detailError"
-          class="modal"
-          role="dialog"
-          aria-modal="true"
-          @click.self="closeDetail"
-        >
-          <article class="modal__card">
-            <button type="button" class="modal__close" aria-label="关闭" @click="closeDetail">
-              <AppIcon name="chevron" :size="16" />
-            </button>
-
-            <p v-if="detailLoading" class="modal__loading">
-              <AppIcon name="refresh" :size="18" class="is-spinning" /> 正在解封卷宗…
-            </p>
-
-            <p v-else-if="detailError" class="modal__error">
-              <AppIcon name="lock" :size="18" /> {{ detailError }}
-            </p>
-
-            <template v-else-if="detail">
-              <div class="modal__top">
-                <span class="modal__code">{{ detail.code }}</span>
-                <span class="card__rank" :data-lv="detail.securityLevel">
-                  {{ detail.securityLabel }}
-                </span>
-              </div>
-              <h2 class="modal__title">{{ detail.title }}</h2>
-              <p class="modal__path">
-                {{ detail.topCategoryName }} / {{ detail.categoryName }}
-                <span v-if="detail.rankLabel"> · 评级 {{ detail.rankLabel }}</span>
-              </p>
-              <p class="modal__summary">{{ detail.summary }}</p>
-              <div v-if="detail.content" class="modal__content">{{ detail.content }}</div>
-              <div class="card__tags">
-                <span v-for="tag in (detail.tags || [])" :key="tag" class="card__tag">{{ tag }}</span>
-              </div>
-              <p class="modal__meta">
-                {{ detail.source }} · 归档于 {{ detail.createTime }} ·
-                浏览 {{ detail.viewCount }} · 热度 {{ detail.heat }}
-              </p>
-            </template>
-          </article>
-        </div>
-      </transition>
-    </Teleport>
 
   </div>
 </template>
@@ -1216,18 +1080,9 @@ onBeforeUnmount(() => {
   transition: transform 0.2s, filter 0.25s, box-shadow 0.3s;
 }
 
-.search__btn:hover:not(:disabled) {
+.search__btn:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
-}
-
-.search__btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.is-spinning {
-  animation: spin 0.9s linear infinite;
 }
 
 .hot {
@@ -1633,37 +1488,6 @@ onBeforeUnmount(() => {
   transform: translate(0, -50%);
 }
 
-/* 权限不足 toast（假反馈闭环） */
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 38px;
-  transform: translateX(-50%);
-  z-index: 80;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 20px;
-  border-radius: 999px;
-  border: 1px solid rgba(239, 107, 98, 0.6);
-  background: rgba(40, 14, 18, 0.96);
-  color: #ffd9d6;
-  font-size: 12.5px;
-  letter-spacing: 0.08em;
-  box-shadow:
-    0 18px 40px -16px rgba(0, 0, 0, 0.9),
-    0 0 26px -10px rgba(239, 107, 98, 0.5);
-}
-.toast-enter-active,
-.toast-leave-active {
-  transition: opacity 0.3s, transform 0.3s;
-}
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 12px);
-}
-
 /* 悬浮呼吸发光：--el 为卡片主色（言灵卡按元素系着色，其余默认鎏金） */
 @keyframes card-glow {
   0%,
@@ -1782,26 +1606,6 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(216, 178, 90, 0.06);
-}
-
-/* 「图鉴」角标：该卷宗在图鉴中有独立详情页，点击直达 */
-.card__codex {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  color: var(--gold-lt);
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px dashed rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.08);
-}
-
-.card:hover .card__codex {
-  background: rgba(216, 178, 90, 0.2);
-  border-style: solid;
 }
 
 /* 密级徽标：按 data-lv 着色；重点等级（机密 / 绝密）做金属质感 */
@@ -1942,6 +1746,7 @@ onBeforeUnmount(() => {
   gap: 4px;
 }
 
+
 /* ================= 结果区 ================= */
 .results {
   margin-top: 22px;
@@ -1993,6 +1798,28 @@ onBeforeUnmount(() => {
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-4);
+}
+
+/* 空态里指向「档案室 · 言灵图鉴」的出路按钮 */
+.results__empty-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.45);
+  background: rgba(216, 178, 90, 0.08);
+  color: var(--gold-lt);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  transition: background 0.22s, border-color 0.22s, transform 0.2s;
+}
+
+.results__empty-go:hover {
+  background: rgba(216, 178, 90, 0.18);
+  border-color: var(--gold);
+  transform: translateY(-1px);
 }
 
 /* ================= 分页 ================= */
@@ -2163,44 +1990,6 @@ onBeforeUnmount(() => {
   color: var(--text-4);
 }
 
-/* ================= 统计面板 ================= */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-top: 26px;
-}
-
-.stats__item {
-  padding: 18px 20px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line-soft);
-  background: linear-gradient(165deg, rgba(33, 28, 47, 0.72), rgba(13, 11, 22, 0.9));
-  transition: border-color 0.25s, transform 0.25s;
-}
-
-.stats__item:hover {
-  border-color: rgba(216, 178, 90, 0.4);
-  transform: translateY(-2px);
-}
-
-.stats__item b {
-  display: block;
-  font-family: var(--font-serif);
-  font-size: 27px;
-  letter-spacing: 0.06em;
-  color: var(--gold-lt);
-  line-height: 1.1;
-}
-
-.stats__item span {
-  display: block;
-  margin-top: 6px;
-  font-size: 11.5px;
-  letter-spacing: 0.14em;
-  color: var(--text-4);
-}
-
 /* ================= 书架区块 ================= */
 .shelf {
   margin-top: 34px;
@@ -2285,158 +2074,6 @@ onBeforeUnmount(() => {
   color: var(--gold);
 }
 
-/* ================= 详情弹窗 ================= */
-.modal {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(3, 5, 10, 0.72);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.modal__card {
-  position: relative;
-  width: min(680px, 100%);
-  max-height: 82vh;
-  overflow-y: auto;
-  padding: 30px 34px 28px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(165deg, rgba(34, 28, 48, 0.98), rgba(12, 10, 20, 0.99));
-  box-shadow: var(--shadow-card);
-}
-
-.modal__card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 12%;
-  right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
-
-.modal__close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-3);
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, transform 0.2s;
-}
-
-.modal__close:hover {
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.5);
-  transform: rotate(90deg);
-}
-
-.modal__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.modal__code {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.18em;
-  color: var(--gold-dp);
-  padding: 3px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(216, 178, 90, 0.06);
-}
-
-.modal__title {
-  font-family: var(--font-serif);
-  font-size: 26px;
-  letter-spacing: 0.1em;
-  color: var(--text);
-  margin-bottom: 8px;
-  padding-right: 36px;
-}
-
-.modal__path {
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
-  color: var(--text-4);
-  margin-bottom: 16px;
-}
-
-.modal__summary {
-  font-size: 13.5px;
-  line-height: 1.8;
-  color: var(--text-2);
-  padding: 13px 16px;
-  border-radius: var(--r-sm);
-  border-left: 2px solid var(--gold-dp);
-  background: rgba(216, 178, 90, 0.05);
-  margin-bottom: 16px;
-}
-
-.modal__content {
-  font-size: 13px;
-  line-height: 1.95;
-  color: var(--text-3);
-  margin-bottom: 16px;
-  white-space: pre-wrap;
-}
-
-.modal__meta {
-  margin-top: 16px;
-  padding-top: 13px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.07);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-4);
-}
-
-.modal__loading,
-.modal__error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 42px 10px;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-}
-
-.modal__error {
-  color: var(--err);
-  text-align: center;
-}
-
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.24s;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-active .modal__card {
-  animation: card-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 /* ================= 响应式 ================= */
 @media (max-width: 560px) {
   .home__body {
@@ -2498,10 +2135,6 @@ onBeforeUnmount(() => {
     padding-top: 0;
   }
 
-  .modal__card {
-    padding: 24px 20px 20px;
-  }
-
   .access__hint {
     margin-left: 0;
   }
@@ -2513,54 +2146,9 @@ onBeforeUnmount(() => {
   animation: fade-up 0.8s 0.24s both;
 }
 
-/* —— 言灵卡片 —— */
-.gallery__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  grid-auto-rows: 1fr; /* 行内等高，网格对齐 */
-  gap: 16px;
-}
-
-.gcard {
-  /* --el：元素系辉光色（默认鎏金），由 :data-element 覆盖 */
-  --el: 216, 178, 90;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  border: 1px solid var(--line-soft);
-  background: linear-gradient(165deg, rgba(33, 28, 47, 0.85), rgba(14, 11, 23, 0.94));
-  box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.05), 0 0 22px -14px rgba(216, 178, 90, 0.3);
-  cursor: pointer;
-  transition: border-color 0.28s, transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s;
-}
-
-/* 言灵卡按元素系着色：辉光、描边、徽标同色 */
-.gcard[data-element='火'] { --el: 255, 138, 76; }
-.gcard[data-element='冰'] { --el: 127, 212, 255; }
-.gcard[data-element='风'] { --el: 138, 232, 199; }
-.gcard[data-element='时间'] { --el: 196, 181, 253; }
-.gcard[data-element='重力'] { --el: 206, 162, 112; }
-.gcard[data-element='威压'] { --el: 240, 122, 90; }
-.gcard[data-element='精神'] { --el: 176, 196, 255; }
-.gcard[data-element='暗影'] { --el: 158, 132, 208; }
-.gcard[data-element='雷'] { --el: 150, 175, 255; }
-
-/* 底部元素辉光层（hover 点亮） */
-.gcard::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: radial-gradient(118% 56% at 50% 116%, rgba(var(--el), 0.26), transparent 64%);
-  opacity: 0;
-  transition: opacity 0.38s;
-}
+/* —— 言灵卡片的样式已随区块搬到 ArchiveView.vue（.ggrid / .gcard） —— */
 
 /* 悬停扫光 */
-.gcard::before,
 .rcard::before {
   content: '';
   position: absolute;
@@ -2574,41 +2162,11 @@ onBeforeUnmount(() => {
   transform: translateX(-130%) skewX(-16deg);
 }
 
-.gcard:hover {
-  border-color: rgba(216, 178, 90, 0.5);
-  transform: translateY(-5px) scale(1.012);
-  animation: card-glow 2.4s ease-in-out infinite;
-}
-
-.gcard:hover::before,
 .rcard:hover::before {
   animation: card-sheen 0.9s cubic-bezier(0.5, 0, 0.2, 1) both;
 }
 
-.gcard__img {
-  position: relative;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  background:
-    radial-gradient(80% 80% at 50% 30%, rgba(216, 178, 90, 0.12), transparent 70%),
-    linear-gradient(160deg, var(--bg-3), var(--bg-1));
-}
-
-.gcard__img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s;
-}
-
-.gcard:hover .gcard__img img {
-  transform: scale(1.06);
-  filter: saturate(1.12) brightness(1.06);
-}
-
 /* 图片加载失败兜底：显示文字占位 */
-.gcard__img.is-broken::after,
 .rcard__img.is-broken::after {
   content: '图像暂未收录';
   position: absolute;
@@ -2618,22 +2176,6 @@ onBeforeUnmount(() => {
   font-size: 11px;
   letter-spacing: 0.2em;
   color: var(--text-4);
-}
-
-.gcard__element {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-size: 12px;
-  color: var(--gold-lt);
-  background: rgba(4, 7, 13, 0.72);
-  border: 1px solid rgba(216, 178, 90, 0.5);
-  backdrop-filter: blur(4px);
 }
 
 .gcard__hint {
@@ -2654,117 +2196,11 @@ onBeforeUnmount(() => {
 }
 
 /* 卡片右下角的「查看详情」提示：悬停 / 键盘聚焦时浮出。
-   注意 .rcard（学院机构）复用了同一个 .gcard__hint，
-   只写 .gcard:hover 的话机构卡片永远不会显示这个提示 —— 两个类都要挂。 */
-.gcard:hover .gcard__hint,
+   言灵卡片已搬到档案室，首页只剩 .rcard（学院机构）在用这个类名。 */
 .rcard:hover .gcard__hint,
-.gcard:focus-visible .gcard__hint,
 .rcard:focus-visible .gcard__hint {
   opacity: 1;
   transform: none;
-}
-
-.gcard__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 13px 15px 14px;
-}
-
-.gcard__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.gcard__name {
-  font-family: var(--font-serif);
-  font-size: 16px;
-  letter-spacing: 0.1em;
-  color: var(--text);
-}
-
-/* 言灵危级 / 人物密级徽标：重点等级做金属质感 */
-.gcard__level {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid;
-}
-
-.gcard__level[data-level='高危'] {
-  color: var(--warn);
-  border-color: rgba(232, 180, 90, 0.45);
-  background: rgba(232, 180, 90, 0.1);
-}
-
-/* 机密：古铜金属 */
-.gcard__level[data-level='机密'] {
-  color: #f8ecc4;
-  font-weight: 600;
-  border-color: rgba(138, 106, 40, 0.85);
-  background: linear-gradient(
-    180deg,
-    var(--gold-metal-hi) -40%,
-    var(--gold-antique) 30%,
-    var(--gold-metal-lo) 62%,
-    #9c742c 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(246, 230, 176, 0.35),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
-}
-
-/* 绝密：鎏金金属 + 往复扫光 */
-.gcard__level[data-level='绝密'] {
-  color: #241a05;
-  font-weight: 600;
-  border-color: rgba(122, 90, 30, 0.9);
-  background: linear-gradient(
-    180deg,
-    var(--gold-metal-hi) 0%,
-    var(--gold-metal-md) 42%,
-    var(--gold-dp) 70%,
-    #b98f38 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 2px 12px -4px var(--gold-glow);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.gcard__level[data-level='绝密']::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 45%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  animation: metal-sheen 3.6s ease-in-out infinite;
-}
-
-/* 人物「内部」档徽标 */
-.gcard__level[data-level='内部'] {
-  color: var(--text-3);
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.gcard__effect {
-  margin-top: 7px;
-  font-size: 11.5px;
-  letter-spacing: 0.05em;
-  color: var(--text-4);
 }
 
 /* —— 学院编制卡片 —— */
@@ -2805,31 +2241,10 @@ onBeforeUnmount(() => {
   border-color: rgba(127, 212, 255, 0.45);
 }
 
-.rcard__hint {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  color: var(--gold-lt);
-  background: rgba(4, 7, 13, 0.78);
-  border: 1px solid rgba(216, 178, 90, 0.4);
-  backdrop-filter: blur(4px);
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.28s, transform 0.28s;
-}
+/* .rcard__hint 的悬停规则原本与 .gcard__hint 重复，
+   机构卡片实际用的是 .gcard__hint（见上方规则），这里只留真正生效的那一份 */
 
-.rcard:hover .rcard__hint,
-.rcard:hover .gcard__hint {
-  opacity: 1;
-  transform: none;
-}
-
-.rcard:focus-visible,
-.gcard:focus-visible {
+.rcard:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
@@ -2909,23 +2324,13 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line-soft);
 }
 
-/* —— 言灵详情弹窗 —— */
-.modal__card--spirit {
-  width: min(720px, 100%);
-  padding: 0;
-  overflow: hidden;
-}
-
-
 @media (max-width: 560px) {
-  .gallery__grid,
   .roster__grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
 @media (max-width: 400px) {
-  .gallery__grid,
   .roster__grid {
     grid-template-columns: 1fr;
   }

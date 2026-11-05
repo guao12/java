@@ -3,15 +3,16 @@
  *
  * 说明：
  * - `to`：目标路由；`id`：目标在学院首页时对应的区块锚点（#id）
+ * - `hash`：目标页内的分卷（档案室的分卷 tab）—— 路径 + hash 同时命中才算高亮
  * - `match`：这些路径前缀也视为命中该项（人物志 / 言灵谱 / 机构志都归属档案室）
  * - 首页、任务看板、档案室、血统鉴定、档案详情页统一使用这份配置，
  *   由 components/SiteNav.vue 渲染 —— 改这里即可全院同步。
  */
 export const SITE_NAV = [
   { label: '首页', to: '/home', id: 'sec-top' },
-  { label: '言灵图鉴', to: '/home', id: 'sec-codex' },
   { label: '学院机构', to: '/home', id: 'sec-org' },
   { label: '档案室', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
+  // 言灵图鉴不单独占导航位：它已是档案室的一个分卷，进入档案室后切卷即可
   { label: '任务', to: '/missions' },
   { label: '血统鉴定', to: '/appraisal' }
 ]
