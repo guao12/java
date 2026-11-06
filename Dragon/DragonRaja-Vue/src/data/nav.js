@@ -12,6 +12,9 @@ export const SITE_NAV = [
   { label: '首页', to: '/home', id: 'sec-top' },
   { label: '学院机构', to: '/home', id: 'sec-org' },
   { label: '档案室', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
+  // 论坛是 UGC 层：帖子讨论档案里的内容，两者互相导流（帖子可引用卷宗编号）
+  // match 把馆区页 / 主题页 / 发帖页都算作「论坛」，避免在这三页时导航失去高亮
+  { label: '论坛', to: '/forum', match: ['/forum', '/board', '/thread'] },
   // 言灵图鉴不单独占导航位：它已是档案室的一个分卷，进入档案室后切卷即可
   { label: '任务', to: '/missions' },
   { label: '血统鉴定', to: '/appraisal' }

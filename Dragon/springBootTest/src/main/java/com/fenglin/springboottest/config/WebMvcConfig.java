@@ -54,10 +54,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(jwtInterceptor)
                 .addPathPatterns("/api/user/**");
 
-        // 首页展示与档案检索对所有人开放，但要识别登录者身份
+        // 首页展示、档案检索与论坛读取对所有人开放，但要识别登录者身份
         // 以便按在校身份决定可见密级（软鉴权：不带令牌也能访问，只是只能看公开卷宗）
+        // 论坛的写接口（发帖 / 回帖 / 点赞）也在同一路径下：这里只负责识别身份，
+        // 是否登录由 ForumServiceImpl 判定，未登录返回 code=401，前端会跳登录页。
         registry.addInterceptor(optionalAuthInterceptor)
-                .addPathPatterns("/api/home/**", "/api/search", "/api/search/**", "/api/archive/**");
+                .addPathPatterns("/api/home/**", "/api/search", "/api/search/**",
+                        "/api/archive/**", "/api/forum/**");
 
         // 后台管理系统：除登录接口外全部需要管理员令牌
         registry.addInterceptor(adminInterceptor)

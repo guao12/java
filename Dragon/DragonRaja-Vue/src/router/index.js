@@ -19,6 +19,10 @@ const CharacterView = () => import('@/views/CharacterView.vue')
 const AppraisalView = () => import('@/views/AppraisalView.vue')
 const CodexDetailView = () => import('@/views/CodexDetailView.vue')
 const TaskLogView = () => import('@/views/TaskLogView.vue')
+const ForumView = () => import('@/views/ForumView.vue')
+const BoardView = () => import('@/views/BoardView.vue')
+const ThreadView = () => import('@/views/ThreadView.vue')
+const PostEditorView = () => import('@/views/PostEditorView.vue')
 const AdminLoginView = () => import('@/views/AdminLoginView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
 
@@ -77,11 +81,38 @@ const routes = [
     meta: { title: '机构档案 · 机构志', requiresAuth: true, standalone: true }
   },
   {
-    // 任务执行记录 · 单条详情（code = 任务编号，person = 执行人姓名，需 encodeURIComponent）
     path: '/log/:code/:person',
     name: 'task-log',
     component: TaskLogView,
     meta: { title: '任务记录 · 执行档案', requiresAuth: true, standalone: true }
+  },
+  {
+    // 论坛首页：版块入口 + 最新 / 最热 + 全论坛检索
+    path: '/forum',
+    name: 'forum',
+    component: ForumView,
+    meta: { title: '读者论坛 · 讨论区', requiresAuth: true, standalone: true }
+  },
+  {
+    // 发帖页必须排在 /forum 之后、且在语义上独立：静态段优先于动态段，不会与 /board 冲突
+    path: '/forum/new',
+    name: 'forum-new',
+    component: PostEditorView,
+    meta: { title: '发起主题 · 读者论坛', requiresAuth: true, standalone: true }
+  },
+  {
+    // 馆区（版块）：code 为版块标识，如 canon / fanwork
+    path: '/board/:code',
+    name: 'board',
+    component: BoardView,
+    meta: { title: '馆区 · 读者论坛', requiresAuth: true, standalone: true }
+  },
+  {
+    // 主题详情：主楼 + 楼层批注
+    path: '/thread/:id',
+    name: 'thread',
+    component: ThreadView,
+    meta: { title: '主题 · 读者论坛', requiresAuth: true, standalone: true }
   },
   {
     path: '/login',

@@ -1,17 +1,17 @@
 /*
  Navicat Premium Dump SQL
 
- Source Server         : test
+ Source Server         : localhost_3306
  Source Server Type    : MySQL
- Source Server Version : 80039 (8.0.39)
+ Source Server Version : 80046 (8.0.46)
  Source Host           : localhost:3306
  Source Schema         : dragon_raja
 
  Target Server Type    : MySQL
- Target Server Version : 80039 (8.0.39)
+ Target Server Version : 80046 (8.0.46)
  File Encoding         : 65001
 
- Date: 05/11/2026 15:15:47
+ Date: 06/11/2026 09:59:50
 */
 
 SET NAMES utf8mb4;
@@ -71,7 +71,7 @@ CREATE TABLE `dr_archive`  (
   INDEX `idx_cat`(`category_id` ASC, `security_level` ASC) USING BTREE,
   INDEX `idx_heat`(`heat` ASC) USING BTREE,
   INDEX `idx_time`(`create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 71 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案主表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 106 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '档案主表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_archive
@@ -157,6 +157,41 @@ INSERT INTO `dr_archive_category` VALUES (2014, 1006, 'rule.blood', '血统制�
 INSERT INTO `dr_archive_category` VALUES (2015, 1006, 'rule.code', '学院守则', 'check', 2, 1, '2026-11-02 08:42:36', '2026-11-02 08:42:36');
 
 -- ----------------------------
+-- Table structure for dr_board
+-- ----------------------------
+DROP TABLE IF EXISTS `dr_board`;
+CREATE TABLE `dr_board`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `code` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '版块标识，如 canon',
+  `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '版块名称',
+  `subtitle` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '英文副标题',
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '版块简介',
+  `icon` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'archive' COMMENT '图标名（对应前端 AppIcon）',
+  `sort_no` int NOT NULL DEFAULT 0 COMMENT '排序，越小越前',
+  `min_identity` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'guest' COMMENT '可见所需最低身份 guest/student/executor/teacher',
+  `min_points` int NOT NULL DEFAULT 0 COMMENT '可见所需最低权限点',
+  `post_min_identity` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'student' COMMENT '发帖所需最低身份',
+  `read_only` tinyint NOT NULL DEFAULT 0 COMMENT '1=只读（公告版），仅 teacher 可发',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '1=开放 0=关闭',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_code`(`code` ASC) USING BTREE,
+  INDEX `idx_sort`(`status` ASC, `sort_no` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛版块' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Records of dr_board
+-- ----------------------------
+INSERT INTO `dr_board` VALUES (1, 'canon', '原著研讨', 'CANON · TEXTUAL RESEARCH', '第 I–V 部逐章考据、时间线梳理、初版与再版差异', 'archive', 1, 'guest', 0, 'student', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (2, 'character', '人物专区', 'CHARACTERS', '路明非、楚子航、绘梨衣……所有你想多说两句的人', 'user', 2, 'guest', 0, 'student', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (3, 'lore', '言灵与设定', 'LORE & SPIRITS', '血统、言灵、龙王谱系，以及作者没写清的规则', 'sparkle', 3, 'guest', 0, 'student', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (4, 'fanwork', '同人创作', 'FANWORKS', '文、图、音。转载必须附授权，标题请标「含剧透」', 'flame', 4, 'guest', 0, 'student', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (5, 'cassell', '学院日常', 'CAMPUS LIFE', '报到、闲聊、失物招领，以及食堂三楼那扇门', 'home', 5, 'guest', 0, 'student', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (6, 'notice', '站务公告', 'NOTICE', '版规、活动与维护通知；仅教员可发', 'info', 6, 'guest', 0, 'teacher', 1, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_board` VALUES (7, 'ops', '执行部内网', 'EXECUTION BUREAU', '权限点 8 以上（机密级）且需执行部身份；外勤简报与内部讨论', 'shield', 7, 'executor', 8, 'executor', 0, 1, '2026-11-06 09:52:43', '2026-11-06 09:52:43');
+
+-- ----------------------------
 -- Table structure for dr_hot_keyword
 -- ----------------------------
 DROP TABLE IF EXISTS `dr_hot_keyword`;
@@ -170,7 +205,7 @@ CREATE TABLE `dr_hot_keyword`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_keyword`(`keyword` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '热门检索词' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 25 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '热门检索词' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_hot_keyword
@@ -205,7 +240,7 @@ CREATE TABLE `dr_notice`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_code`(`code` ASC) USING BTREE,
   INDEX `idx_publish`(`pinned` ASC, `publish_at` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '首页公告' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '首页公告' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_notice
@@ -213,6 +248,58 @@ CREATE TABLE `dr_notice`  (
 INSERT INTO `dr_notice` VALUES (1, 'NT-2026-001', '龙王级血统波动预警：本区里世界入口活跃度异常上升', '监测网显示本区里世界入口活跃度较上周上升 47%。执行部已进入二级战备，所有专员取消休假。非授权人员严禁接近 B3 层及以下区域。', 3, 1, '执行部指挥中心', '2026-10-15 09:00:00', '2026-10-22 23:59:59', 1, 0, '2026-11-02 08:42:36', '2026-11-02 08:42:36');
 INSERT INTO `dr_notice` VALUES (2, 'NT-2026-002', '地下图书馆 B3 层封闭检修，借阅服务暂停一周', '因龙文恒温系统例行检修，地下图书馆 B3 层于 10 月 16 日至 10 月 22 日封闭，期间暂停一切借阅与查阅服务。B1-B2 层正常开放。', 2, 1, '学院教务厅', '2026-10-14 15:30:00', '2026-10-23 00:00:00', 1, 0, '2026-11-02 08:42:36', '2026-11-02 08:42:36');
 INSERT INTO `dr_notice` VALUES (3, 'NT-2026-003', '2026 级新生血统鉴定安排通知', '2026 级新生血统鉴定将于本月 20 日起分批进行，具体批次与时间见各班级通知。鉴定前 24 小时内请勿使用任何言灵。', 1, 0, '学院医务室', '2026-10-13 10:00:00', '2026-10-25 23:59:59', 1, 0, '2026-11-02 08:42:36', '2026-11-02 08:42:36');
+
+-- ----------------------------
+-- Table structure for dr_reply
+-- ----------------------------
+DROP TABLE IF EXISTS `dr_reply`;
+CREATE TABLE `dr_reply`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `thread_id` bigint NOT NULL COMMENT 'dr_thread.id',
+  `author_id` bigint NOT NULL DEFAULT 0 COMMENT 'dr_user.id，0=馆藏旧帖',
+  `author_name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '代号快照',
+  `author_identity` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '身份快照',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '批注正文（纯文本）',
+  `quote_id` bigint NOT NULL DEFAULT 0 COMMENT '引用的批注 id，0=不引用',
+  `floor_no` int NOT NULL DEFAULT 1 COMMENT '楼层号，从 1 开始',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '1=正常 -1=已折叠',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_thread`(`thread_id` ASC, `status` ASC, `floor_no` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2028 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛批注（回帖）' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Records of dr_reply
+-- ----------------------------
+INSERT INTO `dr_reply` VALUES (2001, 1001, 0, '旧书摊主', 'student', '第 3 点我补一条：那道压痕更像是从便签本上撕的，而不是信纸。便签本在学院里到处都是。', 0, 1, 1, 0, '2026-11-06 04:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2002, 1001, 0, '长夜将至', 'student', '措辞那条我有不同意见。人在特定情绪下会写自己不常用的句式，这个不能当铁证。', 2001, 2, 1, 0, '2026-11-06 05:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2003, 1001, 0, '金陵旧客', 'student', '同意不能当铁证。所以我把结论写成「不认为是」而不是「不是」。', 2002, 3, 1, 0, '2026-11-06 06:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2004, 1002, 0, '折纸的人', 'student', '暑假长度那处我也卡了很久，怀疑是作者自己也没算清。', 0, 1, 1, 0, '2026-11-05 13:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2005, 1002, 0, '时间强迫症', 'student', '我也倾向这个解释，所以在表里只标注、不强行对齐。', 2004, 2, 1, 0, '2026-11-06 00:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2006, 1003, 0, '档案室常驻', 'student', '第 3 处改动能否贴一下原句和改后的句子？不涉及剧透的话很想看。', 0, 1, 1, 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2007, 1003, 0, '旧书摊主', 'student', '可以，但要先确认哪一版算「初版」——我手上这两本印次不一样。', 2006, 2, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2008, 1014, 0, '新生CC2026', 'student', '我印象最深的也是雨，但仔细想想可能因为封面就是灰蓝色。', 0, 1, 1, 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2009, 1004, 0, '折纸的人', 'student', '「沉默是边界」这个说法很准。他不多说的时候，通常是在替别人挡着什么。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2010, 1004, 0, '雨里抽烟的人', 'student', '补充一个反例：他对路明非其实话不少，虽然大多是吐槽。', 2009, 2, 1, 0, '2026-11-05 15:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2011, 1004, 0, '长夜将至', 'student', '吐槽也是一种安全距离内的表达。越是亲近，越不需要完整句子。', 2010, 3, 1, 0, '2026-11-06 04:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2012, 1005, 0, '金陵旧客', 'student', '如果是代笔，那「日记」这个形式本身就是叙事陷阱。这个角度我以前没想到。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2013, 1005, 0, '折纸的人', 'student', '所以我没有下定论，只把字体差异列出来。', 2012, 2, 1, 0, '2026-11-05 19:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2014, 1006, 0, '热力学不及格', 'student', '补一句：如果真有「边界」，那这个边界才是言灵的核心，温度只是副产品。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2015, 1006, 0, '档案室常驻', 'student', '这个思路和档案室里对「言灵作用域」的描述能对上。', 2014, 2, 1, 0, '2026-11-06 03:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2016, 1007, 0, '长夜将至', 'student', '「能承受多少」这个定义，比常见的战力排名合理太多了。', 0, 1, 1, 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2017, 1008, 0, '铅灰', 'student', '关东煮那段写得很好，尤其是「看了很久，最后拿了最便宜的那串」。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2018, 1008, 0, '夜航西飞', 'student', '谢谢。这句改了四遍，前面几版都太用力了。', 2017, 2, 1, 0, '2026-11-06 05:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2019, 1009, 0, '夜航西飞', 'student', '头发那种乱法很难画，你处理得比我预期的好。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2020, 1010, 0, '长夜将至', 'student', '我的代号来自一句诗，注册那天正好在下雨。', 0, 1, 1, 0, '2026-11-05 15:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2021, 1010, 0, '雨里抽烟的人', 'student', '随手打的 +1，现在每次登录都想改名。', 0, 2, 1, 0, '2026-11-05 21:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2022, 1010, 0, '档案室常驻', 'student', '建议想清楚再注册，代号改不了。别问我怎么知道的。', 2020, 3, 1, 0, '2026-11-06 01:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2023, 1011, 0, '三楼没有门', 'student', '自己回自己一句：刚在档案室翻到一条相关记载，权限不够，看不到正文。', 0, 1, 1, 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2024, 1011, 0, '金陵旧客', 'student', '那就不是玩笑。先把权限点刷到 8（机密级）再说。', 2023, 2, 1, 0, '2026-11-05 22:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2025, 1012, 0, '夜航西飞', 'student', '收到。同人区那篇短篇我补一下授权说明，是自己写的，无转载。', 0, 1, 1, 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2026, 1013, 0, '执行部值班员', 'executor', '补充：预案 B 的集合点本周改到旧仓库北门，地图已更新。', 0, 1, 1, 0, '2026-11-05 13:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_reply` VALUES (2027, 1015, 8, '测试读者', 'freshman', '这是接口写入的一条测试批注。', 0, 1, 1, 0, '2026-11-06 09:58:30', '2026-11-06 09:58:30');
 
 -- ----------------------------
 -- Table structure for dr_reset_code
@@ -392,6 +479,74 @@ INSERT INTO `dr_spirit` VALUES (15, 'test-spirit-2', '测试言灵改', '测试'
 INSERT INTO `dr_spirit` VALUES (16, 'key', '黑日', '测试', '高危', '领域生成‌：施放后形成旋转的黑色日轮领域，看起来像日全食中的太阳，刀锋划出的圆弧赤红发亮。 ‌引力拉扯‌：领域产生强引力场，吞噬空气掀起飓风，将周围物体、海水甚至尸守拉向中心。尸守需抠紧地面以免被吸走', '黑日，一种火系言灵能力。凡是接触到黑日领域的事物都会化为灰烬。当黑日的释放者死时，黑日就会坍塌，吞噬周围的一切掀起巨大的风暴，形成一个绝大的引力场。', '', '', '', 50, 1, 0, '2026-10-23 15:06:45', '2026-10-29 14:56:40');
 
 -- ----------------------------
+-- Table structure for dr_thread
+-- ----------------------------
+DROP TABLE IF EXISTS `dr_thread`;
+CREATE TABLE `dr_thread`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `board_id` bigint NOT NULL COMMENT 'dr_board.id',
+  `author_id` bigint NOT NULL DEFAULT 0 COMMENT 'dr_user.id，0=馆藏旧帖/系统',
+  `author_name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '发帖时代号快照',
+  `author_identity` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '发帖时身份快照',
+  `title` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '标题',
+  `content` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '正文（纯文本，前端按段落渲染）',
+  `security_level` tinyint NOT NULL DEFAULT 1 COMMENT '密级 1-4，判定逻辑同档案',
+  `reply_visible` tinyint NOT NULL DEFAULT 0 COMMENT '1=回复后可见正文',
+  `pinned` tinyint NOT NULL DEFAULT 0 COMMENT '1=镇馆（置顶）',
+  `essence` tinyint NOT NULL DEFAULT 0 COMMENT '1=入藏（精华）',
+  `view_count` int NOT NULL DEFAULT 0 COMMENT '浏览量',
+  `reply_count` int NOT NULL DEFAULT 0 COMMENT '批注数（回帖数）',
+  `like_count` int NOT NULL DEFAULT 0 COMMENT '点赞数',
+  `heat` int NOT NULL DEFAULT 0 COMMENT '热度 = 浏览 + 批注*3 + 点赞*5',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '1=正常 0=待审 -1=已下线',
+  `last_reply_at` datetime NULL DEFAULT NULL COMMENT '最后一条批注时间',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除：0=未删除 1=已删除',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_board_time`(`board_id` ASC, `status` ASC, `deleted` ASC, `pinned` ASC, `last_reply_at` ASC) USING BTREE,
+  INDEX `idx_last_reply`(`status` ASC, `deleted` ASC, `last_reply_at` ASC) USING BTREE,
+  INDEX `idx_author`(`author_id` ASC, `status` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1016 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛主题' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Records of dr_thread
+-- ----------------------------
+INSERT INTO `dr_thread` VALUES (1001, 1, 0, '金陵旧客', 'student', '第四部那封信到底是谁写的？', '先说结论：我不认为是路明非本人写的。\n\n第一，措辞习惯对不上。前几部里他写便条有个很稳定的习惯——句子写到一半会自己打断，用破折号或者干脆换行。这封信的两段却是完整的长句，标点规规矩矩。\n\n第二，落款位置偏左半个字，这个位置恰好是学院公文模板的签名位。私人信件没有人会对齐到那个位置。\n\n第三，信纸背面有一道压痕，像是从某个本子上撕下来又压平的。\n\n所以我的判断是：有人替他起草，或者有人在他不知情的时候替他寄了出去。\n\n以下三处旁证涉及后三部情节，放在回复里，介意剧透的别往下翻。', 3, 0, 0, 1, 1842, 3, 96, 2031, 1, '2026-11-06 06:52:43', 0, '2026-10-31 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1002, 1, 0, '时间线强迫症', 'student', '时间线整理：从入学到东京，一共过了几个学期', '花了三个晚上把五部里所有明确提到季节、节日、学期节点的句子摘出来，排成一张表。\n\n结论有点意外：如果把所有明写的线索都认下来，中间至少有两次时间对不上。一次是暑假长度，一次是某个人物的生日。\n\n我的处理方式是标出三处「无法对齐」的点，不做猜测，只标注位置。表格放在回复里，欢迎补充。', 1, 0, 0, 1, 1204, 2, 58, 1501, 1, '2026-11-06 00:52:43', 0, '2026-11-02 09:52:43', '2026-11-06 09:58:17');
+INSERT INTO `dr_thread` VALUES (1003, 1, 0, '旧书摊主', 'student', '初版与再版的差异，我列了 27 处', '手上有初版和后来重新排版的两本，逐页对了一遍，能确认的差异 27 处。\n\n其中 19 处是排版与错字，5 处是段落顺序调整，剩下 3 处是实际改写的句子——都不长，但改完之后人物的语气软了一点。\n\n第 3 处改动我觉得值得单独讨论：它把一句原本很硬的话改成了疑问句。这个改动让后面一整章的动机都变了味道。', 2, 0, 0, 0, 764, 2, 41, 887, 1, '2026-11-05 09:52:43', 0, '2026-10-28 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1004, 2, 0, '长夜将至', 'student', '楚子航的沉默，是一种自我保护还是一种语言', '重读之后有个想法：他的沉默不是「无话可说」，而是一套完整的表达系统。\n\n他所有不解释的时刻，都发生在可能牵连别人的时候。反过来，只要事情只关于他自己，他其实说得很直接。\n\n所以沉默更像是一种边界，而不是性格缺陷。', 1, 0, 1, 1, 1560, 3, 88, 1715, 1, '2026-11-06 04:52:43', 0, '2026-10-29 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1005, 2, 0, '折纸的人', 'student', '绘梨衣的日记里，哪些句子是别人替她写的', '日记的字体前后有细微差别，尤其是某些特别工整的句子。\n\n我倾向认为：她能写，但写得慢；那些过于流畅的长句，是别人握着她的手写的，或者干脆是代笔。\n\n如果是后者，那这本日记的性质就完全变了——它不再是她的独白，而是一份被安排过的记录。', 2, 0, 0, 0, 932, 2, 63, 1078, 1, '2026-11-05 19:52:43', 0, '2026-10-30 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1006, 3, 0, '热力学不及格', 'student', '言灵·君焰的温度上限，物理上到底有多离谱', '按书里描述的破坏效果反推，需要的瞬时温度远超常见材料的熔点。\n\n问题不在于能不能烧穿，而在于——施术者本人站在同一个空间里，为什么没有被热辐射烤熟。\n\n所以要么言灵自带一个「边界」，要么书里描述的温度其实只是视觉效果。我倾向后者，这样设定反而更自洽。', 1, 0, 0, 1, 1108, 2, 71, 1259, 1, '2026-11-06 03:52:43', 0, '2026-11-01 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1007, 3, 0, '档案室常驻', 'student', '血统等级 S/A/B 的真实含义（设定考据，非战力排名）', '先把结论摆出来：等级衡量的不是「打不打得过」，而是「能承受多少」。\n\n书里所有关于等级的判定，几乎都发生在检测、承压、失控这些场景，而不是胜负场景。\n\n如果按这个理解，很多看起来矛盾的描写就说得通了——高等级的人输给低等级的人，并不违反设定。', 1, 0, 0, 0, 688, 1, 39, 752, 1, '2026-11-04 09:52:43', 0, '2026-10-26 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1008, 4, 0, '夜航西飞', 'student', '【同人】雨夜里的便利店（短篇，已完结）', '全文约四千字，无 CP，清水，时间点设在某次任务结束之后。\n\n写的是一个很普通的场景：凌晨两点，便利店，关东煮，和一个不太会说话的人。\n\n我不太会写打斗，所以这篇里没有打斗。如果你也喜欢看他们安静地吃一顿饭，应该会喜欢。\n\n——以下正文——\n\n雨是从十一点开始下的。\n\n便利店的玻璃门上全是水，外面的路灯被拉成一条一条的。他站在关东煮前面，看了很久，最后拿了最便宜的那串。', 1, 0, 0, 1, 2043, 2, 132, 2341, 1, '2026-11-06 05:52:43', 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1009, 4, 0, '铅灰', 'student', '【图】给诺诺画了一张侧脸', '铅笔稿，A4，大概画了六个小时。\n\n没有画制服，画的是她自己那件外套。头发部分改了很多次，最后选了比较乱的那种。\n\n原图放回复里（不知道会不会被压缩）。禁止商用，转载请注明。', 1, 0, 0, 0, 1387, 1, 104, 1478, 1, '2026-11-05 09:52:43', 0, '2026-11-03 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1010, 5, 0, '新生CC2026', 'freshman', '新生报到：你们的代号是怎么来的？', '我的代号是注册时随手打的，现在非常后悔。\n\n想听听大家的代号来历，有没有那种一看就是想了很久的。', 1, 0, 0, 0, 967, 3, 44, 1100, 1, '2026-11-06 01:52:43', 0, '2026-11-05 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1011, 5, 0, '三楼没有门', 'student', '食堂三楼到底有没有传说中的那扇门', '问过三个学长，两个说没有，一个说「你先把权限点刷够再问」。\n\n所以到底是真事还是历届传下来的玩笑？', 1, 0, 0, 0, 1420, 2, 57, 1583, 1, '2026-11-05 22:52:43', 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1012, 6, 0, '执行部管理员', 'teacher', '关于同人区授权说明与剧透标注的通知', '一、同人区新增「授权说明」字段，转载必须填写原作者与授权方式，无授权的转载一律下沉。\n\n二、涉及后三部情节的标题必须标注「含剧透」，正文首段留空两行。\n\n三、本站为非官方、非商业的兴趣站点，不提供任何全文资源，禁止发布付费章节内容。\n\n以上自发布之日起执行。', 1, 0, 1, 1, 3120, 1, 76, 3300, 1, '2026-11-04 09:52:43', 0, '2026-10-25 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1013, 7, 0, '执行部值班员', 'executor', '执行部简报：本周三条外勤路线调整', '因北区管制作业，原定三条路线临时调整，具体如下：\n\n一、夜间巡线改走旧仓库东侧，避开主路。\n二、护送任务提前一小时出发，集合点不变。\n三、如遇通讯中断，按预案 B 执行，不要自行改线。\n\n本简报仅限执行部内部传阅。', 3, 0, 1, 0, 486, 1, 18, 545, 1, '2026-11-05 13:52:43', 0, '2026-11-04 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1014, 1, 0, '雨里抽烟的人', 'student', '为什么大家都记得那场雨：一次不严谨的读者调查', '在三个群里问了同一个问题：「你第一次读这个系列时，印象最深的一个画面是什么？」\n\n收到 87 个回答，其中 31 个提到了雨。有意思的是，雨在书里出现的次数并没有那么多——它更像是被读者的记忆二次加工出来的。\n\n样本很小，方法也不严谨，但这个偏差本身挺值得聊。', 1, 0, 0, 0, 421, 1, 22, 488, 1, '2026-11-04 09:52:43', 0, '2026-11-03 09:52:43', '2026-11-06 09:52:43');
+INSERT INTO `dr_thread` VALUES (1015, 1, 8, '测试读者', 'freshman', '接口冒烟测试主题', '这是一条用于验证论坛发帖接口的测试正文，稍后会删除。', 1, 0, 0, 0, 1, 1, 0, 5, 1, '2026-11-06 09:58:30', 0, '2026-11-06 09:58:30', '2026-11-06 09:58:45');
+
+-- ----------------------------
+-- Table structure for dr_thread_action
+-- ----------------------------
+DROP TABLE IF EXISTS `dr_thread_action`;
+CREATE TABLE `dr_thread_action`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `thread_id` bigint NOT NULL COMMENT 'dr_thread.id',
+  `user_id` bigint NOT NULL COMMENT 'dr_user.id',
+  `type` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'like / collect / report',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_thread_user_type`(`thread_id` ASC, `user_id` ASC, `type` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '主题互动（点赞/收藏/举报）' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Records of dr_thread_action
+-- ----------------------------
+
+-- ----------------------------
 -- Table structure for dr_user
 -- ----------------------------
 DROP TABLE IF EXISTS `dr_user`;
@@ -410,7 +565,7 @@ CREATE TABLE `dr_user`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_account`(`account` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 9 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_user
@@ -418,10 +573,11 @@ CREATE TABLE `dr_user`  (
 INSERT INTO `dr_user` VALUES (1, 'CC20260001', '路明非', '$2a$10$6Hzup9QGKCA9Hx8S4ouXKuGOVV27/2z4cb1.zpPYHgVP0hagU.SZS', 'freshman', 'junyan', 1, 0, 75, '2026-11-05 15:02:27', '2026-10-23 14:45:24', '2026-11-05 15:02:27');
 INSERT INTO `dr_user` VALUES (2, 'CC20260002', '楚子航', '$2b$10$EhhQtz0J7vukNhH3zCoBiew.9/FOuG9I/pE3uKWRR.7JcZxq150ou', 'executor', 'shiling', 1, 0, 5, '2026-11-04 16:54:29', '2026-10-23 14:45:24', '2026-11-04 16:54:28');
 INSERT INTO `dr_user` VALUES (3, 'CC20260003', '芬格尔', '$2b$10$aamVUE83rOCVisNGuH2TbOJHUrEfbXNcNzvwSOsmnASalROlxKlAC', 'student', 'fengwang', 1, 0, 0, NULL, '2026-10-23 14:45:24', '2026-10-23 14:45:24');
-INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'teacher', 'none', 1, 0, 15, '2026-11-05 13:58:18', '2026-10-23 14:49:24', '2026-11-05 13:58:17');
+INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'teacher', 'none', 1, 0, 17, '2026-11-06 09:30:09', '2026-10-23 14:49:24', '2026-11-06 09:30:08');
 INSERT INTO `dr_user` VALUES (5, 'CC202600005', '端到端己', '$2a$10$3Uke4FV.FcQ7sgxj2VPI6uuQols2FLe49jhzKU1.f1nZJ44uIebZ2', 'freshman', 'none', 1, 0, 1, '2026-11-02 09:33:46', '2026-11-02 09:33:40', '2026-11-02 09:33:45');
 INSERT INTO `dr_user` VALUES (6, 'CC202600006', '回归测试甲', '$2a$10$03YqCwqxkhmo3ijDWV0./OdNH.agVvF2P5Y7K3FQgsVP6YNsgdmi6', 'freshman', 'none', 1, 0, 0, NULL, '2026-11-02 09:39:03', '2026-11-02 09:39:03');
 INSERT INTO `dr_user` VALUES (7, 'CC202600007', '冒烟测试丙', '$2a$10$AooGQ4P4q1lNmnypjruzJe7YreFCISu20l1luqzZflOyAe75FptSS', 'freshman', 'junyan', 1, 0, 1, '2026-11-04 16:56:01', '2026-11-04 16:55:37', '2026-11-04 16:56:00');
+INSERT INTO `dr_user` VALUES (8, 'CC202600008', '测试读者', '$2a$10$wlQuNi8KtIfqhkHphKdwFucZcO8Pb8JwmJeK.yrzI0GMsLt3fnKW.', 'freshman', 'none', 1, 0, 1, '2026-11-06 09:57:55', '2026-11-06 09:57:43', '2026-11-06 09:57:55');
 
 -- ----------------------------
 -- Table structure for dr_user_clearance

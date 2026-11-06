@@ -14,7 +14,7 @@ import org.springframework.core.env.Environment;
  * 此处保持简洁。</p>
  */
 @SpringBootApplication
-public class SpringBootTestApplication {
+public class  SpringBootTestApplication {
 
 	private static final Logger log = LoggerFactory.getLogger(SpringBootTestApplication.class);
 
