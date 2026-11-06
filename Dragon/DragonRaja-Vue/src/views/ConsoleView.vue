@@ -7,6 +7,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
 import { CODE_UNAUTHORIZED, request } from '@/api/http'
+import { forumApi } from '@/api/forum'
+import { relativeTime } from '@/utils/forumTime'
 import { clearSession, getUser } from '@/utils/auth'
 
 const router = useRouter()
@@ -32,9 +34,47 @@ async function load() {
   }
 }
 
-/** 回到龙文档案馆首页 */
+/** 回到论坛首页 */
 function goHome() {
-  router.push('/home')
+  router.push('/forum')
+}
+
+/* ---------------- 我的收藏 ---------------- */
+
+const favorites = ref([])
+const favTotal = ref(0)
+const favLoading = ref(true)
+
+async function loadFavorites() {
+  favLoading.value = true
+  try {
+    const res = await forumApi.collected({ page: 1, size: 10 })
+    favorites.value = res?.list || []
+    favTotal.value = Number(res?.total || favorites.value.length)
+  } catch {
+    // 收藏夹失败不该挡住身份卡：静默降级为空列表
+    favorites.value = []
+    favTotal.value = 0
+  } finally {
+    favLoading.value = false
+  }
+}
+
+function openThread(t) {
+  router.push(`/thread/${t.id}`)
+}
+
+async function uncollect(t) {
+  const prev = favorites.value
+  // 先摘掉再请求，失败时整体回滚 —— 收藏是个高频轻操作，等一次往返太慢
+  favorites.value = favorites.value.filter((x) => x.id !== t.id)
+  favTotal.value = Math.max(0, favTotal.value - 1)
+  try {
+    await forumApi.collect(t.id)
+  } catch {
+    favorites.value = prev
+    favTotal.value = prev.length
+  }
 }
 
 async function logout() {
@@ -48,7 +88,10 @@ async function logout() {
   router.replace('/login')
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadFavorites()
+})
 </script>
 
 <template>
@@ -107,6 +150,37 @@ onMounted(load)
         <AppIcon name="alert" :size="15" />
         <span>{{ error }}</span>
       </div>
+
+      <!-- 我的收藏：收藏夹总得有个地方能翻，否则「收藏」只是心理安慰 -->
+      <section class="fav">
+        <header class="fav__head">
+          <h2 class="fav__title"><AppIcon name="archive" :size="14" /> 我的收藏</h2>
+          <span class="fav__count">{{ favTotal }} 条</span>
+        </header>
+
+        <p v-if="favLoading" class="fav__state">正在读取收藏夹…</p>
+        <p v-else-if="!favorites.length" class="fav__state">
+          还没有收藏。在主题页点「收藏」，帖子会出现在这里。
+        </p>
+        <ul v-else class="fav__list">
+          <li v-for="t in favorites" :key="t.id" class="fav__item">
+            <button type="button" class="fav__link" @click="openThread(t)">
+              <span class="fav__board">{{ t.boardName }}</span>
+              <span class="fav__name">{{ t.title }}</span>
+              <span class="fav__meta">{{ t.replyCount }} 回复 · {{ relativeTime(t.lastReplyAt || t.createdAt) }}</span>
+            </button>
+            <button
+              type="button"
+              class="fav__x"
+              :aria-label="`取消收藏 ${t.title}`"
+              title="取消收藏"
+              @click="uncollect(t)"
+            >
+              <AppIcon name="close" :size="12" />
+            </button>
+          </li>
+        </ul>
+      </section>
 
       <div class="actions">
         <GlowButton variant="ghost" type="button" :disabled="loading" @click="load">
@@ -239,6 +313,128 @@ onMounted(load)
   padding: 12px 8px;
   letter-spacing: 0.06em;
   white-space: nowrap;
+}
+
+/* ================= 我的收藏 ================= */
+.fav {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.fav__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fav__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--gold-lt);
+  letter-spacing: 0.04em;
+}
+
+.fav__count {
+  font-size: 11px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.fav__state {
+  margin: 0;
+  padding: 16px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-4);
+}
+
+.fav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 整行是按钮：收藏夹里的主要动作是「点进去看」，不是「管理」 */
+.fav__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fav__link {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.fav__link:hover {
+  border-color: rgba(216, 178, 90, 0.3);
+  background: rgba(216, 178, 90, 0.06);
+}
+
+.fav__board {
+  grid-row: span 2;
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.28);
+  font-size: 10px;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.fav__name {
+  font-size: 12.5px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fav__meta {
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+
+.fav__x {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s;
+}
+
+.fav__x:hover {
+  color: #d98a8a;
+  border-color: rgba(217, 138, 138, 0.4);
 }
 
 /* 极窄屏不硬塞三列，直接竖排 */

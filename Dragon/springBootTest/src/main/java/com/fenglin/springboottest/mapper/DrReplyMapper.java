@@ -13,18 +13,31 @@ import java.util.List;
 /**
  * 论坛批注 Mapper。
  *
- * <p>批注按楼层升序取，数量天然有限（单主题一般几十条），不做分页；
- * 真要出现超长主题，再按 floor_no 分段即可。</p>
+ * <p>批注按楼层升序取。单主题的楼层量级不可控（考据长帖能累积到几百上千层），
+ * 因此对外一律走 {@link #listPageByThread} 分页读取 —— 一次把整帖楼层塞进内存和响应体，
+ * 前端在几百楼时就会明显卡顿。</p>
  *
  * @author fenglin
  */
 @Mapper
 public interface DrReplyMapper extends BaseMapper<DrReply> {
 
-    /** 某主题的全部有效批注，按楼层升序 */
+    /** 某主题的全部有效批注，按楼层升序（仅内部统计用，对外请走分页方法） */
     @Select("SELECT * FROM dr_reply WHERE thread_id = #{threadId} AND deleted = 0 AND status = 1 "
             + "ORDER BY floor_no ASC, id ASC")
     List<DrReply> listByThread(@Param("threadId") Long threadId);
+
+    /**
+     * 某主题的一页有效批注，按楼层升序。
+     *
+     * @param offset 偏移量 (page-1) * size
+     * @param size   每页条数
+     */
+    @Select("SELECT * FROM dr_reply WHERE thread_id = #{threadId} AND deleted = 0 AND status = 1 "
+            + "ORDER BY floor_no ASC, id ASC LIMIT #{size} OFFSET #{offset}")
+    List<DrReply> listPageByThread(@Param("threadId") Long threadId,
+                                   @Param("offset") long offset,
+                                   @Param("size") long size);
 
     /** 某主题的有效批注数 */
     @Select("SELECT COUNT(*) FROM dr_reply WHERE thread_id = #{threadId} AND deleted = 0 AND status = 1")

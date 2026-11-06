@@ -11,7 +11,6 @@ const LoginView = () => import('@/views/LoginView.vue')
 const RegisterView = () => import('@/views/RegisterView.vue')
 const ForgotView = () => import('@/views/ForgotView.vue')
 const ConsoleView = () => import('@/views/ConsoleView.vue')
-const HomeView = () => import('@/views/HomeView.vue')
 const MissionsView = () => import('@/views/MissionsView.vue')
 const ArchiveView = () => import('@/views/ArchiveView.vue')
 const ArchiveDetailView = () => import('@/views/ArchiveDetailView.vue')
@@ -27,13 +26,12 @@ const AdminLoginView = () => import('@/views/AdminLoginView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
 
 const routes = [
-  { path: '/', redirect: '/home' },
-  {
-    path: '/home',
-    name: 'home',
-    component: HomeView,
-    meta: { title: '学院首页 · 龙文档案馆', requiresAuth: true, standalone: true }
-  },
+  // 首页就是论坛：帖子流即门面。
+  // 原 HomeView（学院门面 / 卷宗检索）已退役 —— 它和 /archive 的职能高度重叠，
+  // 与其维护两套首页，不如让 /forum 直接承担第一入口。文件仍保留在 views/ 下，需要时可随时挂回来。
+  { path: '/', redirect: '/forum' },
+  // 兼容旧链接与旧书签
+  { path: '/home', redirect: '/forum' },
   {
     path: '/missions',
     name: 'missions',
@@ -88,31 +86,35 @@ const routes = [
   },
   {
     // 论坛首页：版块入口 + 最新 / 最热 + 全论坛检索
+    // 不设 requiresAuth：游客可读（后端 /api/forum/** 是软鉴权，不带令牌只看公开级）；
+    // 发帖 / 回帖 / 点赞由后端强制登录，未登录返回 401，前端会引导去登录页。
     path: '/forum',
     name: 'forum',
     component: ForumView,
-    meta: { title: '读者论坛 · 讨论区', requiresAuth: true, standalone: true }
+    meta: { title: '讨论区', standalone: true }
   },
   {
     // 发帖页必须排在 /forum 之后、且在语义上独立：静态段优先于动态段，不会与 /board 冲突
     path: '/forum/new',
     name: 'forum-new',
     component: PostEditorView,
-    meta: { title: '发起主题 · 读者论坛', requiresAuth: true, standalone: true }
+    meta: { title: '发起主题', requiresAuth: true, standalone: true }
   },
   {
     // 馆区（版块）：code 为版块标识，如 canon / fanwork
+    // 游客可读，理由同上
     path: '/board/:code',
     name: 'board',
     component: BoardView,
-    meta: { title: '馆区 · 读者论坛', requiresAuth: true, standalone: true }
+    meta: { title: '版块', standalone: true }
   },
   {
     // 主题详情：主楼 + 楼层批注
+    // 游客可读（公开级主题），回复需要登录
     path: '/thread/:id',
     name: 'thread',
     component: ThreadView,
-    meta: { title: '主题 · 读者论坛', requiresAuth: true, standalone: true }
+    meta: { title: '主题', standalone: true }
   },
   {
     path: '/login',
@@ -154,7 +156,7 @@ const routes = [
     // standalone：脱离学员端「执行部档案系统」外壳，独立后台身份
     meta: { title: '后台管理系统', adminAuth: true, standalone: true }
   },
-  { path: '/:pathMatch(.*)*', redirect: '/home' }
+  { path: '/:pathMatch(.*)*', redirect: '/forum' }
 ]
 
 const router = createRouter({
@@ -181,10 +183,10 @@ router.beforeEach((to) => {
 })
 
 router.afterEach((to) => {
-  // 后台路由使用独立的「后台管理」后缀，不再套用学员端「执行部档案系统」品牌
+  // 后台路由带独立的「后台管理」后缀，前台统一挂论坛品牌
   const suffix = to.path.startsWith('/admin')
-    ? '卡塞尔学院・后台管理'
-    : '卡塞尔学院・执行部档案系统'
+    ? '龙族读者论坛 · 后台管理'
+    : '龙族读者论坛'
   document.title = to.meta?.title ? `${to.meta.title} | ${suffix}` : suffix
 })
 

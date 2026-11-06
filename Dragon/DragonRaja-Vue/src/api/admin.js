@@ -114,5 +114,47 @@ export const adminApi = {
   /** 删除言灵 */
   async deleteSpirit(id) {
     return adminRequest(`/api/admin/spirit/${id}`, { method: 'DELETE' })
+  },
+
+  /* ---------------- 举报处理 ---------------- */
+
+  /**
+   * 举报队列（不缓存：处理完一条必须立刻从队列消失）。
+   *
+   * @param {object} [query]
+   * @param {number} [query.status] 0 待处理 / 1 已下架 / 2 已驳回 / -1 全部
+   * @param {number} [query.page]
+   * @param {number} [query.size]
+   */
+  async reports(query = {}) {
+    const q = {
+      status: query.status ?? 0,
+      page: query.page || 1,
+      size: query.size || 20
+    }
+    const data = await adminRequest(`/api/admin/reports${toQuery(q)}`, { cacheTtl: 0 })
+    return (
+      data || { list: [], total: 0, page: q.page, size: q.size, pages: 0 }
+    )
+  },
+
+  /** 待处理数量（侧栏角标） */
+  async pendingReports() {
+    const n = await adminRequest('/api/admin/reports/pending-count', { cacheTtl: 0 })
+    return Number(n) || 0
+  },
+
+  /**
+   * 处理举报。
+   * @param {number} id
+   * @param {'takedown'|'reject'} action
+   * @param {string} [note]
+   */
+  async handleReport(id, action, note = '') {
+    adminRequest.clearCache()
+    return adminRequest(
+      `/api/admin/reports/${id}/handle${toQuery({ action, note })}`,
+      { method: 'POST' }
+    )
   }
 }

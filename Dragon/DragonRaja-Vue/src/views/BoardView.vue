@@ -2,7 +2,7 @@
 /**
  * 版块页（/board/:code）
  *
- * 一页只做一件事：把这个馆区的主题按「最新 / 最热 / 入藏」列出来。
+ * 一页只做一件事：把这个版块的主题按「最新 / 最热 / 精华」列出来。
  * 版块元信息来自 /api/forum/overview（本来就有 3 秒缓存，从首页点进来不会重复请求）。
  *
  * 权限：进入时先看 overview 里的 locked 标记，锁住就不发列表请求 ——
@@ -36,9 +36,9 @@ const loading = ref(true)
 const errMsg = ref('')
 
 const SORTS = [
-  { id: 'latest', label: '最新批注' },
+  { id: 'latest', label: '最新回复' },
   { id: 'hot', label: '最热' },
-  { id: 'essence', label: '仅入藏' }
+  { id: 'essence', label: '仅精华' }
 ]
 
 const locked = computed(() => !!board.value?.locked)
@@ -188,22 +188,22 @@ function showToast(text) {
           </div>
         </div>
         <button v-if="board.canPost" type="button" class="bd__new" @click="goNew">
-          <AppIcon name="plus" :size="13" :stroke="2" /> 在本馆区发帖
+          <AppIcon name="plus" :size="13" :stroke="2" /> 在本版块发帖
         </button>
       </section>
 
       <!-- 锁态：给出明确的达标路径 -->
       <section v-else-if="!loading" class="bd__void">
         <DragonEmblem class="bd__void-mark" />
-        <h2>馆区不存在</h2>
+        <h2>版块不存在</h2>
         <p>这个标识没有对应的讨论区，可能已经合并或改名。</p>
         <router-link to="/forum" class="bd__void-link">返回论坛首页</router-link>
       </section>
 
       <section v-if="locked" class="bd__void">
         <AppIcon name="lock" :size="30" />
-        <h2>该馆区尚未对你开放</h2>
-        <p>{{ board?.lockHint }}。馆务积分由执行部任务累积，完成一次即可看到进度变化。</p>
+        <h2>该版块尚未对你开放</h2>
+        <p>{{ board?.lockHint }}。积分由每日任务累积，完成一次即可看到进度变化。</p>
         <button type="button" class="bd__void-link" @click="goMissions">前往任务看板</button>
       </section>
 
@@ -231,8 +231,8 @@ function showToast(text) {
               v-model="kwInput"
               class="bsearch__input"
               type="search"
-              placeholder="在本馆区检索…"
-              aria-label="在本馆区检索"
+              placeholder="在本版块检索…"
+              aria-label="在本版块检索"
               @keyup.enter="doSearch"
             />
             <button v-if="kw" type="button" class="bsearch__clear" @click="clearSearch">
@@ -262,8 +262,8 @@ function showToast(text) {
           <li v-for="t in rows" :key="t.id" class="trow" @click="openThread(t)">
             <div class="trow__main">
               <div class="trow__tags">
-                <span v-if="t.pinned" class="chip chip--pin">镇馆</span>
-                <span v-if="t.essence" class="chip chip--essence">入藏</span>
+                <span v-if="t.pinned" class="chip chip--pin">置顶</span>
+                <span v-if="t.essence" class="chip chip--essence">精华</span>
                 <span v-if="t.replyVisible" class="chip">回复可见</span>
                 <span v-if="t.locked" class="chip chip--lock">
                   <AppIcon name="lock" :size="9" /> {{ t.securityLabel }}
@@ -279,11 +279,11 @@ function showToast(text) {
                 <span class="dot">·</span>
                 <span>{{ relativeTime(t.createdAt) }}</span>
                 <span v-if="t.lastReplyAt" class="dot">·</span>
-                <span v-if="t.lastReplyAt">最后批注 {{ relativeTime(t.lastReplyAt) }}</span>
+                <span v-if="t.lastReplyAt">最后回复 {{ relativeTime(t.lastReplyAt) }}</span>
               </div>
             </div>
             <div class="trow__nums">
-              <span class="tnum"><b>{{ t.replyCount }}</b>批注</span>
+              <span class="tnum"><b>{{ t.replyCount }}</b>回复</span>
               <span class="tnum"><b>{{ t.viewCount }}</b>阅读</span>
               <span class="tnum"><b>{{ t.likeCount }}</b>点赞</span>
               <AppIcon name="chevron-right" :size="13" class="trow__go" />
@@ -294,7 +294,7 @@ function showToast(text) {
         <p v-else class="bd__empty">
           <AppIcon name="info" :size="14" />
           <span>
-            {{ kw ? '没有命中的主题，换个关键词试试' : '本馆区还没有主题' }}
+            {{ kw ? '没有命中的主题，换个关键词试试' : '本版块还没有主题' }}
             <button v-if="!kw && board?.canPost" type="button" class="bd__empty-link" @click="goNew">
               发第一帖
             </button>
@@ -464,7 +464,7 @@ function showToast(text) {
   transform: translateY(-1px);
 }
 
-/* ================= 锁态 / 空馆区 ================= */
+/* ================= 锁态 / 空版块 ================= */
 .bd__void {
   display: flex;
   flex-direction: column;

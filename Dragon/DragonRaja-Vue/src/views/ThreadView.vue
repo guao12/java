@@ -15,10 +15,18 @@ import AppIcon from '@/components/AppIcon.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
 import { forumApi } from '@/api/forum'
+import { getUser } from '@/utils/auth'
 import { fullTime, paragraphs, relativeTime } from '@/utils/forumTime'
 
 const route = useRoute()
 const router = useRouter()
+
+/**
+ * 游客态：论坛公开可读，但回复需要登录。
+ * 后端会在 canReply=false 时给出 replyHint，单靠一行提示是死路 ——
+ * 用户此刻的意愿最高，必须直接给一个能点的登录入口。
+ */
+const logged = computed(() => !!getUser())
 
 const id = computed(() => String(route.params.id || ''))
 
@@ -27,7 +35,49 @@ const loading = ref(true)
 const errMsg = ref('')
 
 const thread = computed(() => detail.value?.thread || null)
-const replies = computed(() => detail.value?.replies || [])
+
+/**
+ * 楼层分页状态。
+ * 详情接口只返回第 1 页（后端默认 20 层/页），翻页走 /threads/{id}/replies；
+ * 楼层一多，一次性全量返回会让整页渲染明显卡顿。
+ */
+const replyList = ref([])
+const replyPage = ref(1)
+const replyPages = ref(1)
+const replyTotal = ref(0)
+const pageLoading = ref(false)
+/** 模板里仍用 replies 这个语义名，避免改动整片楼层模板 */
+const replies = computed(() => replyList.value)
+
+/** 把详情响应里的分页字段同步到本地状态（首次加载 / 回帖后都用它） */
+function syncReplyPage(d) {
+  replyList.value = d?.replies || []
+  replyPage.value = Number(d?.replyPage || 1)
+  replyPages.value = Math.max(1, Number(d?.replyPages || 1))
+  replyTotal.value = Number(d?.replyTotal || 0)
+}
+
+/** 翻到指定页；越界自动夹紧，避免点到不存在的页码 */
+async function goPage(p) {
+  if (!thread.value || pageLoading.value) return
+  const target = Math.min(Math.max(1, Number(p) || 1), replyPages.value)
+  if (target === replyPage.value && replyList.value.length) return
+  pageLoading.value = true
+  try {
+    const res = await forumApi.replies(thread.value.id, target)
+    replyList.value = res?.list || []
+    replyPage.value = Number(res?.page || target)
+    replyPages.value = Math.max(1, Number(res?.pages || 1))
+    replyTotal.value = Number(res?.total || 0)
+    nextTick(() => {
+      document.querySelector('.floors-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  } catch (e) {
+    showToast(e?.message || '楼层加载失败')
+  } finally {
+    pageLoading.value = false
+  }
+}
 const bodyParas = computed(() => paragraphs(detail.value?.content))
 const hidden = computed(() => !!detail.value?.contentHidden)
 
@@ -41,9 +91,11 @@ async function load() {
   errMsg.value = ''
   try {
     detail.value = await forumApi.thread(id.value)
+    syncReplyPage(detail.value)
   } catch (e) {
     errMsg.value = e?.message || '主题加载失败'
     detail.value = null
+    syncReplyPage(null)
   } finally {
     loading.value = false
   }
@@ -66,6 +118,27 @@ async function toggleLike() {
     showToast(e?.message || '操作失败')
   } finally {
     liking.value = false
+  }
+}
+
+/* ---------------- 收藏 ---------------- */
+const collecting = ref(false)
+async function toggleCollect() {
+  if (!thread.value || collecting.value) return
+  if (!logged.value) {
+    showToast('登录后才能收藏')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  collecting.value = true
+  try {
+    const res = await forumApi.collect(thread.value.id)
+    thread.value.collected = !!res?.collected
+    showToast(res?.collected ? '已加入收藏，可在「我的」里查看' : '已取消收藏')
+  } catch (e) {
+    showToast(e?.message || '操作失败')
+  } finally {
+    collecting.value = false
   }
 }
 
@@ -95,7 +168,7 @@ async function submitReply() {
   if (!thread.value || submitting.value) return
   const text = replyText.value.trim()
   if (text.length < 2) {
-    showToast('批注至少写两个字')
+    showToast('回复至少写两个字')
     return
   }
   submitting.value = true
@@ -105,17 +178,176 @@ async function submitReply() {
       quoteId: quote.value?.id || 0
     })
     detail.value = res
+    // 后端回帖后返回的是「最后一页」，刚发的那层就在页尾
+    syncReplyPage(res)
     replyText.value = ''
     quote.value = null
-    showToast('批注已提交')
+    showToast('回复已提交')
     nextTick(() => {
       const list = document.querySelector('.floors')
-      if (list) list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const last = list?.lastElementChild
+      if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      else document.querySelector('.floors-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   } catch (e) {
     showToast(e?.message || '提交失败')
   } finally {
     submitting.value = false
+  }
+}
+
+/* ---------------- 编辑 / 删除 ---------------- */
+
+const editOpen = ref(false)
+const editSaving = ref(false)
+const editTarget = ref(null) // { type:'thread'|'reply', id }
+const editTitle = ref('')
+const editContent = ref('')
+
+function openEdit(type, obj) {
+  if (!thread.value) return
+  editTarget.value = { type, id: type === 'thread' ? thread.value.id : obj.id }
+  editTitle.value = type === 'thread' ? thread.value.title : ''
+  // 用原始正文而不是 bodyParas：后者是分好段的展示数据，回填会把空行规整掉
+  editContent.value = type === 'thread' ? (detail.value?.content || '') : obj.content
+  editOpen.value = true
+}
+
+function closeEdit() {
+  if (editSaving.value) return
+  editOpen.value = false
+}
+
+async function submitEdit() {
+  if (editSaving.value || !editTarget.value || !thread.value) return
+  const content = editContent.value.trim()
+  const t = editTarget.value
+  if (t.type === 'thread' && editTitle.value.trim().length < 4) {
+    showToast('标题至少 4 个字')
+    return
+  }
+  if (t.type === 'thread' && content.length < 10) {
+    showToast('正文至少 10 个字')
+    return
+  }
+  if (t.type === 'reply' && content.length < 2) {
+    showToast('回复至少 2 个字')
+    return
+  }
+
+  editSaving.value = true
+  try {
+    if (t.type === 'thread') {
+      const res = await forumApi.updateThread(t.id, {
+        title: editTitle.value.trim(),
+        content
+      })
+      detail.value = res
+      syncReplyPage(res)
+      showToast('修改已保存')
+    } else {
+      const updated = await forumApi.updateReply(thread.value.id, t.id, { content })
+      // 就地替换这一层，不整页重载 —— 保住当前楼层页码和滚动位置
+      replyList.value = replyList.value.map((r) =>
+        r.id === t.id ? { ...r, content: updated?.content ?? content, edited: true } : r
+      )
+      showToast('回复已更新')
+    }
+    editOpen.value = false
+  } catch (e) {
+    showToast(e?.message || '保存失败')
+  } finally {
+    editSaving.value = false
+  }
+}
+
+async function removeThread() {
+  if (!thread.value) return
+  if (!window.confirm('确认删除这条主题？删除后前台不再显示，楼层也会一并不可见。')) return
+  try {
+    await forumApi.deleteThread(thread.value.id)
+    showToast('主题已删除，正在返回版块')
+    setTimeout(() => goBoard(), 600)
+  } catch (e) {
+    showToast(e?.message || '删除失败')
+  }
+}
+
+async function removeReply(r) {
+  if (!thread.value) return
+  if (!window.confirm(`确认删除 ${r.floorNo} 楼？此操作不可撤销。`)) return
+  try {
+    await forumApi.deleteReply(thread.value.id, r.id)
+    replyList.value = replyList.value.filter((x) => x.id !== r.id)
+    replyTotal.value = Math.max(0, replyTotal.value - 1)
+    // 删掉最后一层后当前页可能已经空了，回退一页
+    if (!replyList.value.length && replyPage.value > 1) {
+      replyPage.value -= 1
+      await goPage(replyPage.value)
+    }
+    showToast('回复已删除')
+  } catch (e) {
+    showToast(e?.message || '删除失败')
+  }
+}
+
+/* ---------------- 举报 ---------------- */
+
+/**
+ * 举报原因与后端 ReportServiceImpl.REASON_LABELS 一一对应：
+ * 前端只传 key，中文文案两边各自维护，避免把展示文案写进协议里。
+ */
+const REASONS = [
+  { key: 'copyright', label: '侵犯版权 / 未授权转载', desc: '搬运全文、盗图、无授权翻译' },
+  { key: 'spoiler', label: '剧透未标注', desc: '标题或首段直接写后几部情节' },
+  { key: 'spam', label: '广告 / 引流', desc: '二维码、外链、拉群、代购' },
+  { key: 'abuse', label: '人身攻击 / 引战', desc: '针对读者而非作品的攻击' },
+  { key: 'other', label: '其他', desc: '请在补充说明里写清楚' }
+]
+
+const reportOpen = ref(false)
+const reportTarget = ref(null)
+const reportReason = ref('copyright')
+const reportDetail = ref('')
+const reporting = ref(false)
+
+function openReport(type, obj) {
+  if (!logged.value) {
+    showToast('登录后才能举报')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!thread.value) return
+  reportTarget.value = type === 'thread'
+    ? { type, id: thread.value.id, title: thread.value.title }
+    : { type, id: obj.id, floorNo: obj.floorNo, authorName: obj.authorName }
+  reportReason.value = 'copyright'
+  reportDetail.value = ''
+  reportOpen.value = true
+}
+
+function closeReport() {
+  if (reporting.value) return
+  reportOpen.value = false
+}
+
+async function submitReport() {
+  if (reporting.value || !reportTarget.value || !thread.value) return
+  reporting.value = true
+  try {
+    await forumApi.report({
+      targetType: reportTarget.value.type,
+      targetId: reportTarget.value.id,
+      threadId: thread.value.id,
+      reason: reportReason.value,
+      detail: reportDetail.value.trim()
+    })
+    reportOpen.value = false
+    showToast('已收到举报，我们会尽快核实')
+  } catch (e) {
+    showToast(e?.message || '举报提交失败')
+  } finally {
+    reporting.value = false
   }
 }
 
@@ -176,8 +408,8 @@ function showToast(text) {
             <article class="post">
               <header class="post__head">
                 <div class="post__tags">
-                  <span v-if="thread.pinned" class="chip chip--pin">镇馆</span>
-                  <span v-if="thread.essence" class="chip chip--essence">入藏</span>
+                  <span v-if="thread.pinned" class="chip chip--pin">置顶</span>
+                  <span v-if="thread.essence" class="chip chip--essence">精华</span>
                   <span class="chip" :class="'chip--lv' + thread.securityLevel">
                     {{ thread.securityLabel }}
                   </span>
@@ -190,10 +422,11 @@ function showToast(text) {
                   <span class="post__author">{{ thread.authorName || '佚名' }}</span>
                   <span class="dot">·</span>
                   <span>{{ fullTime(thread.createdAt) }}</span>
+                  <span v-if="thread.edited" class="edited-tag" title="作者修改过标题或正文">已编辑</span>
                   <span class="dot">·</span>
                   <span>{{ thread.viewCount }} 次阅读</span>
                   <span class="dot">·</span>
-                  <span>{{ thread.replyCount }} 条批注</span>
+                  <span>{{ thread.replyCount }} 条回复</span>
                 </div>
               </header>
 
@@ -211,10 +444,10 @@ function showToast(text) {
                     class="sealed__btn"
                     @click="focusEditor"
                   >
-                    写一条批注解锁
+                    写一条回复解锁
                   </button>
                   <button v-else type="button" class="sealed__btn" @click="goMissions">
-                    去做馆务任务提升密级
+                    去做任务提升权限
                   </button>
                   <button type="button" class="sealed__link" @click="goBoard">返回版块</button>
                 </div>
@@ -240,12 +473,37 @@ function showToast(text) {
                   {{ thread.liked ? '已赞' : '点赞' }} · {{ thread.likeCount }}
                 </button>
                 <button
+                  type="button"
+                  class="act"
+                  :class="{ 'is-on': thread.collected }"
+                  :disabled="collecting"
+                  @click="toggleCollect"
+                >
+                  <AppIcon name="archive" :size="13" />
+                  {{ thread.collected ? '已收藏' : '收藏' }}
+                </button>
+                <button
                   v-if="detail.canReply"
                   type="button"
                   class="act"
                   @click="focusEditor"
                 >
                   <AppIcon name="arrow" :size="13" /> 回复本主题
+                </button>
+                <!-- 只有作者本人能看到编辑 / 删除：这是权限，不是装饰 -->
+                <button v-if="thread?.mine" type="button" class="act" @click="openEdit('thread')">
+                  <AppIcon name="edit" :size="13" /> 编辑
+                </button>
+                <button
+                  v-if="thread?.mine || detail.viewerStaff"
+                  type="button"
+                  class="act act--danger"
+                  @click="removeThread"
+                >
+                  <AppIcon name="trash" :size="13" /> 删除
+                </button>
+                <button type="button" class="act act--report" @click="openReport('thread', thread)">
+                  <AppIcon name="alert" :size="13" /> 举报
                 </button>
                 <span class="post__floor-tag">主楼</span>
               </footer>
@@ -255,10 +513,13 @@ function showToast(text) {
             <section class="floors-wrap">
               <header class="floors__head">
                 <h2 class="floors__title">
-                  <AppIcon name="archive" :size="14" /> 批注
-                  <span class="floors__count">{{ replies.length }}</span>
+                  <AppIcon name="archive" :size="14" /> 回复
+                  <span class="floors__count">{{ replyTotal }}</span>
                 </h2>
-                <span class="floors__hint">按楼层编号排列 · 引用会保留原文摘要</span>
+                <span class="floors__hint">
+                  <template v-if="replyPages > 1">第 {{ replyPage }} / {{ replyPages }} 页 · </template>
+                  按楼层编号排列 · 引用会保留原文摘要
+                </span>
               </header>
 
               <ul v-if="replies.length" class="floors">
@@ -275,6 +536,7 @@ function showToast(text) {
                       <span class="floor__time" :title="fullTime(r.createdAt)">
                         {{ relativeTime(r.createdAt) }}
                       </span>
+                      <span v-if="r.edited" class="edited-tag">已编辑</span>
                     </header>
 
                     <blockquote v-if="r.quoteFloor" class="quote">
@@ -293,20 +555,68 @@ function showToast(text) {
                       >
                         引用回复
                       </button>
+                      <button v-if="r.mine" type="button" class="floor__op" @click="openEdit('reply', r)">
+                        编辑
+                      </button>
+                      <!-- 版务可以删别人的楼层（后端同样会校验），但改不了别人的话 -->
+                      <button
+                        v-if="r.mine || detail.viewerStaff"
+                        type="button"
+                        class="floor__op floor__op--danger"
+                        @click="removeReply(r)"
+                      >
+                        删除
+                      </button>
+                      <button
+                        type="button"
+                        class="floor__op floor__op--report"
+                        @click="openReport('reply', r)"
+                      >
+                        举报
+                      </button>
                     </div>
                   </div>
                 </li>
               </ul>
 
               <p v-else class="floors__empty">
-                <AppIcon name="info" :size="13" /> 还没有人批注，你可以成为第一个
+                <AppIcon name="info" :size="13" /> 还没有人回复，你可以成为第一个
               </p>
+
+              <!-- 楼层翻页：只在多页时出现，单页帖子不占位置 -->
+              <nav v-if="replyPages > 1" class="pager" aria-label="楼层翻页">
+                <button
+                  type="button"
+                  class="pager__btn"
+                  :disabled="replyPage <= 1 || pageLoading"
+                  @click="goPage(replyPage - 1)"
+                >
+                  上一页
+                </button>
+                <span class="pager__now">{{ replyPage }} / {{ replyPages }}</span>
+                <button
+                  type="button"
+                  class="pager__btn"
+                  :disabled="replyPage >= replyPages || pageLoading"
+                  @click="goPage(replyPage + 1)"
+                >
+                  下一页
+                </button>
+                <button
+                  type="button"
+                  class="pager__btn pager__btn--tail"
+                  :disabled="replyPage >= replyPages || pageLoading"
+                  @click="goPage(replyPages)"
+                >
+                  看最新
+                </button>
+              </nav>
             </section>
 
             <!-- ============ 回复框 ============ -->
             <section v-if="detail.canReply" class="editor">
               <header class="editor__head">
-                <h2 class="editor__title"><AppIcon name="arrow" :size="14" /> 写一条批注</h2>
+                <h2 class="editor__title"><AppIcon name="arrow" :size="14" /> 写一条回复</h2>
                 <span class="editor__hint">纯文本 · 换行会保留</span>
               </header>
 
@@ -323,7 +633,7 @@ function showToast(text) {
                 class="editor__area"
                 rows="5"
                 maxlength="2000"
-                placeholder="写下你的批注。涉及后三部情节请先标「含剧透」。"
+                placeholder="写下你的回复。涉及后三部情节请先标「含剧透」。"
               />
 
               <footer class="editor__foot">
@@ -334,32 +644,39 @@ function showToast(text) {
                   :disabled="submitting || replyText.trim().length < 2"
                   @click="submitReply"
                 >
-                  {{ submitting ? '提交中…' : '提交批注' }}
+                  {{ submitting ? '提交中…' : '提交回复' }}
                 </button>
               </footer>
             </section>
 
             <p v-else-if="detail.replyHint" class="editor__blocked">
               <AppIcon name="lock" :size="13" /> {{ detail.replyHint }}
+              <router-link
+                v-if="!logged"
+                class="editor__blocked-link"
+                :to="{ path: '/login', query: { redirect: route.fullPath } }"
+              >
+                去登录 <AppIcon name="arrow" :size="11" />
+              </router-link>
             </p>
           </div>
 
           <!-- ============ 侧栏 ============ -->
           <aside class="th__side">
             <section class="side-card">
-              <header class="side-card__head"><AppIcon name="panel" :size="14" /> 所在馆区</header>
+              <header class="side-card__head"><AppIcon name="panel" :size="14" /> 所在版块</header>
               <button type="button" class="side-board" @click="goBoard">
                 <span class="side-board__name">{{ thread.boardName }}</span>
                 <AppIcon name="chevron-right" :size="12" />
               </button>
-              <p class="side-note">同一馆区下的其他主题可以在版块页按「最新 / 最热 / 入藏」浏览。</p>
+              <p class="side-note">同一版块下的其他主题可以在版块页按「最新 / 最热 / 精华」浏览。</p>
             </section>
 
             <section class="side-card">
               <header class="side-card__head"><AppIcon name="shield" :size="14" /> 阅读提示</header>
               <ul class="side-list">
                 <li>密级与档案室共用一套：公开 / 内部 / 机密 / 绝密。</li>
-                <li>「回复可见」的主题，写一条批注后正文立刻解锁。</li>
+                <li>「回复可见」的主题，写一条回复后正文立刻解锁。</li>
                 <li>发现违规内容请引用该楼并标注「举报」，由教员处理。</li>
               </ul>
             </section>
@@ -372,6 +689,93 @@ function showToast(text) {
       <span>以龙档案馆 · 同人兴趣站 · 非商用</span>
       <span class="th__foot-meta">版权归原作者所有 · 仅作学习交流</span>
     </footer>
+
+    <!-- 编辑弹窗：主题改标题+正文，楼层只改正文 -->
+    <transition name="toast">
+      <div v-if="editOpen" class="rmask" role="dialog" aria-modal="true" aria-labelledby="edit-title" @click.self="closeEdit">
+        <div class="rbox rbox--edit">
+          <header class="rbox__head">
+            <h2 id="edit-title" class="rbox__title">
+              <AppIcon name="edit" :size="15" /> {{ editTarget?.type === 'thread' ? '编辑主题' : '编辑回复' }}
+            </h2>
+            <button type="button" class="rbox__x" aria-label="关闭" @click="closeEdit">
+              <AppIcon name="close" :size="13" />
+            </button>
+          </header>
+
+          <label v-if="editTarget?.type === 'thread'" class="rbox__field rbox__field--inline">
+            <span>标题</span>
+            <input v-model="editTitle" type="text" maxlength="80" />
+          </label>
+
+          <label class="rbox__field">
+            <span>{{ editTarget?.type === 'thread' ? '正文' : '回复内容' }}</span>
+            <textarea
+              v-model="editContent"
+              :rows="editTarget?.type === 'thread' ? 14 : 6"
+              :maxlength="editTarget?.type === 'thread' ? 8000 : 2000"
+              placeholder="写点什么…"
+            />
+          </label>
+
+          <footer class="rbox__foot">
+            <span class="rbox__note">保存后该内容会标记「已编辑」，其他人能看到改动痕迹。</span>
+            <button type="button" class="rbox__btn" @click="closeEdit">取消</button>
+            <button type="button" class="rbox__btn rbox__btn--primary" :disabled="editSaving" @click="submitEdit">
+              {{ editSaving ? '保存中…' : '保存' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 举报弹窗：法律风险的正规出口，不要求用户去帖子里「手打举报」 -->
+    <transition name="toast">
+      <div v-if="reportOpen" class="rmask" role="dialog" aria-modal="true" aria-labelledby="report-title" @click.self="closeReport">
+        <div class="rbox">
+          <header class="rbox__head">
+            <h2 id="report-title" class="rbox__title">
+              <AppIcon name="alert" :size="15" /> 举报{{ reportTarget?.type === 'thread' ? '主题' : '回复' }}
+            </h2>
+            <button type="button" class="rbox__x" aria-label="关闭" @click="closeReport">
+              <AppIcon name="close" :size="13" />
+            </button>
+          </header>
+
+          <p class="rbox__target">
+            <template v-if="reportTarget?.type === 'thread'">{{ reportTarget?.title }}</template>
+            <template v-else>{{ reportTarget?.floorNo }} 楼 · {{ reportTarget?.authorName }}</template>
+          </p>
+
+          <fieldset class="rbox__reasons">
+            <legend class="rbox__legend">选择原因</legend>
+            <label v-for="r in REASONS" :key="r.key" class="rbox__reason" :class="{ 'is-on': reportReason === r.key }">
+              <input v-model="reportReason" type="radio" :value="r.key" name="report-reason" />
+              <span class="rbox__reason-label">{{ r.label }}</span>
+              <span class="rbox__reason-desc">{{ r.desc }}</span>
+            </label>
+          </fieldset>
+
+          <label class="rbox__field">
+            <span>补充说明（选填）</span>
+            <textarea
+              v-model="reportDetail"
+              rows="3"
+              maxlength="500"
+              placeholder="在哪里、具体是哪一句，写清楚能帮我们更快处理"
+            />
+          </label>
+
+          <footer class="rbox__foot">
+            <span class="rbox__note">恶意举报会被记录，请如实填写</span>
+            <button type="button" class="rbox__btn" @click="closeReport">取消</button>
+            <button type="button" class="rbox__btn rbox__btn--primary" :disabled="reporting" @click="submitReport">
+              {{ reporting ? '提交中…' : '提交举报' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </transition>
 
     <transition name="toast">
       <div v-if="toast" class="toast"><AppIcon name="info" :size="14" /> {{ toast }}</div>
@@ -903,6 +1307,51 @@ function showToast(text) {
   color: var(--text-4);
 }
 
+/* ================= 楼层翻页 ================= */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pager__btn {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.32);
+  background: transparent;
+  color: var(--gold-lt);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+
+.pager__btn:hover:not(:disabled) {
+  background: rgba(216, 178, 90, 0.1);
+  border-color: rgba(216, 178, 90, 0.6);
+}
+
+.pager__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 「看最新」比翻页弱一档，避免和下一页抢注意力 */
+.pager__btn--tail {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-3);
+}
+
+.pager__now {
+  min-width: 52px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ================= 编辑器 ================= */
 .editor {
   margin-top: 18px;
@@ -1040,6 +1489,26 @@ function showToast(text) {
   border-radius: var(--r-md);
   font-size: 11.5px;
   color: var(--text-4);
+}
+
+/* 游客态：提示右侧补一个可点的登录入口，别让用户停在死路上 */
+.editor__blocked-link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid rgba(216, 178, 90, 0.4);
+  border-radius: 999px;
+  color: var(--gold-lt);
+  font-size: 11.5px;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.editor__blocked-link:hover {
+  background: rgba(216, 178, 90, 0.1);
+  border-color: rgba(216, 178, 90, 0.7);
 }
 
 /* ================= 侧栏 ================= */
@@ -1282,4 +1751,257 @@ function showToast(text) {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ================= 举报 ================= */
+
+/* 举报按钮比常规操作弱一档：不该比「点赞」更抢眼，但必须找得到 */
+.act--report,
+.floor__op--report {
+  color: var(--text-4);
+}
+
+.act--report:hover,
+.floor__op--report:hover {
+  color: #d98a8a;
+}
+
+.rmask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 5, 12, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.rbox {
+  width: min(520px, 100%);
+  max-height: min(86dvh, 720px);
+  overflow-y: auto;
+  padding: 20px 22px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(165deg, rgba(33, 28, 47, 0.98), rgba(14, 11, 23, 0.99));
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+}
+
+.rbox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rbox__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--gold-lt);
+}
+
+.rbox__x {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.rbox__x:hover {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.5);
+}
+
+.rbox__target {
+  margin: 10px 0 16px;
+  padding: 9px 12px;
+  border-left: 2px solid rgba(216, 178, 90, 0.5);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.rbox__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.rbox__legend {
+  padding: 0 0 6px;
+  font-size: 11px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+}
+
+.rbox__reason {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.rbox__reason:hover {
+  border-color: rgba(216, 178, 90, 0.35);
+}
+
+.rbox__reason.is-on {
+  border-color: rgba(216, 178, 90, 0.62);
+  background: rgba(216, 178, 90, 0.08);
+}
+
+/* 原生单选框保留可聚焦能力，只缩小视觉存在感 */
+.rbox__reason input {
+  accent-color: var(--gold);
+  margin: 0;
+}
+
+.rbox__reason-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.rbox__reason-desc {
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+
+.rbox__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.rbox__field textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.rbox__field textarea:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.55);
+}
+
+.rbox__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.rbox__note {
+  flex: 1;
+  font-size: 10.5px;
+  color: var(--text-4);
+  line-height: 1.5;
+}
+
+.rbox__btn {
+  padding: 8px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.rbox__btn:hover {
+  color: var(--text-1);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.rbox__btn--primary {
+  border-color: rgba(216, 178, 90, 0.55);
+  background: rgba(216, 178, 90, 0.12);
+  color: var(--gold-lt);
+}
+
+.rbox__btn--primary:hover:not(:disabled) {
+  background: rgba(216, 178, 90, 0.2);
+  border-color: rgba(216, 178, 90, 0.8);
+}
+
+.rbox__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ================= 编辑 ================= */
+
+/* 编辑框比举报框宽：正文编辑需要行宽，太窄会不断折行 */
+.rbox--edit {
+  width: min(660px, 100%);
+}
+
+.rbox__field--inline {
+  margin-bottom: 12px;
+}
+
+.rbox__field--inline input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-1);
+  font-family: var(--font-serif);
+  font-size: 13px;
+}
+
+.rbox__field--inline input:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.55);
+}
+
+/* 已编辑：低对比度，是记录而不是警告 */
+.edited-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+
+.act--danger,
+.floor__op--danger {
+  color: var(--text-4);
+}
+
+.act--danger:hover,
+.floor__op--danger:hover {
+  color: #d98a8a;
+}
+
 </style>

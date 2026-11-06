@@ -30,7 +30,6 @@ const boards = computed(() => data.value?.boards || [])
 const stats = computed(() => data.value?.stats || {})
 const me = computed(() => data.value?.me || {})
 const list = computed(() => (feed.value === 'hot' ? data.value?.hot : data.value?.latest) || [])
-const canEnterForum = computed(() => !!me.value.logged)
 
 /** 距下一档密级还差多少权限点（阈值与后端一致：3 / 8 / 15） */
 const nextLevel = computed(() => {
@@ -77,6 +76,12 @@ function showToast(text) {
 /* ---------------- 跳转 ---------------- */
 function openBoard(b) {
   if (b.locked) {
+    // 游客被门槛拦住时，引导登录而不是干看着 —— 这是论坛拉新的关键时刻
+    if (!me.value.logged) {
+      showToast('该版块需要登录后浏览')
+      router.push({ path: '/login', query: { redirect: `/board/${b.code}` } })
+      return
+    }
     showToast(`「${b.name}」尚未开放 · ${b.lockHint}`)
     return
   }
@@ -85,13 +90,14 @@ function openBoard(b) {
 
 function openThread(t) {
   if (t.locked) {
-    showToast('该主题密级高于你的可读上限，完成馆务任务可提升')
+    showToast('该主题仅对更高权限开放，多发帖互动可以提升')
     return
   }
   router.push(`/thread/${t.id}`)
 }
 
 function goNew() {
+  // 未登录时由路由守卫转登录页，并带上回跳地址
   router.push('/forum/new')
 }
 
@@ -164,13 +170,13 @@ onBeforeUnmount(() => {
             <span class="fm__title-en">DRAGON RAJA · READERS' FORUM</span>
           </h1>
           <p class="fm__sub">
-            卡塞尔学院档案馆公共讨论区 · 主题按馆区归档，批注按楼层编号 ·
-            密级与档案室共用同一套权限
+            原著考据 · 人物讨论 · 言灵设定 · 同人创作 ——
+            按版块归档，回复按楼层编号，游客可直接阅读
           </p>
 
           <ul class="fm__stats">
             <li><b>{{ stats.threadCount ?? 0 }}</b><span>主题</span></li>
-            <li><b>{{ stats.replyCount ?? 0 }}</b><span>批注</span></li>
+            <li><b>{{ stats.replyCount ?? 0 }}</b><span>回复</span></li>
             <li><b>{{ stats.todayCount ?? 0 }}</b><span>今日新增</span></li>
             <li><b>{{ stats.memberCount ?? 0 }}</b><span>在册读者</span></li>
           </ul>
@@ -190,7 +196,7 @@ onBeforeUnmount(() => {
             v-model="kw"
             class="fsearch__input"
             type="search"
-            placeholder="全论坛检索：标题、正文、作者代号…"
+            placeholder="全论坛检索：标题、正文、作者…"
             aria-label="全论坛检索"
             @focus="onSearchFocus"
             @blur="onSearchBlur"
@@ -209,12 +215,12 @@ onBeforeUnmount(() => {
               >
                 <span class="fsearch__row-title">{{ r.title }}</span>
                 <span class="fsearch__row-meta">
-                  {{ r.boardName }} · {{ r.authorName }} · {{ r.replyCount }} 批注
+                  {{ r.boardName }} · {{ r.authorName }} · {{ r.replyCount }} 回复
                   <template v-if="r.locked"> · 密级不足</template>
                 </span>
               </button>
               <p v-if="!results.length" class="fsearch__empty">
-                没有命中的主题。换个词，或者去对应的馆区翻一翻。
+                没有命中的主题。换个词，或者去对应的版块翻一翻。
               </p>
             </div>
           </transition>
@@ -224,10 +230,10 @@ onBeforeUnmount(() => {
       <!-- ============ 主体：两栏 ============ -->
       <div class="fm__main">
         <div class="fm__col">
-          <!-- 馆区 -->
+          <!-- 版块 -->
           <section class="fm__section">
             <header class="fm__head">
-              <h2 class="fm__h2"><AppIcon name="panel" :size="15" /> 馆区</h2>
+              <h2 class="fm__h2"><AppIcon name="panel" :size="15" /> 版块</h2>
               <span class="fm__head-meta">{{ boards.length }} 个讨论区</span>
             </header>
 
@@ -283,7 +289,7 @@ onBeforeUnmount(() => {
                   role="tab"
                   @click="feed = 'latest'"
                 >
-                  最新批注
+                  最新回复
                 </button>
                 <button
                   type="button"
@@ -293,7 +299,7 @@ onBeforeUnmount(() => {
                   role="tab"
                   @click="feed = 'hot'"
                 >
-                  本周热议
+                  热门
                 </button>
               </div>
             </header>
@@ -302,8 +308,8 @@ onBeforeUnmount(() => {
               <li v-for="t in list" :key="t.id" class="frow" @click="openThread(t)">
                 <div class="frow__main">
                   <div class="frow__tags">
-                    <span v-if="t.pinned" class="chip chip--pin">镇馆</span>
-                    <span v-if="t.essence" class="chip chip--essence">入藏</span>
+                    <span v-if="t.pinned" class="chip chip--pin">置顶</span>
+                    <span v-if="t.essence" class="chip chip--essence">精华</span>
                     <span v-if="t.replyVisible" class="chip">回复可见</span>
                     <span v-if="t.locked" class="chip chip--lock">
                       <AppIcon name="lock" :size="9" /> {{ t.securityLabel }}
@@ -311,12 +317,12 @@ onBeforeUnmount(() => {
                   </div>
                   <h3 class="frow__title">{{ t.title }}</h3>
                   <p class="frow__excerpt">
-                    {{ t.excerpt || (t.locked ? '本文高于你的可读密级，仅显示标题' : '回复后可见正文') }}
+                    {{ t.excerpt || (t.locked ? '该主题仅对更高权限开放，仅显示标题' : '回复后可见正文') }}
                   </p>
                   <div class="frow__meta">
                     <span class="frow__board">{{ t.boardName }}</span>
                     <span>{{ t.authorName || '佚名' }}</span>
-                    <span>{{ t.replyCount }} 批注</span>
+                    <span>{{ t.replyCount }} 回复</span>
                     <span>{{ t.viewCount }} 阅</span>
                     <span class="frow__time">{{ relativeTime(t.lastReplyAt || t.createdAt) }}</span>
                   </div>
@@ -338,19 +344,20 @@ onBeforeUnmount(() => {
         <aside class="fm__side">
           <section class="side-card">
             <header class="side-card__head">
-              <AppIcon name="id" :size="14" /> 我的档案
+              <AppIcon name="id" :size="14" /> {{ me.logged ? '我的账号' : '游客浏览' }}
             </header>
             <div class="me">
-              <span class="me__avatar">{{ (me.codename || '未').slice(0, 1) }}</span>
+              <span class="me__avatar">{{ (me.codename || '游').slice(0, 1) }}</span>
               <div class="me__text">
-                <b>{{ me.codename || '未认证访客' }}</b>
-                <span>{{ me.identityName || '访客' }} · 可读至「{{ me.maxLevelLabel }}」</span>
+                <b>{{ me.codename || '未登录访客' }}</b>
+                <span v-if="me.logged">{{ me.identityName || '读者' }} · 可读至「{{ me.maxLevelLabel }}」</span>
+                <span v-else>登录后即可发帖、回复与收藏</span>
               </div>
             </div>
 
-            <div class="me__points">
+            <div v-if="me.logged" class="me__points">
               <div class="me__points-row">
-                <span>馆务积分</span>
+                <span>积分</span>
                 <b>{{ me.points ?? 0 }}</b>
               </div>
               <div class="me__bar"><i :style="{ width: levelPct + '%' }" /></div>
@@ -362,13 +369,16 @@ onBeforeUnmount(() => {
               </p>
             </div>
 
-            <ul class="me__nums">
+            <ul v-if="me.logged" class="me__nums">
               <li><b>{{ me.threadCount ?? 0 }}</b><span>我的主题</span></li>
-              <li><b>{{ me.replyCount ?? 0 }}</b><span>我的批注</span></li>
+              <li><b>{{ me.replyCount ?? 0 }}</b><span>我的回复</span></li>
             </ul>
 
-            <router-link v-if="canEnterForum" to="/missions" class="side-link">
-              去做馆务任务 <AppIcon name="arrow" :size="12" />
+            <router-link v-if="!me.logged" to="/login" class="side-link">
+              登录 / 注册 <AppIcon name="arrow" :size="12" />
+            </router-link>
+            <router-link v-else to="/missions" class="side-link">
+              每日任务 · 赚积分 <AppIcon name="arrow" :size="12" />
             </router-link>
           </section>
 
@@ -376,7 +386,7 @@ onBeforeUnmount(() => {
             <header class="side-card__head"><AppIcon name="shield" :size="14" /> 版规</header>
             <ol class="rules">
               <li>转载必须附原作者与授权方式，无授权一律下沉。</li>
-              <li>涉及后三部情节的标题必须标「含剧透」。</li>
+              <li>涉及后几部情节的标题必须标「含剧透」，正文首段留空。</li>
               <li>本站为非官方、非商业兴趣站，不提供全文资源。</li>
             </ol>
           </section>
@@ -385,7 +395,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="fm__foot">
-      <span>以龙档案馆 · 同人兴趣站 · 非商用</span>
+      <span>龙族读者论坛 · 非官方 · 非商业</span>
       <span class="fm__foot-meta">版权归原作者所有 · 仅作学习交流</span>
     </footer>
 

@@ -34,9 +34,19 @@ const router = useRouter()
 /* ---------------- 用户信息 ---------------- */
 
 const user = ref(getUser())
-const codename = computed(() => user.value?.codename || '未知混血种')
-const account = computed(() => user.value?.account || '--------')
+/** 游客态：论坛公开可读，未登录时导航右侧要给出登录 / 注册入口，而不是一个空的账号菜单 */
+const logged = computed(() => !!user.value)
+const codename = computed(() => user.value?.codename || '读者')
+const account = computed(() => user.value?.account || '')
 const identityName = computed(() => user.value?.identityName || '')
+
+// 登录 / 退出后路由会变，导航随之刷新账号态（SiteNav 常驻，不会重新挂载）
+watch(
+  () => route.fullPath,
+  () => {
+    user.value = getUser()
+  }
+)
 
 const menuOpen = ref(false)
 const userBox = ref(null)
@@ -147,14 +157,45 @@ const hashClaims = computed(() =>
   props.items.filter((i) => i.hash).map((i) => ({ path: i.to, hash: `#${i.hash}` }))
 )
 
+/** 该项命中的最长路径前缀长度；未命中返回 -1 */
+function matchLen(item) {
+  const list = item.match?.length ? item.match : [item.to]
+  let len = -1
+  for (const p of list) {
+    if (route.path === p || route.path.startsWith(`${p}/`)) len = Math.max(len, p.length)
+  }
+  return len
+}
+
+/**
+ * 页面型菜单项的唯一归属项：取「命中前缀最长」的那一项。
+ *
+ * 为什么需要：`/board/fanwork` 同时命中「讨论区」（/board）和「同人」（/board/fanwork），
+ * 不做仲裁会两个标签一起点亮。用最长前缀让更具体的菜单项胜出，
+ * 以后再加 /board/xxx 的子入口都不用改这里。
+ */
+const navOwner = computed(() => {
+  let owner = null
+  let best = -1
+  for (const item of props.items) {
+    if (item.id || item.hash) continue // 锚点项 / 分卷项走各自判定
+    const len = matchLen(item)
+    if (len > best) {
+      best = len
+      owner = item
+    }
+  }
+  return owner
+})
+
 function isActive(item) {
   if (item.id) return onHome.value && activeId.value === item.id
   // 带 hash 的分卷项：路径 + hash 同时命中才算
   if (item.hash) return route.path === item.to && route.hash === `#${item.hash}`
   // 父级页面项让位：该页已有分卷项被选中时不再双重高亮（否则「档案室」「言灵图鉴」同时亮）
   if (hashClaims.value.some((c) => c.path === item.to && route.hash === c.hash)) return false
-  const list = item.match?.length ? item.match : [item.to]
-  return list.some((p) => route.path === p || route.path.startsWith(`${p}/`))
+  // 页面型项只由最具体的那个命中项点亮
+  return item === navOwner.value
 }
 
 function onNav(item) {
@@ -273,8 +314,8 @@ onBeforeUnmount(() => {
       <a class="nav__brand" href="#" @click.prevent="onNav({ to: HOME_PATH })">
         <DragonEmblem class="nav__mark" />
         <div class="nav__brand-text">
-          <span class="nav__brand-cn">卡塞尔学院</span>
-          <span class="nav__brand-en">Cassell College</span>
+          <span class="nav__brand-cn">龙族读者论坛</span>
+          <span class="nav__brand-en">Dragon Raja Forum</span>
         </div>
       </a>
 
@@ -320,14 +361,20 @@ onBeforeUnmount(() => {
         <i v-if="adminReady" class="nav__admin-dot" title="管理员已登录" />
       </button>
 
-      <!-- 学院标准时间（右上角 · 邮戳标识） -->
-      <div class="nav__clock" title="卡塞尔学院 · 标准时间">
+      <!-- 本站标准时间（右上角 · 邮戳标识） -->
+      <div class="nav__clock" title="本站 · 标准时间">
         <i class="stamp">龍</i>
         <span>{{ clockText }}</span>
       </div>
 
+      <!-- 游客区：论坛公开可读，未登录时直接给登录 / 注册入口 -->
+      <div v-if="!logged" class="nav__guest">
+        <router-link to="/login" class="nav__login">登录</router-link>
+        <router-link to="/register" class="nav__reg">注册</router-link>
+      </div>
+
       <!-- 用户区 -->
-      <div ref="userBox" class="nav__user" @click="toggleMenu">
+      <div v-else ref="userBox" class="nav__user" @click="toggleMenu">
         <span class="nav__user-avatar">{{ codename.slice(0, 1) }}</span>
         <span class="nav__user-name">{{ codename }}</span>
         <AppIcon name="chevron" :size="13" class="nav__user-caret" :stroke="2" />
@@ -342,7 +389,7 @@ onBeforeUnmount(() => {
               </p>
             </div>
             <router-link to="/console" class="nav__menu-item" @click="menuOpen = false">
-              <AppIcon name="id" :size="15" /> 我的身份卡
+              <AppIcon name="id" :size="15" /> 我的账号
             </router-link>
             <button type="button" class="nav__menu-item is-danger" @click="onLogout">
               <AppIcon name="logout" :size="15" /> 退出登录
@@ -717,6 +764,46 @@ onBeforeUnmount(() => {
 }
 
 /* ===== 后台管理系统入口按钮 ===== */
+/* 游客区：与管理员按钮同为描边胶囊，视觉权重略低 */
+.nav__guest {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav__login {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  white-space: nowrap;
+  transition: color 0.24s;
+}
+
+.nav__login:hover {
+  color: var(--gold-lt);
+}
+
+.nav__reg {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.5);
+  background: linear-gradient(135deg, rgba(216, 178, 90, 0.18), rgba(216, 178, 90, 0.04));
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  color: var(--gold-lt);
+  white-space: nowrap;
+  transition: color 0.24s, border-color 0.24s, box-shadow 0.24s;
+}
+
+.nav__reg:hover {
+  color: #f6e7bd;
+  border-color: rgba(216, 178, 90, 0.85);
+  box-shadow: 0 0 20px -8px var(--gold-glow);
+}
+
 .nav__admin {
   flex: 0 0 auto;
   position: relative;

@@ -74,12 +74,12 @@ async function onSubmit() {
       <div class="admin-login__brand">
         <DragonEmblem class="admin-login__mark" />
         <span class="admin-login__brand-text">
-          <b>卡塞尔学院</b>
+          <b>龙族读者论坛</b>
           <i>Admin Console</i>
         </span>
       </div>
-      <router-link class="admin-login__back" to="/home">
-        <AppIcon name="arrow" :size="12" /> 返回学院前台
+      <router-link class="admin-login__back" to="/forum">
+        <AppIcon name="arrow" :size="12" /> 返回论坛前台
       </router-link>
     </header>
 
@@ -129,8 +129,8 @@ async function onSubmit() {
           </GlowButton>
 
           <p class="foot-note">
-            后台不开放注册，账号由学院最高会议预置；
-            <router-link class="link-gold" to="/home">返回学院前台</router-link>
+            后台不开放注册，账号由站点管理员预置；
+            <router-link class="link-gold" to="/forum">返回论坛前台</router-link>
           </p>
         </form>
       </AuthCard>

@@ -45,8 +45,9 @@ src/main/java/com/fenglin/springboottest
 ├── service/ AuthService / DictService / TokenService + impl
 └── vo/      ProfileVO / LoginVO / RegisterVO / DictVO / CheckAccountVO / SendCodeVO
 
-sql/dragon_raja.sql                  建库建表脚本（dragon_raja / dragon_raja_test）
-sql/dragon_raja_clearance.sql        权限进度表（跨设备保存权限点 / 已完成任务）
+sql/dragon_raja.sql                  全量建库建表脚本（14 张表 + 演示数据，含 DROP，只跑一次）
+sql/dragon_raja_admin.sql            增量：管理员 dr_admin + 言灵图鉴 dr_spirit（CREATE IF NOT EXISTS）
+sql/dragon_raja_archive.sql          增量：档案库 5 张表 + 演示卷宗（CREATE IF NOT EXISTS）
 ```
 
 ---
@@ -56,21 +57,37 @@ sql/dragon_raja_clearance.sql        权限进度表（跨设备保存权限点 
 ### 1. 建库建表（本地 MySQL root / 123456）
 
 ```bash
-# 命令行方式（MySQL 8.4 示例路径）
-"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -uroot -p123456 < sql/dragon_raja.sql
+# 命令行方式（版本号换成你本机装的目录：8.0 / 8.4 / …）
+"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -uroot -p123456 < sql/dragon_raja.sql
 
 # 或在 IDEA 的 Database 工具窗口打开 sql/dragon_raja.sql 直接执行
 ```
 
-会创建 `dragon_raja`、`dragon_raja_test` 两个库，`dr_user` / `dr_reset_code` 两张表，
-并写入 3 个演示账号（密钥统一 `Dragon@2026`）。
+> 脚本自带 `CREATE DATABASE IF NOT EXISTS dragon_raja` + `USE dragon_raja`，
+> 不需要事先手动建库，也不需要指定库名。
+> 双击 `DragonRaja-Vue\初始化数据库.bat` 效果相同（该脚本会自动探测 mysql.exe 的安装版本）。
+
+会创建 `dragon_raja` 库、14 张表（`dr_user` / `dr_reset_code` / `dr_admin` / `dr_spirit` /
+`dr_archive*` / `dr_board` / `dr_thread` / `dr_reply` / `dr_thread_action` / `dr_notice` /
+`dr_hot_keyword` / `dr_search_log` / `dr_user_clearance`），并写入演示账号（密钥统一 `Dragon@2026`）。
 
 > ⚠️ 该脚本含 `DROP TABLE`，重跑会清空已注册账号。**建库只需执行一次。**
+> `dr_user` 上有 `uk_account` + `uk_codename` 两个唯一索引，并发注册同名代号由唯一键兜底。
+
+**已存在的库（2026-11-06 之前建的）不会自动获得 `uk_codename`**，需单独补一次：
+
+```sql
+-- 先确认没有重复代号；有结果就先人工合并，否则加索引会失败
+SELECT codename, COUNT(*) FROM dr_user WHERE deleted = 0 GROUP BY codename HAVING COUNT(*) > 1;
+
+ALTER TABLE `dr_user` ADD UNIQUE INDEX `uk_codename`(`codename` ASC) USING BTREE;
+```
 
 ### 1.5 建档案库（首页展示 + 分级分类检索）
 
 ```bash
-"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -uroot -p密码 < sql/dragon_raja_archive.sql
+# 版本号换成你本机装的目录
+"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -uroot -p123456 < sql/dragon_raja_archive.sql
 
 # 或双击 DragonRaja-Vue\初始化档案库.bat
 ```
@@ -81,16 +98,21 @@ sql/dragon_raja_clearance.sql        权限进度表（跨设备保存权限点 
 **全部是 `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`，不含任何 `DROP`，可放心重复执行**，
 且完全不动 `dr_user`。
 
-### 1.6 建权限进度表（权限点跨设备保存）
+### 1.6 权限进度表（权限点跨设备保存）
 
-```bash
-"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -uroot -p密码 < sql/dragon_raja_clearance.sql
+**无需手动执行任何脚本。** `dr_user_clearance` 由应用启动时自动建表：
+
+```properties
+spring.sql.init.mode=always
+spring.sql.init.schema-locations=classpath:db/clearance-schema.sql,classpath:db/forum-schema.sql
+spring.sql.init.data-locations=classpath:db/forum-seed.sql
 ```
 
-创建 `dr_user_clearance` 一张表，按 `user_id` 保存权限点、已完成任务编号与任务卡快照。
+表按 `user_id` 保存权限点、已完成任务编号与任务卡快照；两个脚本都是 `CREATE TABLE IF NOT EXISTS`，
+每次启动重复执行也安全。`sql/dragon_raja.sql` 的全量快照里同样包含这张表。
 
 > 不建这张表也能启动前端，但权限进度只能留在浏览器 localStorage 里，换电脑会归零；
-> 建表后登录任意设备都会自动从后端拉回并合并。脚本为 `CREATE TABLE IF NOT EXISTS`，可重复执行。
+> 建表后登录任意设备都会自动从后端拉回并合并。
 
 #### ⚠️ 跨电脑同步的前提：两台机器必须是同一个数据库
 

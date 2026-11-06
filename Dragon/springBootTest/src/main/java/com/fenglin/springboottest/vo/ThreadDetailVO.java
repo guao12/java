@@ -34,8 +34,25 @@ public class ThreadDetailVO implements Serializable {
     /** 隐藏原因，直接展示给用户 */
     private String hiddenReason;
 
-    /** 楼层（不含主楼） */
+    /** 楼层（不含主楼）· 只含当前页 */
     private List<ReplyVO> replies = new ArrayList<>();
+
+    /*
+     * 楼层分页信息。
+     * 楼层一律分页返回（默认 20 层/页），前端靠这组字段渲染翻页器；
+     * replyPage 在「刚回帖」时会落在最后一页，方便用户立刻看到自己那条。
+     */
+    /** 楼层总数 */
+    private Long replyTotal;
+
+    /** 当前页楼层页码，从 1 开始 */
+    private Long replyPage;
+
+    /** 每页楼层数 */
+    private Long replySize;
+
+    /** 楼层总页数 */
+    private Long replyPages;
 
     /** 当前访问者能否回复 */
     private boolean canReply;
@@ -48,6 +65,14 @@ public class ThreadDetailVO implements Serializable {
 
     /** 当前访问者的可见密级上限，前端用来解释权限 */
     private Integer maxLevel;
+
+    /**
+     * 当前访问者是否具备版务身份（教员及以上）。
+     *
+     * <p>前端据此决定要不要给别人的楼层显示「删除」按钮 ——
+     * 后端本来就会再校验一次，这里只是别让人点了才被拒。</p>
+     */
+    private boolean viewerStaff;
 
     public ThreadVO getThread() {
         return thread;
@@ -89,6 +114,38 @@ public class ThreadDetailVO implements Serializable {
         this.replies = replies;
     }
 
+    public Long getReplyTotal() {
+        return replyTotal;
+    }
+
+    public void setReplyTotal(Long replyTotal) {
+        this.replyTotal = replyTotal;
+    }
+
+    public Long getReplyPage() {
+        return replyPage;
+    }
+
+    public void setReplyPage(Long replyPage) {
+        this.replyPage = replyPage;
+    }
+
+    public Long getReplySize() {
+        return replySize;
+    }
+
+    public void setReplySize(Long replySize) {
+        this.replySize = replySize;
+    }
+
+    public Long getReplyPages() {
+        return replyPages;
+    }
+
+    public void setReplyPages(Long replyPages) {
+        this.replyPages = replyPages;
+    }
+
     public boolean isCanReply() {
         return canReply;
     }
@@ -119,5 +176,13 @@ public class ThreadDetailVO implements Serializable {
 
     public void setMaxLevel(Integer maxLevel) {
         this.maxLevel = maxLevel;
+    }
+
+    public boolean isViewerStaff() {
+        return viewerStaff;
+    }
+
+    public void setViewerStaff(boolean viewerStaff) {
+        this.viewerStaff = viewerStaff;
     }
 }

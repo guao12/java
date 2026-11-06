@@ -37,9 +37,9 @@ const ELEMENTS = ['火', '冰', '风', '重力', '时间', '精神', '暗影', '
 /* ---------------- 侧边栏菜单 ---------------- */
 
 const MENU_KEY = 'dr:admin:menu'
-const MENU_KEYS = ['spirits', 'overview']
+const MENU_KEYS = ['spirits', 'overview', 'reports']
 
-/** 当前菜单：spirits 言灵图鉴 / overview 数据概览（记忆上次停留位置） */
+/** 当前菜单：spirits 言灵图鉴 / overview 数据概览 / reports 举报处理（记忆上次停留位置） */
 const activeMenu = ref(
   MENU_KEYS.includes(localStorage.getItem(MENU_KEY)) ? localStorage.getItem(MENU_KEY) : 'spirits'
 )
@@ -61,7 +61,14 @@ const menuGroups = computed(() => [
         icon: 'flame',
         badge: loaded.value ? total.value : ''
       },
-      { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'chart' }
+      { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'chart' },
+      {
+        key: 'reports',
+        label: '举报处理',
+        desc: '违规内容下架',
+        icon: 'shield',
+        badge: pendingReports.value > 0 ? pendingReports.value : ''
+      }
     ]
   }
 ])
@@ -75,7 +82,83 @@ function toggleCollapse() {
 watch(activeMenu, (v) => {
   localStorage.setItem(MENU_KEY, v)
   if (v === 'overview' && !loaded.value && !loading.value) load()
+  if (v === 'reports' && !reportsLoaded.value && !reportsLoading.value) loadReports()
 })
+
+/* ---------------- 举报处理 ---------------- */
+
+/** 队列状态页签：0 待处理 / 1 已下架 / 2 已驳回 / -1 全部 */
+const REPORT_TABS = [
+  { key: 0, label: '待处理' },
+  { key: 1, label: '已下架' },
+  { key: 2, label: '已驳回' },
+  { key: -1, label: '全部' }
+]
+
+const reportStatus = ref(0)
+const reportRows = ref([])
+const reportTotal = ref(0)
+const reportsLoading = ref(false)
+const reportsLoaded = ref(false)
+const reportErr = ref('')
+const pendingReports = ref(0)
+/** 正在处理中的工单 id，用来禁用按钮防连点 */
+const handlingId = ref(0)
+/** 处理备注输入（按工单 id 存） */
+const reportNotes = reactive({})
+
+async function loadPendingCount() {
+  try {
+    pendingReports.value = await adminApi.pendingReports()
+  } catch {
+    // 角标失败不影响主流程
+    pendingReports.value = 0
+  }
+}
+
+async function loadReports() {
+  reportsLoading.value = true
+  reportErr.value = ''
+  try {
+    const res = await adminApi.reports({ status: reportStatus.value, page: 1, size: 50 })
+    reportRows.value = res?.list || []
+    reportTotal.value = Number(res?.total || 0)
+    reportsLoaded.value = true
+  } catch (e) {
+    reportErr.value = e?.message || '举报队列加载失败'
+    reportRows.value = []
+  } finally {
+    reportsLoading.value = false
+  }
+}
+
+/** 切页签：重置已加载标记，避免残留上一档的空状态 */
+function switchReportTab(key) {
+  if (reportStatus.value === key) return
+  reportStatus.value = key
+  reportRows.value = []
+  reportTotal.value = 0
+  reportsLoaded.value = false
+  loadReports()
+}
+
+async function handleReport(row, action) {
+  if (handlingId.value) return
+  const label = action === 'takedown' ? '下架该内容' : '驳回该举报'
+  if (action === 'takedown' && !window.confirm(`确认${label}？下架后前台立即不可见。`)) return
+  handlingId.value = row.id
+  try {
+    await adminApi.handleReport(row.id, action, reportNotes[row.id] || '')
+    // 本地先摘掉这条，再刷新角标与列表，避免整表重载导致滚动位置丢失
+    reportRows.value = reportRows.value.filter((r) => r.id !== row.id)
+    reportTotal.value = Math.max(0, reportTotal.value - 1)
+    await loadPendingCount()
+  } catch (e) {
+    reportErr.value = e?.message || '处理失败'
+  } finally {
+    handlingId.value = 0
+  }
+}
 
 /* ---------------- 数据概览统计 ---------------- */
 
@@ -365,6 +448,9 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   // 数据请求与背景层并行：请求先发；背景等首帧渲染完再挂
   load()
+  // 角标要用「待处理数」，与言灵列表无关，单独取一次
+  loadPendingCount()
+  if (activeMenu.value === 'reports') loadReports()
   const mountBg = () => {
     bgReady.value = true
   }
@@ -415,7 +501,7 @@ onBeforeUnmount(() => {
                 <h1>后台管理系统</h1>
                 <p class="adm__crumb">
                   数据管理 <i>/</i>
-                  <b>{{ activeMenu === 'overview' ? '数据概览' : '言灵图鉴' }}</b>
+                  <b>{{ ['overview', 'reports'].includes(activeMenu) ? (activeMenu === 'overview' ? '数据概览' : '举报处理') : '言灵图鉴' }}</b>
                 </p>
               </div>
             </div>
@@ -426,7 +512,7 @@ onBeforeUnmount(() => {
               <i class="adm__who-dot" />
               {{ loading ? '同步中…' : `共 ${total} 条` }}
             </span>
-            <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览">1 / 2</span>
+            <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览 / 3 举报处理">1 / 2 / 3</span>
           </div>
         </div>
       </header>
@@ -597,7 +683,7 @@ onBeforeUnmount(() => {
           </template>
 
           <!-- ============ 菜单：数据概览 ============ -->
-          <template v-else>
+          <template v-else-if="activeMenu === 'overview'">
             <div class="ov__grid">
               <div class="ov__card">
                 <span class="ov__num">{{ stats.total }}</span>
@@ -639,6 +725,95 @@ onBeforeUnmount(() => {
             <p class="adm__tip">
               <AppIcon name="info" :size="13" />
               数据实时来自「言灵图鉴」列表；在图鉴菜单中增删改后回到本页即可看到最新统计。
+            </p>
+          </template>
+
+          <!-- ============ 菜单：举报处理 ============ -->
+          <template v-else-if="activeMenu === 'reports'">
+            <div class="rp__tabs" role="tablist" aria-label="举报队列状态">
+              <button
+                v-for="t in REPORT_TABS"
+                :key="t.key"
+                type="button"
+                class="rp__tab"
+                :class="{ 'is-on': reportStatus === t.key }"
+                role="tab"
+                :aria-selected="reportStatus === t.key"
+                @click="switchReportTab(t.key)"
+              >
+                {{ t.label }}
+                <em v-if="t.key === 0 && pendingReports">{{ pendingReports }}</em>
+              </button>
+              <GlowButton variant="ghost" type="button" :disabled="reportsLoading" @click="loadReports">
+                <AppIcon name="refresh" :size="15" :class="{ 'is-spin': reportsLoading }" />
+                刷新
+              </GlowButton>
+            </div>
+
+            <div v-if="reportErr" class="adm__alert">
+              <AppIcon name="alert" :size="15" />
+              <span>{{ reportErr }}</span>
+            </div>
+
+            <p v-if="reportsLoading" class="rp__empty">正在加载举报队列…</p>
+            <p v-else-if="!reportRows.length" class="rp__empty">
+              <AppIcon name="shield" :size="14" />
+              {{ reportStatus === 0 ? '当前没有待处理的举报。' : '这一档还没有记录。' }}
+            </p>
+
+            <ul v-else class="rp__list">
+              <li v-for="r in reportRows" :key="r.id" class="rp__item">
+                <header class="rp__item-head">
+                  <span class="rp__reason">{{ r.reasonLabel }}</span>
+                  <span class="rp__target-type">{{ r.targetType === 'reply' ? '回复' : '主题' }}</span>
+                  <span class="rp__status" :data-status="r.status">{{ r.statusLabel }}</span>
+                  <span class="rp__time">{{ (r.createTime || '').replace('T', ' ').slice(0, 16) }}</span>
+                </header>
+
+                <p class="rp__title">
+                  {{ r.threadTitle }}
+                  <span v-if="r.floorNo" class="rp__floor">· {{ r.floorNo }} 楼</span>
+                </p>
+                <p class="rp__excerpt">{{ r.targetExcerpt || '（内容已不可读取）' }}</p>
+                <p class="rp__meta">
+                  作者 {{ r.targetAuthor || '佚名' }} · 举报人 {{ r.reporterName || '匿名' }}
+                  <template v-if="r.detail"> · 说明：{{ r.detail }}</template>
+                </p>
+                <p v-if="r.handleNote" class="rp__handled">
+                  处理备注：{{ r.handleNote }}
+                </p>
+
+                <footer v-if="r.status === 0" class="rp__ops">
+                  <input
+                    v-model="reportNotes[r.id]"
+                    class="rp__note-input"
+                    type="text"
+                    maxlength="255"
+                    placeholder="处理备注（选填）"
+                  />
+                  <button
+                    type="button"
+                    class="rp__btn"
+                    :disabled="handlingId === r.id"
+                    @click="handleReport(r, 'reject')"
+                  >
+                    驳回
+                  </button>
+                  <button
+                    type="button"
+                    class="rp__btn rp__btn--danger"
+                    :disabled="handlingId === r.id"
+                    @click="handleReport(r, 'takedown')"
+                  >
+                    下架内容
+                  </button>
+                </footer>
+              </li>
+            </ul>
+
+            <p class="adm__tip">
+              <AppIcon name="info" :size="13" />
+              下架后内容在前台立即不可见（主题下线 / 楼层隐藏）；同一对象上的其他待处理举报会一并结案。
             </p>
           </template>
         </main>
@@ -1815,4 +1990,213 @@ onBeforeUnmount(() => {
     height: 120px;
   }
 }
+
+/* ================= 举报处理 ================= */
+.rp__tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.rp__tab {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.rp__tab:hover {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.4);
+}
+
+.rp__tab.is-on {
+  color: var(--gold-lt);
+  border-color: rgba(216, 178, 90, 0.6);
+  background: rgba(216, 178, 90, 0.1);
+}
+
+/* 待处理数量角标：只有真有活的时候才亮 */
+.rp__tab em {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(217, 138, 138, 0.18);
+  color: #e2a0a0;
+  font-style: normal;
+  font-size: 10.5px;
+}
+
+/* 刷新按钮推到最右，和页签分开 */
+.rp__tabs > :last-child {
+  margin-left: auto;
+}
+
+.rp__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 36px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+.rp__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rp__item {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(165deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
+  box-shadow: var(--shadow-card);
+}
+
+.rp__item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.rp__reason {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 178, 90, 0.4);
+  color: var(--gold-lt);
+}
+
+.rp__target-type {
+  color: var(--text-4);
+}
+
+/* 三种状态用同一套色阶：待处理醒目、已下架克制、已驳回更弱 */
+.rp__status[data-status='0'] {
+  color: #e2a0a0;
+}
+
+.rp__status[data-status='1'] {
+  color: #8fbf9a;
+}
+
+.rp__status[data-status='2'] {
+  color: var(--text-4);
+}
+
+.rp__time {
+  margin-left: auto;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp__title {
+  margin: 0 0 6px;
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  color: var(--text-1);
+}
+
+.rp__floor {
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.rp__excerpt {
+  margin: 0 0 8px;
+  padding: 9px 12px;
+  border-left: 2px solid rgba(216, 178, 90, 0.4);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
+.rp__meta {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.rp__handled {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.rp__ops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rp__note-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+.rp__note-input:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.5);
+}
+
+.rp__btn {
+  padding: 7px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.rp__btn:hover:not(:disabled) {
+  color: var(--text-1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* 下架是破坏性操作，用暖红区分，但仍保持描边而非实心，避免误点 */
+.rp__btn--danger {
+  border-color: rgba(217, 138, 138, 0.45);
+  color: #e2a0a0;
+}
+
+.rp__btn--danger:hover:not(:disabled) {
+  background: rgba(217, 138, 138, 0.12);
+  border-color: rgba(217, 138, 138, 0.7);
+}
+
+.rp__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 </style>

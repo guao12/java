@@ -137,3 +137,27 @@ INSERT IGNORE INTO `dr_reply`
 (2025, 1012, 0, '夜航西飞', 'student', '收到。同人区那篇短篇我补一下授权说明，是自己写的，无转载。', 0, 1, 1, DATE_SUB(NOW(), INTERVAL 2 DAY)),
 
 (2026, 1013, 0, '执行部值班员', 'executor', '补充：预案 B 的集合点本周改到旧仓库北门，地图已更新。', 0, 1, 1, DATE_SUB(NOW(), INTERVAL 20 HOUR));
+
+-- ============ 密级归位（幂等，每次启动都执行） ============
+--
+-- 站点定位已从「密级档案馆」转为「读者论坛」，密级不能再当大门：
+-- 讨论区（原著研讨 / 人物专区）的普通讨论帖一律公开，游客即可阅读，注册后才能发帖。
+--
+-- 为什么写成 UPDATE 而不是改上面的 INSERT：上面是 INSERT IGNORE，
+-- 只对全新库生效；已经建好的库要靠这条 UPDATE 才归位。
+--
+-- 保留密级的只有「执行部内网」（1013）：那是给老用户往深处走的台阶，不是进门闸机。
+UPDATE `dr_thread` SET `security_level` = 1 WHERE `id` IN (1001, 1003, 1005) AND `security_level` > 1;
+
+-- ============ 「已编辑」标记归零（幂等） ============
+--
+-- 「已编辑」用 update_time > create_time 判定，不加额外列。
+-- 但这批种子数据的 update_time 在造数时被写成了不同的值（有的比 create_time 晚好几天），
+-- 前台会把它误显示成「作者改过」。种子帖从来没有被编辑过，把两个时间对齐即可。
+--
+-- 只圈定种子 id 区间：真实用户帖（1015 之后 / 2027 之后）的时间戳一律不动。
+UPDATE `dr_thread` SET `update_time` = `create_time`
+WHERE `id` BETWEEN 1001 AND 1014 AND `update_time` > `create_time`;
+
+UPDATE `dr_reply` SET `update_time` = `create_time`
+WHERE `id` BETWEEN 2001 AND 2026 AND `update_time` > `create_time`;

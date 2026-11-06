@@ -27,9 +27,21 @@ export const forumApi = {
     return request(`/api/forum/threads${toQuery(params)}`, { auth: true })
   },
 
-  /** 主题详情 + 楼层 */
+  /** 主题详情 + 第 1 页楼层 */
   thread(id) {
     return request(`/api/forum/threads/${id}`, { auth: true, cacheTtl: 0 })
+  },
+
+  /**
+   * 楼层分页。
+   * 详情接口只带第 1 页，翻页走这里；不做缓存，保证刚发的楼层立刻能取到。
+   * @param {number} page 从 1 开始
+   */
+  replies(id, page = 1, size = 20) {
+    return request(`/api/forum/threads/${id}/replies${toQuery({ page, size })}`, {
+      auth: true,
+      cacheTtl: 0
+    })
   },
 
   /** 发帖 */
@@ -54,6 +66,64 @@ export const forumApi = {
   like(id) {
     return request(`/api/forum/threads/${id}/like`, {
       method: 'POST',
+      invalidate: '/api/forum'
+    })
+  },
+
+  /**
+   * 举报主题或楼层。
+   * 同一人对同一对象只能举报一次，重复提交后端会返回提示。
+   * @param {{targetType:'thread'|'reply', targetId:number, threadId:number, reason:string, detail?:string}} body
+   */
+  report(body) {
+    return request('/api/forum/reports', { method: 'POST', body })
+  },
+
+  /** 收藏 / 取消收藏 */
+  collect(id) {
+    return request(`/api/forum/threads/${id}/collect`, {
+      method: 'POST',
+      invalidate: '/api/forum'
+    })
+  },
+
+  /** 我的收藏（按收藏时间倒序，需登录） */
+  collected(params = {}) {
+    return request(`/api/forum/collected${toQuery(params)}`, { auth: true, cacheTtl: 0 })
+  },
+
+  /* ---------------- 编辑 / 删除 ---------------- */
+
+  /** 编辑主题（仅作者本人）。返回编辑后的详情 */
+  updateThread(id, body) {
+    return request(`/api/forum/threads/${id}`, {
+      method: 'PUT',
+      body,
+      invalidate: '/api/forum'
+    })
+  },
+
+  /** 删除主题（作者本人或版务）。逻辑删除，楼层保留 */
+  deleteThread(id, reason = '') {
+    return request(`/api/forum/threads/${id}${toQuery({ reason })}`, {
+      method: 'DELETE',
+      invalidate: '/api/forum'
+    })
+  },
+
+  /** 编辑楼层（仅该层作者）。返回编辑后的楼层 */
+  updateReply(threadId, replyId, body) {
+    return request(`/api/forum/threads/${threadId}/replies/${replyId}`, {
+      method: 'PUT',
+      body,
+      invalidate: '/api/forum'
+    })
+  },
+
+  /** 删除楼层（该层作者或版务） */
+  deleteReply(threadId, replyId) {
+    return request(`/api/forum/threads/${threadId}/replies/${replyId}`, {
+      method: 'DELETE',
       invalidate: '/api/forum'
     })
   },

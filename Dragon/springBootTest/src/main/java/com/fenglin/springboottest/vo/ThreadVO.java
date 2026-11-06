@@ -54,6 +54,18 @@ public class ThreadVO implements Serializable {
     /** 当前访问者是否已点赞 */
     private boolean liked;
 
+    /** 当前访问者是否已收藏 */
+    private boolean collected;
+
+    /**
+     * 是否被编辑过。
+     *
+     * <p>用 update_time > create_time 判定，不额外加列：
+     * 浏览量 / 楼层数 / 点赞数的自增都是手写 SQL，不会碰 update_time，
+     * 所以这个比较只会在「真的改了标题或正文」时成立。</p>
+     */
+    private boolean edited;
+
     public Long getId() {
         return id;
     }
@@ -236,5 +248,21 @@ public class ThreadVO implements Serializable {
 
     public void setLiked(boolean liked) {
         this.liked = liked;
+    }
+
+    public boolean isEdited() {
+        return edited;
+    }
+
+    public void setEdited(boolean edited) {
+        this.edited = edited;
+    }
+
+    public boolean isCollected() {
+        return collected;
+    }
+
+    public void setCollected(boolean collected) {
+        this.collected = collected;
     }
 }

@@ -323,7 +323,7 @@ async function onSubmit() {
     notice.value = null
     typeWriter(`认证通过 · 欢迎归来，${data.user.codename}。血统扫描正常，正在接入学院内网…`)
     window.setTimeout(() => {
-      router.push(String(route.query.redirect || '/home'))
+      router.push(String(route.query.redirect || '/forum'))
     }, 1600)
   } catch (e) {
     loading.value = false

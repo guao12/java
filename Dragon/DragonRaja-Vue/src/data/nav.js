@@ -1,32 +1,32 @@
 /**
- * 全院统一顶部导航配置。
+ * 全站统一顶部导航配置。
+ *
+ * 定位已从「学院档案系统」迁移为「读者论坛」：
+ * 讨论区是第一入口，档案馆降为资料层，任务/血统鉴定退出一级导航。
  *
  * 说明：
- * - `to`：目标路由；`id`：目标在学院首页时对应的区块锚点（#id）
- * - `hash`：目标页内的分卷（档案室的分卷 tab）—— 路径 + hash 同时命中才算高亮
- * - `match`：这些路径前缀也视为命中该项（人物志 / 言灵谱 / 机构志都归属档案室）
- * - 首页、任务看板、档案室、血统鉴定、档案详情页统一使用这份配置，
- *   由 components/SiteNav.vue 渲染 —— 改这里即可全院同步。
+ * - `to`：目标路由
+ * - `match`：这些路径前缀也视为命中该项（版块页 / 主题页都算「讨论区」）
+ * - 一级导航不再放 `id` 锚点项 —— 首页已改为论坛首页，没有长页区块可锚定
+ * - 由 components/SiteNav.vue 渲染，改这里即可全站同步
  */
 export const SITE_NAV = [
-  { label: '首页', to: '/home', id: 'sec-top' },
-  { label: '学院机构', to: '/home', id: 'sec-org' },
-  { label: '档案室', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
-  // 论坛是 UGC 层：帖子讨论档案里的内容，两者互相导流（帖子可引用卷宗编号）
-  // match 把馆区页 / 主题页 / 发帖页都算作「论坛」，避免在这三页时导航失去高亮
-  { label: '论坛', to: '/forum', match: ['/forum', '/board', '/thread'] },
-  // 言灵图鉴不单独占导航位：它已是档案室的一个分卷，进入档案室后切卷即可
-  { label: '任务', to: '/missions' },
-  { label: '血统鉴定', to: '/appraisal' }
+  // 论坛是主站：版块页、主题页、发帖页都归属这一项，避免切换时高亮丢失
+  { label: '讨论区', to: '/forum', match: ['/forum', '/board', '/thread'] },
+  // 同人区单独给一个入口 —— 这是小说论坛最容易沉淀内容的地方，值得占一级导航
+  { label: '同人', to: '/board/fanwork', match: ['/board/fanwork'] },
+  // 档案馆：原首页的门面内容降级为资料层（人物志 / 言灵谱 / 机构志都在这里）
+  { label: '档案馆', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
+  { label: '我的', to: '/console' }
 ]
 
 /**
  * 后台管理系统入口。
  * 不混在 SITE_NAV 里 —— 它渲染成导航栏右侧的独立描边按钮（带盾牌图标），
- * 与前台区块菜单区分开。点进去由路由守卫决定落点：
+ * 与前台菜单区分开。点进去由路由守卫决定落点：
  * 已登录管理员 → /admin；未登录 → /admin/login（登录页只有登录，没有注册）。
  */
 export const ADMIN_ENTRY = { label: '后台管理', to: '/admin' }
 
-/** 首页路由：品牌点击与锚点跳转的默认落点 */
-export const HOME_PATH = '/home'
+/** 首页路由：品牌点击与默认落点都指向论坛首页 */
+export const HOME_PATH = '/forum'

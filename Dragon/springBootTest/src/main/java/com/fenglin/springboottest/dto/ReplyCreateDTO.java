@@ -10,8 +10,8 @@ import jakarta.validation.constraints.Size;
  */
 public class ReplyCreateDTO {
 
-    @NotBlank(message = "批注不能为空")
-    @Size(min = 2, max = 2000, message = "批注需 2–2000 字")
+    @NotBlank(message = "回复内容不能为空")
+    @Size(min = 2, max = 2000, message = "回复需 2–2000 字")
     private String content;
 
     /** 引用的批注 id，可不填 */

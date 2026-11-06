@@ -30,6 +30,9 @@ public class ReplyVO implements Serializable {
     /** 是否本人所发 */
     private boolean mine;
 
+    /** 是否被编辑过（判定方式同主题：update_time > create_time） */
+    private boolean edited;
+
     public Long getId() {
         return id;
     }
@@ -116,5 +119,13 @@ public class ReplyVO implements Serializable {
 
     public void setMine(boolean mine) {
         this.mine = mine;
+    }
+
+    public boolean isEdited() {
+        return edited;
+    }
+
+    public void setEdited(boolean edited) {
+        this.edited = edited;
     }
 }

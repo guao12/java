@@ -46,4 +46,13 @@ public interface DrThreadActionMapper extends BaseMapper<DrThreadAction> {
             + "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>"
             + "</script>")
     List<Long> listLikedThreadIds(@Param("userId") Long userId, @Param("ids") List<Long> ids);
+
+    /** 某人收藏过的主题 id 列表（列表页回显「已收藏」） */
+    @Select("<script>"
+            + "SELECT thread_id FROM dr_thread_action "
+            + "WHERE user_id = #{userId} AND type = 'collect' "
+            + "AND thread_id IN "
+            + "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>"
+            + "</script>")
+    List<Long> listCollectedThreadIds(@Param("userId") Long userId, @Param("ids") List<Long> ids);
 }

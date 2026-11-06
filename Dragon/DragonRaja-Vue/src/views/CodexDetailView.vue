@@ -84,11 +84,11 @@ onMounted(async () => {
     : '图鉴档案 | 卡塞尔学院'
 })
 
-/** 返回时带上锚点：言灵图鉴已并入档案室，落回档案室的「言灵图鉴」分卷 */
+/** 返回时带上锚点：言灵图鉴已并入档案室，落回档案室的「言灵图鉴」分卷；机构志回到部门人物 */
 function goBack() {
   router.push({
-    path: isSpirit.value ? '/archive' : '/home',
-    hash: isSpirit.value ? '#tab-spirits' : '#sec-org'
+    path: '/archive',
+    hash: isSpirit.value ? '#tab-spirits' : '#tab-people'
   })
 }
 

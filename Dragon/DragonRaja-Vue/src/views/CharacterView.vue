@@ -35,8 +35,8 @@ onMounted(() => {
 })
 
 function goBack() {
-  // 带锚点回到首页人物志区块
-  router.push({ path: '/home', hash: '#sec-people' })
+  // 人物讨论已并入论坛：回到「人物专区」版块，比回首页更有落点
+  router.push('/board/character')
 }
 </script>
 

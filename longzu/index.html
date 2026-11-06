@@ -143,8 +143,8 @@ html, body {
 /* ---- EMBLEM ---- */
 .emblem-wrap {
   position: relative;
-  width: 180px; height: 180px;
-  margin-bottom: 36px;
+  width: 200px; height: 200px;
+  margin-bottom: 40px;
   animation: emblemFloat 7s ease-in-out infinite;
 }
 @keyframes emblemFloat {
@@ -153,9 +153,9 @@ html, body {
 }
 
 .emblem-glow {
-  position: absolute; inset: -40px;
+  position: absolute; inset: -50px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(80, 120, 190, 0.12) 0%, rgba(60, 90, 150, 0.05) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(80, 120, 190, 0.18) 0%, rgba(60, 90, 150, 0.08) 40%, transparent 70%);
   animation: glowPulse 5s ease-in-out infinite;
 }
 @keyframes glowPulse {
@@ -177,12 +177,12 @@ html, body {
 .orbit-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(150, 180, 225, 0.18);
+  border: 1px solid rgba(150, 180, 225, 0.22);
   animation: orbit linear infinite;
 }
-.orbit-ring:nth-child(3) { inset: -16px; animation-duration: 18s; }
-.orbit-ring:nth-child(4) { inset: -32px; animation-duration: 28s; animation-direction: reverse; opacity: 0.6; }
-.orbit-ring:nth-child(5) { inset: -52px; animation-duration: 42s; opacity: 0.3; }
+.orbit-ring:nth-child(3) { inset: -18px; animation-duration: 18s; }
+.orbit-ring:nth-child(4) { inset: -38px; animation-duration: 28s; animation-direction: reverse; opacity: 0.7; }
+.orbit-ring:nth-child(5) { inset: -60px; animation-duration: 42s; opacity: 0.45; }
 
 .orbit-ring .orbiter {
   position: absolute;
@@ -394,21 +394,22 @@ html, body {
   top: 66%; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 20px 28px 50px;
-  text-align: center;
+  padding: 20px 32px 50px;
+  text-align: left;
   z-index: 15;
 }
 
 .story-text {
   font-family: var(--serif-cn);
-  font-size: clamp(15px, 3.8vw, 18px);
+  font-size: clamp(15px, 3.8vw, 17px);
   font-weight: 400;
-  line-height: 2.1;
+  line-height: 2.15;
   color: var(--text-primary);
   letter-spacing: 1.5px;
-  max-width: 36em;
+  max-width: 22em;
   min-height: 140px;
   text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  text-align: left;
 }
 .story-text .ch {
   display: inline-block;
@@ -548,7 +549,7 @@ html, body {
   display: flex; flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 24px 20px 10px;
+  padding: 32px 20px 10px;
   position: relative;
 }
 
@@ -585,10 +586,10 @@ html, body {
   font-size: clamp(34px, 8.5vw, 52px);
   font-weight: 600;
   letter-spacing: 12px;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--silver-bright);
   text-shadow: 0 0 50px rgba(150, 185, 235, 0.18), 0 4px 16px rgba(0,0,0,0.6);
-  margin: 20px 0 12px;
+  margin: 28px 0 16px;
 }
 
 .hero-sub {
@@ -612,11 +613,12 @@ html, body {
 .bulletin {
   margin: 16px 18px;
   padding: 22px 22px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: rgba(10, 16, 30, 0.6);
+  border: 1px solid rgba(130, 155, 200, 0.16);
   border-radius: 14px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
 }
 .bulletin-tag {
   font-family: var(--serif);
@@ -654,11 +656,13 @@ html, body {
 
 /* ---- LOGIN CTA ---- */
 .btn-login-main {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0 18px;
   padding: 17px;
-  border: 1px solid var(--border-glow);
-  border-radius: 14px;
+  border: 1px solid rgba(170, 195, 235, 0.25);
+  border-radius: 12px;
   background: rgba(12, 18, 32, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -783,12 +787,13 @@ html, body {
 
 .login-card {
   width: 100%; max-width: 420px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  padding: 26px 22px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(10, 16, 30, 0.65);
+  border: 1px solid rgba(150, 180, 225, 0.22);
+  border-radius: 20px;
+  padding: 28px 22px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(150, 180, 225, 0.08);
 }
 
 .fld { margin-bottom: 18px; }
@@ -803,9 +808,9 @@ html, body {
 .fld-wrap { position: relative; }
 .fld-input {
   width: 100%;
-  padding: 13px 15px;
-  background: rgba(8, 12, 22, 0.55);
-  border: 1px solid var(--border-subtle);
+  padding: 14px 16px;
+  background: rgba(6, 10, 20, 0.65);
+  border: 1px solid rgba(130, 155, 200, 0.15);
   border-radius: 11px;
   color: var(--text-primary);
   font-family: var(--serif-cn);
@@ -861,8 +866,8 @@ html, body {
 .btn-submit {
   width: 100%;
   padding: 15px;
-  border: 1px solid var(--border-glow);
-  border-radius: 13px;
+  border: 1px solid rgba(170, 195, 235, 0.25);
+  border-radius: 12px;
   background: rgba(18, 28, 50, 0.5);
   color: var(--silver-bright);
   font-family: var(--serif-cn);
@@ -896,8 +901,8 @@ html, body {
 .btn-fresh {
   width: 100%;
   padding: 13px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 11px;
+  border: 1px solid rgba(130, 155, 200, 0.18);
+  border-radius: 12px;
   background: rgba(12, 18, 32, 0.35);
   color: var(--text-secondary);
   font-family: var(--serif-cn);
@@ -1211,7 +1216,7 @@ window.addEventListener('error', (e) => {
 
 // ===================== STORY =====================
 const STORY = [
-  '在人类文明出现之前，龙族已经建立高度发达的文明。黑王尼德霍格位于整个龙族血统和权力结构的顶点，既是创造者，也是毁灭者。',
+  '在人类文明出现之前，龙族已经建立高度发达的文明。黑王尼德霍格位于整个龙族血统和权力结构的顶点，既是创造者，也是绝对皇帝。龙族以血统维持秩序，低阶龙类必须服从高阶龙类；黑王对所有龙类拥有近乎绝对的统治权。',
   '当青铜与火之王的权柄触及大地，龙族的辉煌时代降临。它们建造了超越想象的城市，掌握了元素与炼金的极致之力。',
   '然而辉煌之下暗流涌动。白王的背叛点燃了龙族内战的烈焰，曾经辉煌的文明在战火中崩塌，龙族的时代走向终结。',
   '在废墟之中，人类文明悄然崛起。但龙族从未真正消亡——它们以另一种方式潜伏在历史的暗处，等待着再次觉醒的时刻。',

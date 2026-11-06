@@ -112,9 +112,9 @@ function pick(key) {
           <em>管理员会话 · 已加密</em>
         </span>
       </div>
-      <router-link class="sb__link" to="/home" title="学院前台">
+      <router-link class="sb__link" to="/forum" title="论坛前台">
         <AppIcon name="home" :size="14" />
-        <span v-if="showCaps">学院前台</span>
+        <span v-if="showCaps">论坛前台</span>
       </router-link>
       <button type="button" class="sb__link is-danger" title="退出登录" @click="emit('logout')">
         <AppIcon name="logout" :size="14" />

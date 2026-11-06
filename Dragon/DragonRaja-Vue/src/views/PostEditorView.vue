@@ -3,7 +3,7 @@
  * 发帖页（/forum/new）
  *
  * 三个刻意的限制：
- *  1. 只能选「自己有发帖权限」的馆区 —— 不让用户写完 500 字才被后端拒绝
+ *  1. 只能选「自己有发帖权限」的版块 —— 不让用户写完 500 字才被后端拒绝
  *  2. 密级只能选到自己的可读上限 —— 发一篇自己都看不见的帖子没有意义
  *  3. 标题 / 正文字数在前端先校验一遍，错误立刻显示在字段下方
  */
@@ -32,10 +32,10 @@ const submitting = ref(false)
 const errMsg = ref('')
 
 const LEVELS = [
-  { value: 1, label: '公开', hint: '所有在册读者可见' },
-  { value: 2, label: '内部', hint: '在校生及以上可见' },
-  { value: 3, label: '机密', hint: '执行部及以上可见' },
-  { value: 4, label: '绝密', hint: '仅教员可见' }
+  { value: 1, label: '公开', hint: '所有读者可见（含游客）' },
+  { value: 2, label: '内部', hint: '仅注册读者可见' },
+  { value: 3, label: '机密', hint: '仅高积分读者可见' },
+  { value: 4, label: '绝密', hint: '仅管理员可见' }
 ]
 
 /** 只能发布到自己能读到的密级，否则发完自己也打不开 */
@@ -142,7 +142,7 @@ function showToast(text) {
             <span class="ep__title-en">NEW THREAD</span>
           </h1>
           <p class="ep__sub">
-            正文按纯文本归档，空行分段；发布后可在主题页继续编辑批注。
+            正文按纯文本归档，空行分段；发布后可在主题页继续编辑回复。
             <template v-if="me.codename">
               当前署名：{{ me.codename }}（{{ me.identityName }}，可读至「{{ me.maxLevel === 4 ? '绝密' : me.maxLevel === 3 ? '机密' : me.maxLevel === 2 ? '内部' : '公开' }}」）
             </template>
@@ -157,8 +157,8 @@ function showToast(text) {
 
       <section v-else-if="!boards.length" class="ep__void">
         <AppIcon name="lock" :size="28" />
-        <h2>暂无可发帖的馆区</h2>
-        <p>你的在校身份还不满足任何馆区的发帖要求。公告区仅教员可发，执行部内网需要权限点 8。</p>
+        <h2>暂无可发帖的版块</h2>
+        <p>当前账号还不满足任何版块的发帖要求。公告区仅管理员可发，受限版块需要更多积分。</p>
         <button type="button" class="ep__void-link" @click="router.push('/forum')">返回论坛</button>
       </section>
 
@@ -211,7 +211,7 @@ function showToast(text) {
         <!-- 发布设置 -->
         <aside class="ep__side">
           <section class="panel">
-            <header class="panel__head"><AppIcon name="panel" :size="13" /> 馆区</header>
+            <header class="panel__head"><AppIcon name="panel" :size="13" /> 版块</header>
             <div class="board-pick">
               <label
                 v-for="b in boards"
@@ -257,7 +257,7 @@ function showToast(text) {
               <span class="switch__track" :class="{ 'is-on': replyVisible }"><i /></span>
               <span class="switch__text">
                 <b>回复后可见</b>
-                <em>正文仅对写过批注的人展示，适合讨论型主题</em>
+                <em>正文仅对写过回复的人展示，适合讨论型主题</em>
               </span>
             </label>
           </section>

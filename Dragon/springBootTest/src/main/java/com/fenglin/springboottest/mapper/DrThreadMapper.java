@@ -73,11 +73,48 @@ public interface DrThreadMapper extends BaseMapper<DrThread> {
             + "ORDER BY COALESCE(last_reply_at, create_time) DESC, id DESC LIMIT #{limit}")
     List<DrThread> listLatest(@Param("maxLevel") int maxLevel, @Param("limit") long limit);
 
-    /** 热门主题（按密级过滤） */
+    /** 热门主题（按密级过滤，全时段累计 heat，作为兜底） */
     @Select("SELECT * FROM dr_thread "
             + "WHERE deleted = 0 AND status = 1 AND security_level <= #{maxLevel} "
             + "ORDER BY heat DESC, id DESC LIMIT #{limit}")
     List<DrThread> listHot(@Param("maxLevel") int maxLevel, @Param("limit") long limit);
+
+    /**
+     * 近期活跃的热门主题（按密级过滤）。
+     *
+     * <p>heat 是累计值：只按 heat 排序等于「历史总榜」，半年前的神帖会永远霸占首页，
+     * 新内容起不来。加时间窗之后 heat 才真正等于「最近大家在聊什么」。
+     * 时间锚点用 last_reply_at；从没人回复过的新帖退回 create_time。</p>
+     */
+    @Select("SELECT * FROM dr_thread "
+            + "WHERE deleted = 0 AND status = 1 AND security_level <= #{maxLevel} "
+            + "AND (last_reply_at >= DATE_SUB(NOW(), INTERVAL #{hours} HOUR) "
+            + "     OR (last_reply_at IS NULL AND create_time >= DATE_SUB(NOW(), INTERVAL #{hours} HOUR))) "
+            + "ORDER BY heat DESC, id DESC LIMIT #{limit}")
+    List<DrThread> listHotRecent(@Param("maxLevel") int maxLevel,
+                                 @Param("hours") int hours,
+                                 @Param("limit") long limit);
+
+    /**
+     * 我收藏的主题，按收藏时间倒序。
+     *
+     * <p>排序用 collect 动作的时间而不是发帖时间：收藏夹是「我什么时候存的」，
+     * 按发帖时间排会让人找不到刚存的那篇。</p>
+     */
+    @Select("SELECT t.* FROM dr_thread t "
+            + "JOIN dr_thread_action a ON a.thread_id = t.id AND a.type = 'collect' AND a.user_id = #{userId} "
+            + "WHERE t.deleted = 0 AND t.status = 1 AND t.security_level <= #{maxLevel} "
+            + "ORDER BY a.create_time DESC, t.id DESC LIMIT #{size} OFFSET #{offset}")
+    List<DrThread> listCollected(@Param("userId") Long userId,
+                                 @Param("maxLevel") int maxLevel,
+                                 @Param("offset") long offset,
+                                 @Param("size") long size);
+
+    /** 我收藏的主题总数（按同一套可见性过滤） */
+    @Select("SELECT COUNT(*) FROM dr_thread t "
+            + "JOIN dr_thread_action a ON a.thread_id = t.id AND a.type = 'collect' AND a.user_id = #{userId} "
+            + "WHERE t.deleted = 0 AND t.status = 1 AND t.security_level <= #{maxLevel}")
+    Long countCollected(@Param("userId") Long userId, @Param("maxLevel") int maxLevel);
 
     /** 全站检索（标题 / 正文 / 作者），按密级过滤 */
     @Select("<script>"
