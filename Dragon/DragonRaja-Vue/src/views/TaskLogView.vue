@@ -5,7 +5,7 @@
  * 档案室「任务执行记录」卷四的展开页：把一条记录讲完整。
  * 视觉语言与人物档案 / 言灵档案同源：鎏金卷宗卡 + 密级条 + 分节。
  *
- * 密级不足时不渲染任何正文，只给出封存提示（与档案室口径一致）。
+ * 任务系统已下线，记录正文一律完整展示（密级仅作分级标注）。
  */
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,7 +14,7 @@ import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
 import { ARCHIVE_MISSION_LOGS } from '@/data/archive'
 import { logDetail, relicLink } from '@/data/logDetail'
-import { LEVELS, hasClearance, level, pointsTo } from '@/utils/clearance'
+import { LEVELS } from '@/utils/clearance'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,19 +31,6 @@ const source = computed(() => {
 })
 
 const log = computed(() => logDetail(source.value))
-
-const readable = computed(() => {
-  const l = log.value
-  if (!l) return false
-  return level.value >= Math.max(l.req || 1, l.level || 1)
-})
-
-/** 需要的密级标签 */
-const needLabel = computed(() => {
-  const l = log.value
-  if (!l) return ''
-  return LEVELS[Math.max(l.req || 1, l.level || 1) - 1]?.label || '更高'
-})
 
 /** 同类任务（同编号的其他执行人），用于底部互跳 */
 const sameOp = computed(() => {
@@ -95,8 +82,8 @@ function goLog(m) {
     </SiteNav>
 
     <main class="logd__body">
-      <!-- ===== 正常阅读 ===== -->
-      <article v-if="log && readable" class="dossier">
+      <!-- ===== 记录正文（档案已全量开放） ===== -->
+      <article v-if="log" class="dossier">
         <i class="dossier__beam" />
 
         <!-- 档案头 -->
@@ -272,21 +259,6 @@ function goLog(m) {
           摘自《任务执行记录 · 卷四》 · 卡塞尔学院档案馆藏 · 本页调阅已计入日志
         </footer>
       </article>
-
-      <!-- ===== 密级不足 ===== -->
-      <div v-else-if="log && !readable" class="dossier--void">
-        <AppIcon name="lock" :size="40" :stroke="1.2" />
-        <p>该记录的正文已封存</p>
-        <p class="dossier__void-sub">
-          需「{{ needLabel }}」密级 · 还差 {{ pointsTo(Math.max(log.req || 1, log.level || 1)) }} 权限点
-        </p>
-        <div class="dossier__void-acts">
-          <button type="button" class="dossier__void-btn" @click="go('/missions')">去完成任务</button>
-          <button type="button" class="dossier__void-btn dossier__void-btn--ghost" @click="goBack">
-            返回档案室
-          </button>
-        </div>
-      </div>
 
       <!-- ===== 记录不存在 ===== -->
       <div v-else class="dossier--void">
@@ -946,20 +918,6 @@ function goLog(m) {
   letter-spacing: 0.08em;
 }
 
-.dossier__void-sub {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-4);
-}
-
-.dossier__void-acts {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
 .dossier__void-btn {
   padding: 9px 20px;
   border-radius: 999px;
@@ -975,12 +933,6 @@ function goLog(m) {
 .dossier__void-btn:hover {
   background: rgba(216, 178, 90, 0.2);
   border-color: var(--gold);
-}
-
-.dossier__void-btn--ghost {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-3);
 }
 
 /* ================= 响应式 ================= */

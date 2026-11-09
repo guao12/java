@@ -6,10 +6,13 @@ import jakarta.validation.constraints.Size;
 
 /**
  * 新生登记（注册）请求。
- * 前端 RegisterView.vue 提交字段：codename / identity / spirit / password / captchaToken / captchaCode。
+ * 前端 RegisterView.vue 提交字段：codename / identity / password / captchaToken / captchaCode。
  *
  * <p>登记前必须通过图形验证码校验（captchaToken + captchaCode），
  * 取代原先「下发 6 位数字验证码」的流程：图形验证码由服务端签发、一次性消费，无需短信 / 邮件。</p>
+ *
+ * <p>2026-11 起注册页不再采集言灵：{@code spirit} 字段保留（接口直调 / 老客户端仍可用），
+ * 前端不提交，服务端对空值默认写 {@code none}（未觉醒），血统鉴定挪到 /appraisal 页。</p>
  *
  * @author fenglin
  */

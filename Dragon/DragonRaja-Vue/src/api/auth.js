@@ -35,13 +35,6 @@ export const authApi = {
   /** 我的身份卡（需登录） */
   profile: () => request('/api/user/profile'),
 
-  /** 权限进度：读取（需登录，跨设备存档） */
-  clearance: () => request('/api/user/clearance'),
-
-  /** 权限进度：合并上报（需登录，返回合并后的最终结果） */
-  saveClearance: (payload) =>
-    request('/api/user/clearance', { method: 'PUT', body: payload }),
-
   /** 退出登录 */
   logout: () => request('/api/user/logout', { method: 'POST' })
 }

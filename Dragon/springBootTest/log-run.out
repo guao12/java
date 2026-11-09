@@ -1,0 +1,90 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.5)
+
+2026-11-09 08:48:04 INFO  c.f.s.SpringBootTestApplication.logStarting 53 : Starting SpringBootTestApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 8972 (D:\workSpace\java\Dragon\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar started by Administrator in D:\workSpace\java\Dragon\springBootTest)
+2026-11-09 08:48:04 DEBUG c.f.s.SpringBootTestApplication.logStarting 54 : Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-11-09 08:48:04 INFO  c.f.s.SpringBootTestApplication.logStartupProfileInfo 658 : The following 1 profile is active: "dev"
+2026-11-09 08:48:05 INFO  o.s.b.w.e.tomcat.TomcatWebServer.initialize 111 : Tomcat initialized with port 8082 (http)
+2026-11-09 08:48:05 INFO  o.a.catalina.core.StandardService.log 168 : Starting service [Tomcat]
+2026-11-09 08:48:05 INFO  o.a.catalina.core.StandardEngine.log 168 : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-11-09 08:48:05 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring embedded WebApplicationContext
+2026-11-09 08:48:05 INFO  o.s.b.w.s.c.ServletWebServerApplicationContext.prepareWebApplicationContext 301 : Root WebApplicationContext: initialization completed in 1111 ms
+2026-11-09 08:48:05 WARN  c.f.s.service.impl.JwtTokenService.<init> 64 : JWT 正在使用仓库内置的 dev 兜底密钥，仅限本地开发，切勿用于生产环境
+Logging initialized using 'class org.apache.ibatis.logging.stdout.StdOutImpl' adapter.
+Get /192.168.137.1 network interface 
+Get network interface info: name:ethernet_32776 (VMware Virtual Ethernet Adapter for VMnet8)
+Initialization Sequence datacenterId:0 workerId:12
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.9 
+2026-11-09 08:48:05 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 109 : DragonRajaHikariPool - Starting...
+2026-11-09 08:48:06 INFO  com.zaxxer.hikari.pool.HikariPool.checkFailFast 554 : DragonRajaHikariPool - Added connection com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f
+2026-11-09 08:48:06 INFO  com.zaxxer.hikari.HikariDataSource.getConnection 122 : DragonRajaHikariPool - Start completed.
+2026-11-09 08:48:06 INFO  o.s.b.a.w.s.WelcomePageHandlerMapping.<init> 59 : Adding welcome page: class path resource [static/index.html]
+2026-11-09 08:48:07 INFO  o.s.b.w.e.tomcat.TomcatWebServer.start 243 : Tomcat started on port 8082 (http) with context path '/'
+2026-11-09 08:48:07 INFO  c.f.s.SpringBootTestApplication.logStarted 59 : Started SpringBootTestApplication in 3.02 seconds (process running for 3.382)
+2026-11-09 08:48:07 INFO  c.f.s.SpringBootTestApplication.main 26 : 
+======================================================
+  卡塞尔学院 · 龙族身份认证系统后端启动成功
+  环境 profile : dev
+  接口地址     : http://localhost:8082/api
+  健康检查     : http://localhost:8082/api/health
+  接口首页     : http://localhost:8082/index.html
+======================================================
+
+2026-11-09 08:48:24 INFO  o.a.c.c.C.[Tomcat].[localhost].[/].log 168 : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-09 08:48:24 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 532 : Initializing Servlet 'dispatcherServlet'
+2026-11-09 08:48:24 INFO  o.s.web.servlet.DispatcherServlet.initServletBean 554 : Completed initialization in 2 ms
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@20b16f77] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@117413901 wrapping com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM dr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 8
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@20b16f77]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@656a8b27] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1422224339 wrapping com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM dr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 8
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@656a8b27]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@363c4f09] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1606812513 wrapping com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM dr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 8
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@363c4f09]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6d05788a] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@1744638970 wrapping com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM dr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 8
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6d05788a]
+Creating a new SqlSession
+SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1b447ac6] was not registered for synchronization because synchronization is not active
+JDBC Connection [HikariProxyConnection@297537974 wrapping com.mysql.cj.jdbc.ConnectionImpl@79ba0a6f] will not be managed by Spring
+==>  Preparing: SELECT COUNT( * ) AS total FROM dr_user WHERE deleted=0
+==> Parameters: 
+<==    Columns: total
+<==        Row: 8
+<==      Total: 1
+Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1b447ac6]

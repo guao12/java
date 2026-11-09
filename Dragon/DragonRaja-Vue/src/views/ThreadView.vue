@@ -356,10 +356,6 @@ function goBoard() {
   if (thread.value?.boardCode) router.push(`/board/${thread.value.boardCode}`)
 }
 
-function goMissions() {
-  router.push('/missions')
-}
-
 /* ---------------- 轻提示 ---------------- */
 const toast = ref('')
 let toastTimer = 0
@@ -445,9 +441,6 @@ function showToast(text) {
                     @click="focusEditor"
                   >
                     写一条回复解锁
-                  </button>
-                  <button v-else type="button" class="sealed__btn" @click="goMissions">
-                    去做任务提升权限
                   </button>
                   <button type="button" class="sealed__link" @click="goBoard">返回版块</button>
                 </div>

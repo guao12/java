@@ -31,25 +31,6 @@ const stats = computed(() => data.value?.stats || {})
 const me = computed(() => data.value?.me || {})
 const list = computed(() => (feed.value === 'hot' ? data.value?.hot : data.value?.latest) || [])
 
-/** 距下一档密级还差多少权限点（阈值与后端一致：3 / 8 / 15） */
-const nextLevel = computed(() => {
-  const p = me.value.points || 0
-  const steps = [
-    { at: 3, label: '内部' },
-    { at: 8, label: '机密' },
-    { at: 15, label: '绝密' }
-  ]
-  const target = steps.find((s) => p < s.at)
-  if (!target) return null
-  return { ...target, remain: target.at - p }
-})
-
-const levelPct = computed(() => {
-  const p = me.value.points || 0
-  const next = nextLevel.value
-  return next ? Math.min(100, Math.round((p / next.at) * 100)) : 100
-})
-
 async function load() {
   loading.value = true
   failMsg.value = ''
@@ -335,7 +316,9 @@ onBeforeUnmount(() => {
             </ul>
 
             <p v-else-if="!loading" class="fm__empty">
-              <AppIcon name="info" :size="14" /> 暂无主题 · 点右上角「发起主题」开第一帖
+              <AppIcon name="info" :size="14" />
+              <template v-if="failMsg">主题列表未加载 · 先处理上方错误再重试</template>
+              <template v-else>暂无主题 · 点右上角「发起主题」开第一帖</template>
             </p>
           </section>
         </div>
@@ -355,20 +338,6 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-if="me.logged" class="me__points">
-              <div class="me__points-row">
-                <span>积分</span>
-                <b>{{ me.points ?? 0 }}</b>
-              </div>
-              <div class="me__bar"><i :style="{ width: levelPct + '%' }" /></div>
-              <p class="me__hint">
-                <template v-if="nextLevel">
-                  当前「{{ me.levelLabel }}」· 距「{{ nextLevel.label }}」还差 {{ nextLevel.remain }} 点
-                </template>
-                <template v-else>已达最高密级「绝密」</template>
-              </p>
-            </div>
-
             <ul v-if="me.logged" class="me__nums">
               <li><b>{{ me.threadCount ?? 0 }}</b><span>我的主题</span></li>
               <li><b>{{ me.replyCount ?? 0 }}</b><span>我的回复</span></li>
@@ -377,8 +346,8 @@ onBeforeUnmount(() => {
             <router-link v-if="!me.logged" to="/login" class="side-link">
               登录 / 注册 <AppIcon name="arrow" :size="12" />
             </router-link>
-            <router-link v-else to="/missions" class="side-link">
-              每日任务 · 赚积分 <AppIcon name="arrow" :size="12" />
+            <router-link v-else to="/archive" class="side-link">
+              档案馆 · 查阅卷宗 <AppIcon name="arrow" :size="12" />
             </router-link>
           </section>
 

@@ -37,9 +37,9 @@ const ELEMENTS = ['火', '冰', '风', '重力', '时间', '精神', '暗影', '
 /* ---------------- 侧边栏菜单 ---------------- */
 
 const MENU_KEY = 'dr:admin:menu'
-const MENU_KEYS = ['spirits', 'overview', 'reports']
+const MENU_KEYS = ['spirits', 'threads', 'overview', 'reports']
 
-/** 当前菜单：spirits 言灵图鉴 / overview 数据概览 / reports 举报处理（记忆上次停留位置） */
+/** 当前菜单：spirits 言灵图鉴 / threads 主题管理 / overview 数据概览 / reports 举报处理（记忆上次停留位置） */
 const activeMenu = ref(
   MENU_KEYS.includes(localStorage.getItem(MENU_KEY)) ? localStorage.getItem(MENU_KEY) : 'spirits'
 )
@@ -61,6 +61,13 @@ const menuGroups = computed(() => [
         icon: 'flame',
         badge: loaded.value ? total.value : ''
       },
+      {
+        key: 'threads',
+        label: '主题管理',
+        desc: '发帖 · 置顶 · 下线',
+        icon: 'chat',
+        badge: threadLoaded.value ? threadTotal.value : ''
+      },
       { key: 'overview', label: '数据概览', desc: '总量与密级分布', icon: 'chart' },
       {
         key: 'reports',
@@ -73,6 +80,14 @@ const menuGroups = computed(() => [
   }
 ])
 
+/** 顶栏面包屑用：菜单 key → 中文名 */
+const MENU_LABELS = {
+  spirits: '言灵图鉴',
+  threads: '主题管理',
+  overview: '数据概览',
+  reports: '举报处理'
+}
+
 function toggleCollapse() {
   collapsed.value = !collapsed.value
   localStorage.setItem(COLLAPSE_KEY, collapsed.value ? '1' : '0')
@@ -83,6 +98,7 @@ watch(activeMenu, (v) => {
   localStorage.setItem(MENU_KEY, v)
   if (v === 'overview' && !loaded.value && !loading.value) load()
   if (v === 'reports' && !reportsLoaded.value && !reportsLoading.value) loadReports()
+  if (v === 'threads' && !threadLoaded.value && !threadLoading.value) loadThreads()
 })
 
 /* ---------------- 举报处理 ---------------- */
@@ -159,6 +175,261 @@ async function handleReport(row, action) {
     handlingId.value = 0
   }
 }
+
+/* ---------------- 主题管理 ---------------- */
+
+/**
+ * 后台直接管 dr_thread：发主题、改内容、置顶、加精、上下线、删除。
+ *
+ * 与「举报处理」的分工：举报是别人投诉之后被动处置，这里是主动运营 ——
+ * 发公告、把好帖置顶、把违规帖下线，不用先等一条举报。
+ */
+
+/** 状态页签：null = 全部（含待审与已下线） */
+const THREAD_TABS = [
+  { key: null, label: '全部' },
+  { key: 1, label: '正常' },
+  { key: 0, label: '待审' },
+  { key: -1, label: '已下线' }
+]
+
+/** 后台列表一页 10 条：一行信息密度高，20 条会让滚动找帖变成体力活 */
+const THREAD_PAGE_SIZE = 10
+
+const THREAD_LEVELS = [
+  { value: 1, label: '公开（所有人可见）' },
+  { value: 2, label: '内部（在校生及以上）' },
+  { value: 3, label: '机密（执行部及以上）' },
+  { value: 4, label: '绝密（教员）' }
+]
+
+const THREAD_STATUSES = [
+  { value: 1, label: '正常（前台可见）' },
+  { value: 0, label: '待审（前台不可见）' },
+  { value: -1, label: '已下线（前台不可见）' }
+]
+
+const threadBoards = ref([])
+const threadRows = ref([])
+const threadTotal = ref(0)
+const threadPage = ref(1)
+const threadLoading = ref(false)
+const threadLoaded = ref(false)
+const threadErr = ref('')
+const threadKeyword = ref('')
+/** '' = 全部版块；其余为版块主键 */
+const threadBoardId = ref('')
+const threadStatus = ref(null)
+/** 行内操作中的主题 id，用来禁用按钮防连点 */
+const threadBusyId = ref(0)
+
+const threadPageCount = computed(() => Math.max(1, Math.ceil(threadTotal.value / THREAD_PAGE_SIZE)))
+
+/** 版块下拉：取一次就够，版块极少变动 */
+async function loadThreadBoards() {
+  if (threadBoards.value.length) return
+  try {
+    threadBoards.value = await adminApi.threadBoards()
+  } catch {
+    // 下拉失败不阻塞列表：列表照常显示，只是新建时得先修好接口
+    threadBoards.value = []
+  }
+}
+
+async function loadThreads() {
+  threadLoading.value = true
+  threadErr.value = ''
+  try {
+    const res = await adminApi.listThreads({
+      boardId: threadBoardId.value || null,
+      status: threadStatus.value,
+      keyword: threadKeyword.value,
+      page: threadPage.value,
+      size: THREAD_PAGE_SIZE
+    })
+    threadRows.value = res?.list || []
+    threadTotal.value = Number(res?.total || 0)
+    threadLoaded.value = true
+  } catch (e) {
+    threadErr.value = e?.message || '主题列表加载失败'
+    threadRows.value = []
+    threadTotal.value = 0
+  } finally {
+    threadLoading.value = false
+  }
+}
+
+/** 改筛选条件必须回第 1 页，否则会停在越界页码上显示空列表 */
+function filterThreads() {
+  threadPage.value = 1
+  loadThreads()
+}
+
+function goThreadPage(p) {
+  const target = Math.min(Math.max(1, p), threadPageCount.value)
+  if (target === threadPage.value) return
+  threadPage.value = target
+  loadThreads()
+}
+
+/**
+ * 行内快捷操作：置顶 / 加精 / 上下线。
+ *
+ * 复用编辑接口而不是新造三个开关接口 —— 改的都是同一行同几个字段，
+ * 多三条路径就多三处要维护的一致性。提交时带上原有的标题正文，
+ * 因为后端按「整份表单」校验，缺字段会被 @Valid 拦下。
+ */
+async function toggleThreadFlag(row, field) {
+  if (threadBusyId.value) return
+  threadBusyId.value = row.id
+  threadErr.value = ''
+  try {
+    await adminApi.updateThread(row.id, {
+      boardId: row.boardId,
+      title: row.title,
+      content: row.content,
+      securityLevel: row.securityLevel || 1,
+      replyVisible: !!row.replyVisible,
+      pinned: field === 'pinned' ? !row.pinned : !!row.pinned,
+      essence: field === 'essence' ? !row.essence : !!row.essence,
+      status: field === 'status' ? (row.status === 1 ? -1 : 1) : row.status
+    })
+    await loadThreads()
+  } catch (e) {
+    threadErr.value = e?.message || '操作失败'
+  } finally {
+    threadBusyId.value = 0
+  }
+}
+
+/* ---------- 新建 / 编辑弹窗 ---------- */
+
+const showThreadModal = ref(false)
+const threadEditingId = ref(null) // null = 新建
+const threadSaving = ref(false)
+const threadModalError = ref('')
+
+const emptyThreadForm = () => ({
+  boardId: '',
+  title: '',
+  content: '',
+  securityLevel: 1,
+  replyVisible: false,
+  pinned: false,
+  essence: false,
+  status: 1
+})
+
+const threadForm = reactive(emptyThreadForm())
+
+function openThreadCreate() {
+  threadModalError.value = ''
+  threadEditingId.value = null
+  Object.assign(threadForm, emptyThreadForm())
+  threadForm.boardId = threadBoards.value[0]?.id ?? ''
+  showThreadModal.value = true
+  loadThreadBoards()
+}
+
+function openThreadEdit(row) {
+  threadModalError.value = ''
+  threadEditingId.value = row.id
+  Object.assign(threadForm, {
+    boardId: row.boardId,
+    title: row.title,
+    content: row.content || '',
+    securityLevel: row.securityLevel || 1,
+    replyVisible: !!row.replyVisible,
+    pinned: !!row.pinned,
+    essence: !!row.essence,
+    status: row.status ?? 1
+  })
+  showThreadModal.value = true
+  loadThreadBoards()
+}
+
+async function saveThread() {
+  if (threadSaving.value) return
+  threadModalError.value = ''
+
+  const title = (threadForm.title || '').trim()
+  const content = (threadForm.content || '').trim()
+  if (!threadForm.boardId) {
+    threadModalError.value = '请选择版块'
+    return
+  }
+  if (title.length < 4 || title.length > 80) {
+    threadModalError.value = '标题需 4–80 字'
+    return
+  }
+  if (content.length < 10 || content.length > 8000) {
+    threadModalError.value = '正文需 10–8000 字'
+    return
+  }
+
+  threadSaving.value = true
+  try {
+    const payload = {
+      ...threadForm,
+      boardId: Number(threadForm.boardId),
+      title,
+      content
+    }
+    if (threadEditingId.value == null) {
+      await adminApi.createThread(payload)
+      // 新建后清空筛选并回第一页：否则当前正停在「已下线」页签或某个关键词上，
+      // 刚发出去的帖子看不见，会让人以为发布失败。
+      threadStatus.value = null
+      threadKeyword.value = ''
+      threadBoardId.value = ''
+      threadPage.value = 1
+    } else {
+      await adminApi.updateThread(threadEditingId.value, payload)
+    }
+    showThreadModal.value = false
+    await loadThreads()
+  } catch (e) {
+    threadModalError.value = e?.message || '保存失败'
+  } finally {
+    threadSaving.value = false
+  }
+}
+
+async function removeThread(row) {
+  if (threadBusyId.value) return
+  if (!window.confirm(`确认删除《${row.title}》？删除后前台立即不可见（逻辑删除，数据仍在库里）。`)) return
+  threadBusyId.value = row.id
+  threadErr.value = ''
+  try {
+    await adminApi.deleteThread(row.id)
+    // 删掉当页最后一条时往前翻一页，避免停在空页
+    if (threadRows.value.length === 1 && threadPage.value > 1) threadPage.value -= 1
+    await loadThreads()
+  } catch (e) {
+    threadErr.value = e?.message || '删除失败'
+  } finally {
+    threadBusyId.value = 0
+  }
+}
+
+/** 主题详情页跳转（前台），用来核对发布效果 */
+function previewThread(row) {
+  window.open(`/#/thread/${row.id}`, '_blank', 'noopener')
+}
+
+/* ---------- 顶栏右侧的「共 N 条」：跟着当前菜单走 ---------- */
+
+const barBusy = computed(() => {
+  if (activeMenu.value === 'threads') return threadLoading.value
+  if (activeMenu.value === 'reports') return reportsLoading.value
+  return loading.value
+})
+
+const barCount = computed(() => {
+  if (activeMenu.value === 'threads') return threadTotal.value
+  if (activeMenu.value === 'reports') return reportTotal.value
+  return total.value
+})
 
 /* ---------------- 数据概览统计 ---------------- */
 
@@ -431,6 +702,7 @@ let idleTimer = 0
 function onKeydown(e) {
   if (e.key === 'Escape') {
     if (showModal.value) showModal.value = false
+    else if (showThreadModal.value) showThreadModal.value = false
     else if (confirmTarget.value) confirmTarget.value = null
     else if (drawerOpen.value) drawerOpen.value = false
     return
@@ -451,6 +723,10 @@ onMounted(() => {
   // 角标要用「待处理数」，与言灵列表无关，单独取一次
   loadPendingCount()
   if (activeMenu.value === 'reports') loadReports()
+  if (activeMenu.value === 'threads') {
+    loadThreadBoards()
+    loadThreads()
+  }
   const mountBg = () => {
     bgReady.value = true
   }
@@ -501,18 +777,18 @@ onBeforeUnmount(() => {
                 <h1>后台管理系统</h1>
                 <p class="adm__crumb">
                   数据管理 <i>/</i>
-                  <b>{{ ['overview', 'reports'].includes(activeMenu) ? (activeMenu === 'overview' ? '数据概览' : '举报处理') : '言灵图鉴' }}</b>
+                  <b>{{ MENU_LABELS[activeMenu] || '言灵图鉴' }}</b>
                 </p>
               </div>
             </div>
           </div>
 
           <div class="adm__bar-side">
-            <span class="adm__sync" :class="{ 'is-busy': loading }">
+            <span class="adm__sync" :class="{ 'is-busy': barBusy }">
               <i class="adm__who-dot" />
-              {{ loading ? '同步中…' : `共 ${total} 条` }}
+              {{ barBusy ? '同步中…' : `共 ${barCount} 条` }}
             </span>
-            <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 数据概览 / 3 举报处理">1 / 2 / 3</span>
+            <span class="adm__kbd" title="快捷键：1 言灵图鉴 / 2 主题管理 / 3 数据概览 / 4 举报处理">1 / 2 / 3 / 4</span>
           </div>
         </div>
       </header>
@@ -816,6 +1092,184 @@ onBeforeUnmount(() => {
               下架后内容在前台立即不可见（主题下线 / 楼层隐藏）；同一对象上的其他待处理举报会一并结案。
             </p>
           </template>
+
+          <!-- ============ 菜单：主题管理 ============ -->
+          <template v-else-if="activeMenu === 'threads'">
+            <!-- 工具条 -->
+            <div class="adm__tools">
+              <label class="adm__search">
+                <AppIcon name="search" :size="14" />
+                <input
+                  v-model="threadKeyword"
+                  type="text"
+                  placeholder="搜标题 / 正文 / 作者，回车执行"
+                  @keyup.enter="filterThreads"
+                />
+                <button
+                  v-if="threadKeyword"
+                  type="button"
+                  class="adm__search-x"
+                  aria-label="清空筛选"
+                  @click.prevent="threadKeyword = ''; filterThreads()"
+                >
+                  <AppIcon name="close" :size="12" />
+                </button>
+              </label>
+
+              <select
+                v-model="threadBoardId"
+                class="th__select"
+                aria-label="按版块筛选"
+                @change="filterThreads"
+              >
+                <option value="">全部版块</option>
+                <option v-for="b in threadBoards" :key="b.id" :value="b.id">
+                  {{ b.name }}{{ b.status === 1 ? '' : '（已关闭）' }}
+                </option>
+              </select>
+
+              <div class="adm__tools-side">
+                <span class="adm__count">共 {{ threadTotal }} 条</span>
+                <GlowButton variant="ghost" type="button" :disabled="threadLoading" @click="filterThreads">
+                  <AppIcon name="refresh" :size="15" :class="{ 'is-spin': threadLoading }" />
+                  刷新
+                </GlowButton>
+                <GlowButton type="button" @click="openThreadCreate">
+                  <AppIcon name="plus" :size="15" /> 新建主题
+                </GlowButton>
+              </div>
+            </div>
+
+            <!-- 状态页签 -->
+            <div class="rp__tabs th__tabs" role="tablist" aria-label="主题状态">
+              <button
+                v-for="t in THREAD_TABS"
+                :key="String(t.key)"
+                type="button"
+                class="rp__tab"
+                :class="{ 'is-on': threadStatus === t.key }"
+                role="tab"
+                :aria-selected="threadStatus === t.key"
+                @click="threadStatus = t.key; filterThreads()"
+              >
+                {{ t.label }}
+              </button>
+            </div>
+
+            <div v-if="threadErr" class="adm__alert">
+              <AppIcon name="alert" :size="15" />
+              <span>{{ threadErr }}</span>
+            </div>
+
+            <p v-if="threadLoading && !threadRows.length" class="rp__empty">正在加载主题列表…</p>
+            <p v-else-if="!threadRows.length" class="rp__empty">
+              <AppIcon name="chat" :size="14" />
+              {{
+                threadKeyword || threadBoardId || threadStatus !== null
+                  ? '没有符合条件的主题，换个筛选条件试试。'
+                  : '还没有任何主题，点右上角「新建主题」发布第一篇。'
+              }}
+            </p>
+
+            <ul v-else class="th__list">
+              <li
+                v-for="row in threadRows"
+                :key="row.id"
+                class="th__item"
+                :class="{ 'is-down': row.status !== 1 }"
+              >
+                <div class="th__main">
+                  <div class="th__tags">
+                    <span v-if="row.pinned" class="th__tag th__tag--pin">置顶</span>
+                    <span v-if="row.essence" class="th__tag th__tag--essence">精华</span>
+                    <span v-if="row.status !== 1" class="th__tag th__tag--down">{{ row.statusLabel }}</span>
+                    <span class="th__tag">{{ row.boardName }}</span>
+                    <span class="th__tag">{{ row.securityLabel }}</span>
+                    <span v-if="row.replyVisible" class="th__tag">回复可见</span>
+                  </div>
+
+                  <p class="th__title">{{ row.title }}</p>
+                  <p class="th__excerpt">{{ row.excerpt || '（无正文）' }}</p>
+                  <p class="th__meta">
+                    {{ row.authorName || '佚名' }}
+                    · {{ (row.createdAt || '').replace('T', ' ').slice(0, 16) }}
+                    · {{ row.viewCount }} 阅 · {{ row.replyCount }} 回复 · {{ row.likeCount }} 赞
+                    · 热度 {{ row.heat }}
+                  </p>
+                </div>
+
+                <div class="th__ops">
+                  <button
+                    type="button"
+                    class="rp__btn"
+                    :disabled="threadBusyId === row.id"
+                    @click="toggleThreadFlag(row, 'pinned')"
+                  >
+                    {{ row.pinned ? '取消置顶' : '置顶' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rp__btn"
+                    :disabled="threadBusyId === row.id"
+                    @click="toggleThreadFlag(row, 'essence')"
+                  >
+                    {{ row.essence ? '取消精华' : '加精' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rp__btn"
+                    :class="{ 'rp__btn--danger': row.status === 1 }"
+                    :disabled="threadBusyId === row.id"
+                    @click="toggleThreadFlag(row, 'status')"
+                  >
+                    {{ row.status === 1 ? '下线' : '恢复上线' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rp__btn"
+                    :disabled="threadBusyId === row.id"
+                    @click="openThreadEdit(row)"
+                  >
+                    编辑
+                  </button>
+                  <button type="button" class="rp__btn" @click="previewThread(row)">查看</button>
+                  <button
+                    type="button"
+                    class="rp__btn rp__btn--danger"
+                    :disabled="threadBusyId === row.id"
+                    @click="removeThread(row)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </li>
+            </ul>
+
+            <nav v-if="threadPageCount > 1" class="adm__pager" aria-label="主题分页">
+              <button
+                type="button"
+                class="pg"
+                :disabled="threadPage <= 1 || threadLoading"
+                @click="goThreadPage(threadPage - 1)"
+              >
+                <AppIcon name="chevron-left" :size="13" /> 上一页
+              </button>
+              <span class="pg__gap">第 {{ threadPage }} / {{ threadPageCount }} 页</span>
+              <button
+                type="button"
+                class="pg"
+                :disabled="threadPage >= threadPageCount || threadLoading"
+                @click="goThreadPage(threadPage + 1)"
+              >
+                下一页 <AppIcon name="chevron-right" :size="13" />
+              </button>
+            </nav>
+
+            <p class="adm__tip">
+              <AppIcon name="info" :size="13" />
+              后台发布的主题署名当前管理员，作者 id 记为 0（官方帖），不会出现在学员的「我的帖子」里；「待审 / 已下线」在前台立即不可见，改回「正常」即可重新放出。
+            </p>
+          </template>
         </main>
       </div>
 
@@ -921,6 +1375,77 @@ onBeforeUnmount(() => {
             <GlowButton variant="ghost" type="button" @click="showModal = false">取消</GlowButton>
             <GlowButton type="button" :disabled="saving" @click="onSave">
               {{ saving ? '保存中…' : '保存' }}
+            </GlowButton>
+          </footer>
+        </div>
+      </div>
+
+      <!-- ============ 主题新建 / 编辑弹窗 ============ -->
+      <div v-if="showThreadModal" class="adm__mask" @click.self="showThreadModal = false">
+        <div class="adm__modal">
+          <header class="adm__modal-head">
+            <h2>{{ threadEditingId == null ? '新建主题' : '编辑主题' }}</h2>
+            <button type="button" class="adm__modal-x" @click="showThreadModal = false">
+              <AppIcon name="close" :size="16" />
+            </button>
+          </header>
+
+          <div class="adm__modal-body">
+            <div v-if="threadModalError" class="adm__alert">
+              <AppIcon name="alert" :size="15" />
+              <span>{{ threadModalError }}</span>
+            </div>
+
+            <div class="grid-2">
+              <label class="fld">
+                <span>版块 <em>* 前台帖子归类</em></span>
+                <select v-model="threadForm.boardId">
+                  <option value="" disabled>请选择版块</option>
+                  <option v-for="b in threadBoards" :key="b.id" :value="b.id">
+                    {{ b.name }}{{ b.status === 1 ? '' : '（已关闭，不可发布）' }}
+                  </option>
+                </select>
+              </label>
+              <label class="fld">
+                <span>密级</span>
+                <select v-model.number="threadForm.securityLevel">
+                  <option v-for="l in THREAD_LEVELS" :key="l.value" :value="l.value">{{ l.label }}</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="fld">
+              <span>标题 <em>* 4–80 字，列表里就靠它认帖</em></span>
+              <input v-model="threadForm.title" type="text" maxlength="80" placeholder="如：关于「言灵 · 君焰」的考据补遗" />
+            </label>
+
+            <label class="fld">
+              <span>正文 <em>* 10–8000 字，纯文本，换行会保留</em></span>
+              <textarea v-model="threadForm.content" rows="8" maxlength="8000" placeholder="正文内容…" />
+            </label>
+
+            <div class="grid-2">
+              <label class="fld">
+                <span>状态</span>
+                <select v-model.number="threadForm.status">
+                  <option v-for="s in THREAD_STATUSES" :key="s.value" :value="s.value">{{ s.label }}</option>
+                </select>
+              </label>
+              <div class="fld">
+                <span>版务标记</span>
+                <div class="th__checks">
+                  <label><input v-model="threadForm.pinned" type="checkbox" /> 置顶</label>
+                  <label><input v-model="threadForm.essence" type="checkbox" /> 精华</label>
+                  <label><input v-model="threadForm.replyVisible" type="checkbox" /> 回复后可见正文</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <footer class="adm__modal-foot">
+            <GlowButton variant="ghost" type="button" @click="showThreadModal = false">取消</GlowButton>
+            <GlowButton type="button" :disabled="threadSaving" @click="saveThread">
+              {{ threadSaving ? '保存中…' : (threadEditingId == null ? '发布主题' : '保存修改') }}
             </GlowButton>
           </footer>
         </div>
@@ -2197,6 +2722,170 @@ onBeforeUnmount(() => {
 .rp__btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ============ 主题管理 ============ */
+
+/* 工具条里的版块下拉：.fld 那套是弹窗用的竖排表单，工具条需要横排紧凑版 */
+.th__select {
+  flex: 0 0 auto;
+  min-width: 168px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: rgba(12, 10, 18, 0.72);
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.th__select:focus {
+  outline: none;
+  border-color: rgba(216, 178, 90, 0.55);
+}
+
+.th__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.th__item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(165deg, rgba(26, 21, 38, 0.72), rgba(11, 9, 18, 0.9));
+  box-shadow: var(--shadow-card);
+}
+
+/* 已下线 / 待审：整行压暗 + 左侧红线，扫一眼就知道它不在前台 */
+.th__item.is-down {
+  border-left: 2px solid rgba(217, 138, 138, 0.55);
+  opacity: 0.72;
+}
+
+.th__main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.th__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.th__tag {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+
+.th__tag--pin {
+  border-color: rgba(216, 178, 90, 0.45);
+  color: var(--gold-lt);
+}
+
+.th__tag--essence {
+  border-color: rgba(150, 190, 235, 0.45);
+  color: #9fc2e8;
+}
+
+.th__tag--down {
+  border-color: rgba(217, 138, 138, 0.5);
+  color: #e2a0a0;
+}
+
+.th__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th__excerpt {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.th__meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.th__ops {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 252px;
+}
+
+/* 六个按钮排 3×2：flex 换行会排成 4+2，看着像漏了一格 */
+.th__ops .rp__btn {
+  padding: 6px 4px;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 后台举报页签的「最后一个靠右」在这里不适用：那一行只有页签，靠右会单独掉到第二行 */
+.th__tabs > :last-child {
+  margin-left: 0;
+}
+
+.th__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 0 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.th__checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .th__item {
+    flex-direction: column;
+  }
+
+  .th__ops {
+    width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .th__select {
+    min-width: 0;
+  }
 }
 
 </style>

@@ -19,4 +19,11 @@ if "%DR_JWT_SECRET%"=="" (
 set "JAVA_EXE=C:\Program Files\Zulu\zulu-21\bin\java.exe"
 if not exist "%JAVA_EXE%" set "JAVA_EXE=java"
 
+rem 环境里的 SERVER__PORT / SERVER__HOST 会被 Spring 的 relaxed binding 当成
+rem server.port / server.host，优先级高于 application-dev.properties —— 这就是
+rem 「配置写的 8082，实际却跑在 8099 或随机端口」的原因。这里显式改回来，
+rem 下面的 --server.port 是命令行参数（最高优先级），双重保险。
+set "SERVER__PORT=8082"
+set "SERVER__HOST=0.0.0.0"
+
 "%JAVA_EXE%" -jar "%~dp0target\springBootTest-0.0.1-SNAPSHOT.jar" --server.port=8082

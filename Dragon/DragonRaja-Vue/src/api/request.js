@@ -16,7 +16,7 @@
 
 /**
  * 后端地址。
- *  - 开发环境留空：走 Vite 代理（/api → http://127.0.0.1:8082），无跨域问题
+ *  - 开发环境留空：走 Vite 代理（/api → http://192.168.68.1:8082），无跨域问题
  *  - 部署时可设置 VITE_API_BASE=http://host:port 指向后端
  */
 export const BASE_URL = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
@@ -110,7 +110,7 @@ export function createRequest({
       const err = new ErrorClass(
         aborted
           ? '请求超时，学院服务器无响应，请稍后重试'
-          : '无法连接学院服务器，请确认后端已启动（默认 127.0.0.1:8082）',
+          : '无法连接学院服务器，请确认后端已启动（默认 192.168.68.1:8082）',
         0
       )
       err.retryable = !aborted
@@ -136,7 +136,18 @@ export function createRequest({
     try {
       payload = await response.json()
     } catch {
-      const err = new ErrorClass('服务器返回了无法解析的数据', response.status)
+      // 非 JSON 响应。最常见的情况：Vite 代理连不上后端（ECONNREFUSED）时回一个
+      // 空 body 的 500 / text/plain，以前一律抛「无法解析的数据」，用户根本看不出
+      // 是后端没启动 —— 2026-11-09 论坛页按下浏览器返回就是这个报错，排查半天。
+      // 所以这里按 Content-Type 与状态码拆开说：后端不回 JSON 就当它是没起来。
+      const ctype = response.headers.get('content-type') || ''
+      const backendDown = response.status >= 500 && !/json/i.test(ctype)
+      const err = new ErrorClass(
+        backendDown
+          ? `无法连接学院服务器（HTTP ${response.status}），请确认后端已启动（默认 192.168.68.1:8082）`
+          : `服务器返回了无法解析的数据（HTTP ${response.status}）`,
+        response.status
+      )
       err.retryable = response.status >= 500
       throw err
     }

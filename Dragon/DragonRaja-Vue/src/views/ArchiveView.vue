@@ -1,8 +1,8 @@
 <script setup>
 /**
  * 档案室（独立页面 /archive）
- * - 不在首页展示，入口在顶部导航栏「档案室」
- * - 内容按密级解锁：权限点由「执行部任务」页完成任务累积（utils/clearance.js）
+ * - 不在首页展示，入口在顶部导航栏「档案馆」
+ * - 任务系统已下线，档案全量开放：密级只作卷宗分级标注，不再拦截查阅
  * - 五卷：龙王卷宗（资料+情报）/ 部门人物 / 龙族武器 / 任务执行记录 / 言灵图鉴
  * - 言灵图鉴原本在首页，现已整体并入档案室（功能与详情页跳转不变）
  */
@@ -12,20 +12,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
-import {
-  LEVELS,
-  exportClearanceCode,
-  hasClearance,
-  hydrateClearance,
-  importClearanceCode,
-  level,
-  levelLabel,
-  nextLevel,
-  points,
-  pointsTo,
-  syncNow,
-  syncState
-} from '@/utils/clearance'
+import { LEVELS } from '@/utils/clearance'
 import {
   ARCHIVE_ARMS,
   ARCHIVE_DEPTS,
@@ -50,74 +37,6 @@ function go(to) {
   router.push(to)
 }
 
-/* ---------------- 权限状态 ---------------- */
-const lv = computed(() => level.value)
-const lvLabel = computed(() => levelLabel.value)
-const next = computed(() => nextLevel.value)
-
-/* ---------------- 存档状态 / 备份码 ---------------- */
-const codeOpen = ref(false)
-const code = ref('')
-const codeInput = ref('')
-const codeMsg = ref('')
-
-const syncTone = computed(
-  () =>
-    ({
-      ok: 'is-ok',
-      offline: 'is-bad',
-      syncing: 'is-busy',
-      guest: 'is-idle'
-    })[syncState.status] || 'is-idle'
-)
-
-const syncText = computed(() => {
-  switch (syncState.status) {
-    case 'ok':
-      return '已同步到账号存档 · 换设备登录可恢复'
-    case 'syncing':
-      return '正在与账号存档同步…'
-    case 'offline':
-      return `同步失败，进度只在本机${syncState.error ? ` · ${syncState.error}` : ''}`
-    case 'guest':
-      return '未登录 · 进度只存在这台电脑'
-    default:
-      return '权限进度尚未同步'
-  }
-})
-
-function retrySync() {
-  syncNow()
-}
-
-function toggleCode() {
-  codeOpen.value = !codeOpen.value
-  if (codeOpen.value && !code.value) code.value = exportClearanceCode()
-}
-
-function doExport() {
-  code.value = exportClearanceCode()
-  codeMsg.value = '已生成 · 点一下文本框即可全选复制'
-}
-
-function doImport() {
-  const r = importClearanceCode(codeInput.value)
-  codeMsg.value = r.message
-  if (r.ok) {
-    codeInput.value = ''
-    code.value = exportClearanceCode()
-  }
-}
-
-const progress = computed(() => (lv.value >= LEVELS.length ? 100 : (next.value?.pct ?? 100)))
-
-/** 解锁提示语：按目标密级实际门槛计算，还差多少权限点 */
-function needText(req) {
-  if (lv.value >= req) return ''
-  const target = LEVELS.find((l) => l.value === req)?.label || '更高'
-  return `需「${target}」密级 · 还差 ${pointsTo(req)} 权限点`
-}
-
 /** 轻提示：停留在当前页时给出明确反馈（避免"点了没反应"） */
 const toast = ref('')
 let toastTimer = 0
@@ -130,8 +49,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 
 /**
  * 卡片即入口：整张卡片点进各自的卷宗详情页（/archive/:kind/:key）。
- * 密级不足的卡片同样可进 —— 详情页会给出「已封存 + 还差多少权限点」的说明，
- * 比在列表里点不动更容易理解（原来只有锁定态抖动 + toast，卡片其实是死的）。
+ * 任务系统已下线，所有卡片都可直接查阅，不存在封存态。
  */
 function openKing(k) {
   go(`/archive/king/${k.code}`)
@@ -209,20 +127,10 @@ function countDept(id) {
   return ARCHIVE_PEOPLE.filter((p) => p.dept === id).length
 }
 
-/** 已解锁人物的统计 */
-const unlockedPeople = computed(() => ARCHIVE_PEOPLE.filter((p) => hasClearance(p.req)).length)
-
-/* ---------------- 龙王卷宗 ---------------- */
-/** 已解锁龙王的统计 */
-const unlockedKings = computed(() => ARCHIVE_KINGS.filter((k) => hasClearance(k.req)).length)
-
 /* ---------------- 任务执行记录 ---------------- */
-const logs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => hasClearance(m.req)))
-const lockedLogs = computed(() => ARCHIVE_MISSION_LOGS.filter((m) => !hasClearance(m.req)))
 
 /**
- * 任务记录同样是「整张卡片 = 入口」：一律进详情页；
- * 密级不足的记录进详情页后会看到封存说明与「去完成任务」。
+ * 任务记录同样是「整张卡片 = 入口」：一律进详情页。
  *
  * 注意签名只收一条记录：模板里是 @click="openLog(m)"，
  * 早先多写了一个 $event 形参（openLog(e, m)），m 恒为 undefined →
@@ -257,10 +165,9 @@ function onImgError(e) {
    避免跨卷残留的旧观察目标。
 
    入场态一律走 utils/reveal 的 markIn（= data-rise 属性），不要用
-   classList.add('is-in')：卡片模板上有 :class="{ 'is-locked': ... }" 这类动态
-   class 绑定，Vue 重渲染会把整串 class 重写，手上的 is-in 被冲掉，
-   .rise 的 opacity: 0 立刻生效 —— 「进档案室先 0 点全封存、同步到 34 点后
-   密级翻转」就会把入场态全清掉，表现正是「部门人物只剩一两张卡，其余全空」。 */
+   classList.add('is-in')：卡片模板上还有动态 class / 属性绑定，Vue 重渲染
+   会把整串 class 重写，手上的 is-in 被冲掉，.rise 的 opacity: 0 立刻生效，
+   表现就是「部门人物只剩一两张卡，其余全空」。 */
 const shelfEl = ref(null)
 let shelfIO = null
 
@@ -310,16 +217,10 @@ function refreshShelf() {
 watch(tab, refreshShelf)
 // 按部门筛选会重建卡片（不补入场就是「点一次筛选，卡片全消失」）
 watch(filteredPeople, refreshShelf)
-// 权限点异步同步（0 → 34）会让 is-locked 整体翻转，同样是重渲染
-watch([logs, lockedLogs], refreshShelf)
 // 言灵图鉴：后台数据拉回来后整表替换，新卡片同样要补入场
 watch(spirits, refreshShelf)
 
 onMounted(() => {
-  // 进档案室补一次权限同步：main.js 启动时若还没登录会停在 guest，
-  // 之后登录 / 换账号进来时不重跑就会一直显示「未登录 · 进度只在本机」。
-  // 已同步过同一账号时内部直接短路，不会重复打接口。
-  hydrateClearance()
   // 言灵图鉴：拉取后台管理系统维护的最新数据（失败时保持静态兜底）
   ensureSpirits()
   nextTick(() => {
@@ -354,93 +255,7 @@ onBeforeUnmount(() => shelfIO?.disconnect())
         </div>
       </section>
 
-      <!-- ============ 权限面板 ============ -->
-      <section class="perm">
-        <div class="perm__head">
-          <span class="perm__icon"><AppIcon name="shield" :size="16" /></span>
-          <div class="perm__text">
-            <b>当前权限 {{ points }} 点</b>
-            <span>
-              可查阅密级 <em>{{ lvLabel }}</em>
-              <template v-if="next"> · 距「{{ LEVELS[lv]?.label }}」还需 {{ next.remain }} 点</template>
-              <template v-else> · 已达最高密级</template>
-            </span>
-          </div>
-          <button type="button" class="perm__go" @click="go('/missions')">
-            <AppIcon name="arrow" :size="13" /> 去做任务提升权限
-          </button>
-        </div>
-        <div class="perm__bar">
-          <i :style="{ width: progress + '%' }" />
-        </div>
-        <div class="perm__steps">
-          <span
-            v-for="l in LEVELS"
-            :key="l.value"
-            class="perm__step"
-            :class="{ 'is-on': lv >= l.value }"
-          >
-            {{ l.label }}
-          </span>
-        </div>
-
-        <!-- 存档状态：让「权限为什么没了」有答案，而不是安静地归零 -->
-        <div class="perm__sync">
-          <i class="perm__dot" :class="syncTone" />
-          <span class="perm__sync-txt">{{ syncText }}</span>
-          <button
-            v-if="syncState.status === 'offline'"
-            type="button"
-            class="perm__link"
-            @click="retrySync"
-          >
-            重新同步
-          </button>
-          <button type="button" class="perm__link" @click="toggleCode">
-            {{ codeOpen ? '收起备份码' : '备份码 · 换电脑用' }}
-          </button>
-        </div>
-
-        <!-- 备份码：两台电脑各有一套本地库时，作为后端存档之外的搬运通道 -->
-        <div v-if="codeOpen" class="perm__code">
-          <div class="perm__code-row">
-            <span>导出 · 复制整段，到另一台电脑导入</span>
-            <button type="button" class="perm__mini" @click="doExport">生成</button>
-          </div>
-          <textarea
-            class="perm__area"
-            readonly
-            :value="code"
-            placeholder="点「生成」后这里出现备份码"
-            @focus="$event.target.select()"
-          />
-
-          <div class="perm__code-row">
-            <span>导入 · 粘贴另一台电脑的备份码</span>
-            <button type="button" class="perm__mini" @click="doImport">导入</button>
-          </div>
-          <textarea
-            v-model="codeInput"
-            class="perm__area"
-            placeholder="DRC1...."
-            spellcheck="false"
-          />
-          <p v-if="codeMsg" class="perm__code-msg">{{ codeMsg }}</p>
-        </div>
-      </section>
-
-      <!-- 密级不足时的显著提示 -->
-      <div v-if="lv < 4" class="notice">
-        <AppIcon name="lock" :size="15" />
-        <span>
-          档案室大部分内容已按密级<em>封存</em>：当前「{{ lvLabel }}」密级 ·
-          完成「执行部任务」累积权限点即可解锁（3 点升「内部」· 8 点升「机密」· 15 点升「绝密」）
-        </span>
-        <button type="button" class="notice__go" @click="go('/missions')">
-          <AppIcon name="arrow" :size="13" /> 去完成任务累积权限点
-        </button>
-      </div>
-
+      <!-- 任务系统已下线：本馆卷宗全部开放查阅，密级仅作分级标注 -->
       <!-- ============ 分卷（WAI-ARIA tabs：Tab 键进出，左右键切换，读屏能听到「第几卷 / 共几卷」） -->
       <div
         class="tabs"
@@ -479,7 +294,7 @@ onBeforeUnmount(() => shelfIO?.disconnect())
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="flame" :size="15" /> 龙王卷宗 · 资料与情报</h2>
           <span class="shelf__more">
-            共 {{ ARCHIVE_KINGS.length }} 位 · 已解锁 {{ unlockedKings }} 位 · 点击卡片查看完整卷宗
+            共 {{ ARCHIVE_KINGS.length }} 位 · 点击卡片查看完整卷宗
           </span>
         </header>
 
@@ -488,7 +303,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             v-for="(k, i) in ARCHIVE_KINGS"
             :key="k.code"
             class="kcard rise kcard--entry"
-            :class="{ 'is-locked': !hasClearance(k.req) }"
             :style="{ '--d': `${(i % 6) * 55}ms` }"
             role="button"
             tabindex="0"
@@ -522,14 +336,10 @@ onBeforeUnmount(() => shelfIO?.disconnect())
                 <span v-for="t in k.tags" :key="t">{{ t }}</span>
               </div>
 
-              <!-- 情报条目标题不剧透，只交代条数与是否可读 -->
-              <p v-if="hasClearance(k.req)" class="kcard__foot">
+              <!-- 情报条目标题不剧透，只交代条数 -->
+              <p class="kcard__foot">
                 <AppIcon name="info" :size="12" />
                 情报条目 {{ k.intel.length }} 条 · 点击进入详情页
-              </p>
-              <p v-else class="kcard__foot kcard__foot--sealed">
-                <AppIcon name="lock" :size="12" />
-                情报条目已封存 · {{ needText(k.req) }} · 点击查看封存说明
               </p>
             </div>
           </article>
@@ -548,7 +358,7 @@ onBeforeUnmount(() => shelfIO?.disconnect())
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="user" :size="15" /> 部门人物档案</h2>
           <span class="shelf__more">
-            已解锁 {{ unlockedPeople }} / {{ ARCHIVE_PEOPLE.length }} 人 · 点击卡片展开完整档案
+            共 {{ ARCHIVE_PEOPLE.length }} 人 · 点击卡片展开完整档案
           </span>
         </header>
 
@@ -580,7 +390,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             :key="p.key"
             class="person rise person--entry"
             :data-tone="p.tone"
-            :class="{ 'is-locked': !hasClearance(p.req) }"
             :style="{ '--d': `${(i % 8) * 50}ms` }"
             role="button"
             tabindex="0"
@@ -612,13 +421,9 @@ onBeforeUnmount(() => shelfIO?.disconnect())
               </div>
 
               <!-- 完整档案（性格/武器/言灵/任务/荣誉/身世）在详情页 -->
-              <p v-if="hasClearance(p.req)" class="kcard__foot">
+              <p class="kcard__foot">
                 <AppIcon name="id" :size="12" />
                 完整档案 · 性格 / 武器 / 言灵 / 任务 / 荣誉 / 身世 · 点击进入详情页
-              </p>
-              <p v-else class="kcard__foot kcard__foot--sealed">
-                <AppIcon name="lock" :size="12" />
-                完整档案已封存 · {{ needText(p.req) }} · 点击查看封存说明
               </p>
             </div>
           </article>
@@ -646,7 +451,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             v-for="(a, i) in ARCHIVE_ARMS"
             :key="a.code"
             class="acard rise acard--entry"
-            :class="{ 'is-locked': !hasClearance(a.req) }"
             :style="{ '--d': `${(i % 8) * 50}ms` }"
             role="button"
             tabindex="0"
@@ -662,21 +466,15 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             <h3>{{ a.name }}</h3>
             <p class="acard__type">{{ a.type }} · {{ a.origin }}</p>
 
-            <!-- 器物详情按密级解锁 -->
-            <template v-if="hasClearance(a.req)">
-              <p class="acard__desc">{{ a.desc }}</p>
-              <p class="acard__perk">{{ a.perk }}</p>
-              <div class="acard__tags">
-                <span v-for="t in a.tags" :key="t">{{ t }}</span>
-              </div>
-              <p class="acard__status">状态：{{ a.status }}</p>
-              <p class="kcard__foot">
-                <AppIcon name="info" :size="12" /> 点击查看器物档案
-              </p>
-            </template>
-            <p v-else class="kcard__foot kcard__foot--sealed">
-              <AppIcon name="lock" :size="12" />
-              武器详情已封存 · {{ needText(a.req) }} · 点击查看封存说明
+            <!-- 器物详情 -->
+            <p class="acard__desc">{{ a.desc }}</p>
+            <p class="acard__perk">{{ a.perk }}</p>
+            <div class="acard__tags">
+              <span v-for="t in a.tags" :key="t">{{ t }}</span>
+            </div>
+            <p class="acard__status">状态：{{ a.status }}</p>
+            <p class="kcard__foot">
+              <AppIcon name="info" :size="12" /> 点击查看器物档案
             </p>
           </article>
         </div>
@@ -694,7 +492,7 @@ onBeforeUnmount(() => shelfIO?.disconnect())
         <header class="shelf__head">
           <h2 class="shelf__title"><AppIcon name="archive" :size="15" /> 任务执行记录</h2>
           <span class="shelf__more">
-            已解锁 {{ logs.length }} 条 · 封存 {{ lockedLogs.length }} 条 · 点击卡片查看详情
+            共 {{ ARCHIVE_MISSION_LOGS.length }} 条 · 点击卡片查看详情
           </span>
         </header>
 
@@ -702,16 +500,11 @@ onBeforeUnmount(() => shelfIO?.disconnect())
           <article
             v-for="(m, i) in ARCHIVE_MISSION_LOGS"
             :key="m.code + i"
-            class="log rise"
-            :class="{ 'log--open': hasClearance(m.req) }"
+            class="log rise log--open"
             :style="{ '--d': `${(i % 8) * 50}ms` }"
             role="button"
             tabindex="0"
-            :aria-label="
-              hasClearance(m.req)
-                ? `查看任务详情：${m.code} ${m.name}`
-                : `该记录已封存：${m.code} ${m.name}`
-            "
+            :aria-label="`查看任务详情：${m.code} ${m.name}`"
             @click="openLog(m)"
             @keydown.enter.prevent="openLog(m)"
             @keydown.space.prevent="openLog(m)"
@@ -719,20 +512,12 @@ onBeforeUnmount(() => shelfIO?.disconnect())
             <div class="log__head">
               <span class="log__code">{{ m.code }}</span>
               <b>{{ m.name }}</b>
-              <span class="log__who">
-                <template v-if="hasClearance(m.req)">{{ m.person }} · {{ m.deptLabel }}</template>
-                <template v-else>执行人封存</template>
-              </span>
+              <span class="log__who">{{ m.person }} · {{ m.deptLabel }}</span>
             </div>
 
-            <template v-if="hasClearance(m.req)">
-              <p class="log__p"><i>执行过程</i>{{ m.process }}</p>
-              <p class="log__r"><i>完成结果</i>{{ m.result }}</p>
-              <span class="log__more">查看详情 <AppIcon name="arrow" :size="12" /></span>
-            </template>
-            <div v-else class="log__lock">
-              <AppIcon name="lock" :size="14" /> 过程与结果已封存 · {{ needText(m.req) }}
-            </div>
+            <p class="log__p"><i>执行过程</i>{{ m.process }}</p>
+            <p class="log__r"><i>完成结果</i>{{ m.result }}</p>
+            <span class="log__more">查看详情 <AppIcon name="arrow" :size="12" /></span>
           </article>
         </div>
       </section>
@@ -859,300 +644,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   font-size: 13px;
   letter-spacing: 0.06em;
   color: var(--text-3);
-}
-
-/* ================= 权限面板 ================= */
-.perm {
-  padding: 16px 20px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line-soft);
-  background: linear-gradient(165deg, rgba(33, 28, 47, 0.85), rgba(14, 11, 23, 0.94));
-  box-shadow: 0 0 24px -14px rgba(216, 178, 90, 0.4);
-  margin-bottom: 20px;
-}
-
-.perm__head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.perm__icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--gold-lt);
-  background: rgba(216, 178, 90, 0.1);
-  border: 1px solid rgba(216, 178, 90, 0.4);
-}
-
-.perm__text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 12.5px;
-  color: var(--text-3);
-}
-
-.perm__text b {
-  font-family: var(--font-serif);
-  font-size: 14.5px;
-  letter-spacing: 0.08em;
-  color: var(--text);
-}
-
-.perm__text em {
-  font-style: normal;
-  color: var(--gold-lt);
-}
-
-.perm__go {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.1);
-  color: var(--gold-lt);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: background 0.24s, transform 0.2s;
-}
-
-.perm__go:hover {
-  background: rgba(216, 178, 90, 0.2);
-  transform: translateY(-1px);
-}
-
-.perm__bar {
-  margin-top: 14px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-.perm__bar i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--gold-antique), var(--gold-lt));
-  box-shadow: 0 0 12px rgba(216, 178, 90, 0.6);
-  transition: width 0.5s ease;
-}
-
-.perm__steps {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  color: var(--text-4);
-}
-
-.perm__step {
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line-soft);
-}
-
-.perm__step.is-on {
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.5);
-  background: rgba(216, 178, 90, 0.1);
-}
-
-/* 存档状态行：一行小字交代「进度到底存在哪」 */
-.perm__sync {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 1px dashed var(--line-soft);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-}
-
-.perm__dot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--text-4);
-}
-
-.perm__dot.is-ok {
-  background: #6fbf88;
-  box-shadow: 0 0 8px rgba(111, 191, 136, 0.55);
-}
-
-.perm__dot.is-bad {
-  background: #cf6b5c;
-  box-shadow: 0 0 8px rgba(207, 107, 92, 0.55);
-}
-
-.perm__dot.is-busy {
-  background: var(--gold-lt);
-  animation: perm-pulse 1.1s ease-in-out infinite;
-}
-
-@keyframes perm-pulse {
-  50% {
-    opacity: 0.28;
-  }
-}
-
-.perm__sync-txt {
-  margin-right: auto;
-}
-
-.perm__link {
-  padding: 3px 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-}
-
-.perm__link:hover {
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.07);
-}
-
-.perm__link:focus-visible {
-  outline: none;
-  border-color: var(--gold-dp);
-  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.18);
-}
-
-/* 备份码面板 */
-.perm__code {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  background: rgba(9, 7, 15, 0.6);
-}
-
-.perm__code-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-}
-
-.perm__mini {
-  flex: none;
-  padding: 4px 11px;
-  border: 1px solid rgba(216, 178, 90, 0.35);
-  border-radius: 999px;
-  background: rgba(216, 178, 90, 0.08);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--gold-lt);
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
-}
-
-.perm__mini:hover {
-  background: rgba(216, 178, 90, 0.16);
-  border-color: rgba(216, 178, 90, 0.55);
-}
-
-.perm__area {
-  width: 100%;
-  min-height: 64px;
-  max-height: 128px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.34);
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  line-height: 1.55;
-  word-break: break-all;
-  resize: vertical;
-}
-
-.perm__area:focus {
-  outline: none;
-  border-color: rgba(216, 178, 90, 0.45);
-  box-shadow: 0 0 0 3px rgba(216, 178, 90, 0.12);
-}
-
-.perm__code-msg {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--gold-lt);
-}
-
-/* ================= 密级提示条 ================= */
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-  padding: 12px 16px;
-  border-radius: var(--r-lg);
-  border: 1px solid rgba(216, 178, 90, 0.32);
-  background: linear-gradient(120deg, rgba(216, 178, 90, 0.12), rgba(216, 178, 90, 0.03));
-  font-size: 12.5px;
-  letter-spacing: 0.04em;
-  color: var(--text-2);
-}
-
-.notice em {
-  font-style: normal;
-  color: var(--gold-lt);
-}
-
-.notice__go {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.12);
-  color: var(--gold-lt);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.22s, transform 0.2s;
-}
-
-.notice__go:hover {
-  background: rgba(216, 178, 90, 0.24);
-  transform: translateY(-1px);
 }
 
 /* ================= 分卷 ================= */
@@ -1648,10 +1139,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   box-shadow: 0 0 26px -14px rgba(216, 178, 90, 0.6);
 }
 
-.kcard.is-locked {
-  opacity: 0.9;
-}
-
 .kcard__top {
   display: flex;
   align-items: center;
@@ -1814,10 +1301,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
   color: var(--gold-lt);
 }
 
-.kcard__foot--sealed {
-  color: var(--text-4);
-}
-
 /* 入口卡：整张可点，悬停给出「能进去」的信号 */
 .kcard--entry,
 .person--entry,
@@ -1875,11 +1358,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
 .toast-leave-to {
   opacity: 0;
   transform: translate(-50%, 10px);
-}
-
-.log__lock {
-  cursor: pointer;
-  user-select: none;
 }
 
 /* ================= 部门人物 ================= */
@@ -2206,15 +1684,6 @@ onBeforeUnmount(() => shelfIO?.disconnect())
 
 .log--locked {
   opacity: 0.75;
-}
-
-/* 未解锁的卡片整块可点，提示还差多少密级 */
-.log__lock {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-4);
 }
 
 /* 「查看详情」：卡片右下角的细边框指示片。

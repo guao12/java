@@ -69,7 +69,9 @@ sql/dragon_raja_archive.sql          增量：档案库 5 张表 + 演示卷宗�
 
 会创建 `dragon_raja` 库、14 张表（`dr_user` / `dr_reset_code` / `dr_admin` / `dr_spirit` /
 `dr_archive*` / `dr_board` / `dr_thread` / `dr_reply` / `dr_thread_action` / `dr_notice` /
-`dr_hot_keyword` / `dr_search_log` / `dr_user_clearance`），并写入演示账号（密钥统一 `Dragon@2026`）。
+`dr_hot_keyword` / `dr_search_log`），并写入演示账号（密钥统一 `Dragon@2026`）。
+
+> 任务系统下线后，全量 dump 里已不再包含 `dr_user_clearance`（2026-11 起）。
 
 > ⚠️ 该脚本含 `DROP TABLE`，重跑会清空已注册账号。**建库只需执行一次。**
 > `dr_user` 上有 `uk_account` + `uk_codename` 两个唯一索引，并发注册同名代号由唯一键兜底。
@@ -98,44 +100,31 @@ ALTER TABLE `dr_user` ADD UNIQUE INDEX `uk_codename`(`codename` ASC) USING BTREE
 **全部是 `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`，不含任何 `DROP`，可放心重复执行**，
 且完全不动 `dr_user`。
 
-### 1.6 权限进度表（权限点跨设备保存）
+### 1.6 任务系统与权限点（已下线）
 
-**无需手动执行任何脚本。** `dr_user_clearance` 由应用启动时自动建表：
+**任务系统已在 2026-11 移除**：前端不再有「执行部任务」页（旧的 `/missions` 会重定向到 `/archive`），
+档案馆的五卷对所有人无条件开放，密级（公开 / 内部 / 机密 / 绝密）只作为卷宗的分级标注保留。
 
-```properties
-spring.sql.init.mode=always
-spring.sql.init.schema-locations=classpath:db/clearance-schema.sql,classpath:db/forum-schema.sql
-spring.sql.init.data-locations=classpath:db/forum-seed.sql
-```
+配套变化：
 
-表按 `user_id` 保存权限点、已完成任务编号与任务卡快照；两个脚本都是 `CREATE TABLE IF NOT EXISTS`，
-每次启动重复执行也安全。`sql/dragon_raja.sql` 的全量快照里同样包含这张表。
+- `utils/clearance.js` 只剩 `LEVELS` 密级标签；`completeMission` / 权限点 / 备份码 / 后端同步全部删除；
+- 后端 `ClearanceController`、`ClearanceService(+Impl)`、`DrUserClearance`、`DrUserClearanceMapper`、
+  `ClearanceVO` 与 `db/clearance-schema.sql` 已删除，`spring.sql.init.schema-locations` 里也去掉了它；
+  `GET/PUT /api/user/clearance` 现在返回 404。旧库里若还留着 `dr_user_clearance` 表不影响运行，
+  确认不需要历史数据后可以 `DROP TABLE dr_user_clearance;`；
+- `ForumOverviewVO.Me` 不再返回 `points` / `levelLabel`，`BoardVO` 不再返回 `minPoints`；
+  版块准入只看在校身份（`canReadBoard` 已去掉权限点判断），执行部内网的 `min_points` 置 0；
+- `dr_board.min_points` 列仍留在库里（历史字段，代码不再读写），新库/种子脚本也不再用它；
+- 论坛首页侧栏的「积分 / 每日任务」入口替换为「档案馆 · 查阅卷宗」。
 
-> 不建这张表也能启动前端，但权限进度只能留在浏览器 localStorage 里，换电脑会归零；
-> 建表后登录任意设备都会自动从后端拉回并合并。
+> 论文/演示时若要恢复该玩法，需要同时恢复任务页、权限点来源、后端 clearance 模块与
+> `hasClearance` 判定，只把路由挂回来是不够的。
 
-#### ⚠️ 跨电脑同步的前提：两台机器必须是同一个数据库
+### 1.7 跨电脑访问
 
-权限进度的权威存档在 **MySQL 的 `dr_user_clearance` 表**里，跟着「账号 + 数据库」走。
-所以「换电脑就归零」几乎都不是同步代码的问题，而是两台机器各自跑了一整套本地服务
-（各自 `启动.bat` → 各自 `127.0.0.1:8082` → 各自那份 MySQL）：账号能登进去，但那台
-机器上的库里根本没有你的权限行，读出来自然是 0 点。
-
-三种正确做法，按省事程度排序：
-
-| 做法 | 怎么做 | 说明 |
-|---|---|---|
-| **A. 共用一套后端（推荐）** | 只在主机上跑后端 + MySQL，其它电脑浏览器打开 `http://<主机IP>:5177` | `vite.config.js` 已把 dev server 监听改成 `0.0.0.0`，`/api` 由主机代理到本机 8082，所有电脑共用一个库。只想本机访问时用 `VITE_HOST=127.0.0.1 npm run dev` |
-| **B. 共用一套数据库** | 各机照常跑自己的前后端，但把 `DR_DB_URL` 指向主机的 MySQL | 需要主机 MySQL 允许远程连接（授权 + 放开 3306 防火墙） |
-| **C. 备份码搬运** | 任务页权限面板 →「跨设备搬运」，导出 → 另一台导入 | 两台机器完全不通时唯一可靠的办法；取并集，不会把已有的点覆盖小 |
-
-做法 A 的效果：主机开着的时候，任何一台电脑打开同一个地址，登录同一账号就能看到同一份权限点、
-同一批已完成任务，浏览器本地只是缓存。
-
-> 2026-11 排查记录：`GET/PUT /api/user/clearance` 实测均正常（同一库内多设备进度会累加合并，
-> 后端还有 `Math.max` 兜底防止被 0 覆盖）。当时库中 `CC202600004` 已有 44 点存档，
-> 说明同步链路本身没问题，问题出在两台机器不是同一个库。
-
+只想让同一局域网的另一台电脑打开站点时，**共用一套后端即可**：只在主机上跑 MySQL + 8082，
+另一台浏览器打开 `http://<主机IP>:5177`（`vite.config.js` 的 dev server 已监听 `0.0.0.0`，
+`/api` 由主机代理到本机 8082）。只想本机访问时用 `VITE_HOST=127.0.0.1 npm run dev`。
 
 ### 1.8 配置 JWT 密钥（必做，漏了会启动失败）
 
@@ -195,24 +184,25 @@ java -jar target/springBootTest-0.0.1-SNAPSHOT.jar
 
 验证：
 
-- 接口导航页 <http://localhost:8082/index.html>
-- 健康检查 <http://localhost:8082/api/health>（`code == 0` 即正常）
+- 接口导航页 <http://192.168.68.1:8082/index.html>
+- 健康检查 <http://192.168.68.1:8082/api/health>（`code == 0` 即正常）
 
 ### 3. 启动前端
 
 ```bash
 cd C:\Users\guao\Desktop\java-main\DragonRaja-Vue
 npm install     # 首次
-npm run dev     # http://127.0.0.1:5177
+npm run dev     # http://192.168.68.1:5177
 ```
 
-> Vite 现在监听 `0.0.0.0`，`npm run dev` 启动后终端会同时给出 `Local` 和 `Network` 两个地址。
-> `DragonRaja-Vue\启动.bat` 也会在「启动完成」里直接打印本机局域网地址（如
-> `http://192.168.68.1:5177`）——**多电脑共用时，其它电脑打开这个地址即可**，
+> Vite 默认绑定 `192.168.68.1`（2026-11-09 由 `0.0.0.0` 切换），启动后直接访问
+> `http://192.168.68.1:5177` 即可。
+> `DragonRaja-Vue\启动.bat` 也会在「启动完成」里打印局域网地址 —— 多电脑共用时，
+> 其它电脑打开这个地址即可，
 > 不要再在那台机器上跑一遍 `启动.bat`（否则连的是它自己那套 MySQL，权限进度会读不到，
-> 详见 1.6 的「跨电脑同步的前提」）。只想本机访问时用 `VITE_HOST=127.0.0.1 npm run dev`。
+> 详见 1.6 的「跨电脑同步的前提」）。想让 127.0.0.1 也能访问时用 `VITE_HOST=0.0.0.0 npm run dev`。
 
-前端通过 Vite 代理把 `/api/**` 转发到 `http://127.0.0.1:8082`，
+前端通过 Vite 代理把 `/api/**` 转发到 `http://192.168.68.1:8082`，
 **不存在跨域问题，也不用改前端请求地址**。后端端口若变更，同步改 `vite.config.js` 的 `VITE_API_TARGET`。
 
 演示账号：`CC20260001` + `Dragon@2026`。
@@ -253,6 +243,32 @@ npm run dev     # http://127.0.0.1:5177
 
 `/api/home/**`、`/api/search`、`/api/archive/**` 走 **`OptionalAuthInterceptor`（软鉴权）**：
 带令牌就解析身份、不带也能访问，只是按「未认证访客」的公开级权限返回。
+
+#### 好友与私信（`/api/friend/**`，全部需要登录）
+
+好友关系存**双向两行**（A→B、B→A），查询只走单表唯一索引，解除时两行同删；
+私信不建会话表 —— 一对一私聊的会话就是 `(sender_id, receiver_id)` 组合。
+三张表（`dr_friend_request` / `dr_friendship` / `dr_message`）由 `db/friend-schema.sql`
+随应用启动自动创建，换电脑不用手动跑脚本。
+
+| 方法 | 地址 | 说明 |
+|---|---|---|
+| GET | `/api/friend/overview` | 概览：好友数 / 待处理申请 / 未读数 + 申请 + 好友列表（首屏一个请求） |
+| GET | `/api/friend/badge` | 导航角标：未读私信数 / 待处理申请数（前端 20 秒轮询） |
+| GET | `/api/friend/search?kw=` | 按学号或行动代号搜人，结果带关系状态（friend / pending_out / pending_in / none） |
+| GET | `/api/friend/list` | 我的好友（按最近会话排序，含最后一条消息与未读数） |
+| GET | `/api/friend/requests` | 我收到的待处理申请 |
+| POST | `/api/friend/requests` | 发送申请 `{toUserId, message}`；**对方已向我申请时直接成为好友** |
+| POST | `/api/friend/requests/{id}/accept` | 同意申请 |
+| POST | `/api/friend/requests/{id}/reject` | 拒绝申请 |
+| DELETE | `/api/friend/{userId}` | 解除好友（历史私信保留，重新加回还能看到） |
+| GET | `/api/friend/messages?friendId=&beforeId=&size=` | 会话历史（时间正序，往上翻传 `beforeId`） |
+| GET | `/api/friend/messages/new?friendId=&afterId=` | 增量拉新消息（前端 4 秒轮询只拉增量，不冲掉滚动位置） |
+| POST | `/api/friend/messages` | 发私信 `{toUserId, content}`，1 秒内只能发一条 |
+| POST | `/api/friend/read?friendId=` | 会话标记已读，返回剩余未读总数 |
+
+> 只允许给好友发私信 —— 否则私信就是第二个垃圾广告通道。
+> 拉取会话历史本身即视为已读，前端不需要额外调 `read`。
 
 #### 档案密级分级（"分级"的含义）
 
@@ -330,6 +346,19 @@ npm run dev     # http://127.0.0.1:5177
 **1. 启动报 `Access denied for user 'root'@'localhost'`**
 检查 `application-dev.properties` 里的账号密码是否与本地 MySQL 一致（默认 root / 123456）。
 
+**1.1 启动报 `Host 'xxx' is not allowed to connect to this MySQL server`**
+数据源现在走 `192.168.68.1:3306`，而 MySQL 默认只建了 `root@localhost`。
+在本机先补一个同 IP 的账号（只需一次）：
+
+```sql
+CREATE USER IF NOT EXISTS 'root'@'192.168.68.1' IDENTIFIED WITH mysql_native_password BY '123456';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'192.168.68.1';
+FLUSH PRIVILEGES;
+```
+
+验证：`mysql -h 192.168.68.1 -uroot -p123456 -e "select current_user()"`。
+不想要这个账号时：`DROP USER 'root'@'192.168.68.1';`
+
 **2. 中文乱码**
 数据库/表已用 `utf8mb4`，JDBC URL 带 `characterEncoding=utf8`。
 若 IDEA 里 `.properties` 中文注释乱码：`Settings → Editor → File Encodings` 全部设为 **UTF-8**。
@@ -339,6 +368,33 @@ JDBC URL 已带 `allowPublicKeyRetrieval=true`，无需处理。
 
 **4. 端口被占用 / 想换端口**
 改 `application-dev.properties` 的 `server.port`，同时改前端 `vite.config.js` 的代理 target。
+
+**4.1 配置写的是 8082，启动后却跑在 8099 或某个随机端口**
+
+这是**环境变量劫持**，不是配置写错。Spring Boot 的属性优先级里，操作系统环境变量高于
+`application-*.properties`，而 `SERVER__PORT`（双下划线）/ `SERVER_PORT` 会被 relaxed binding
+解析成 `server.port`。某些 IDE、终端或终端集成工具会往子进程里塞这个变量，于是：
+
+```
+2026-11-09 09:28:04 INFO  Tomcat initialized with port 8099 (http)   ← 配置里根本没有 8099
+```
+
+症状是**前端所有接口 500**：Vite 把 `/api` 代理到写死的 `8082`，而后端在 8099，
+代理拿不到响应就返回 `500 text/plain`，前端再报「无法连接学院服务器（HTTP 500）」。
+
+排查与解决：
+
+```bat
+rem 1) 看实际端口：启动日志里搜 Tomcat initialized with port，或看 banner 的「接口地址」
+rem 2) 启动前清掉（或直接改回 8082）
+set "SERVER__PORT=8082"
+set "SERVER__HOST=0.0.0.0"
+java -jar target\springBootTest-0.0.1-SNAPSHOT.jar --server.port=8082
+```
+
+`--server.port` 是**命令行参数，优先级最高**，能压过环境变量，所以启动命令里务必带上它。
+仓库里的 `启动.bat`、`run-backend.bat`、`dev-run.bat` 都已经做了这一步（清变量 + 显式传参），
+直接双击脚本启动就不会踩到。反过来，**手写 `java -jar xxx.jar` 不带参数**是这个问题最常见的触发方式。
 
 **5. 想加分页**
 引入 `mybatis-plus-jsqlparser` 依赖后，在 `MybatisPlusConfig` 注册 `PaginationInnerInterceptor` 即可

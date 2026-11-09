@@ -7,7 +7,6 @@ import GlowButton from '@/components/GlowButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import IdCardPreview from '@/components/IdCardPreview.vue'
 import { authApi } from '@/api/auth'
-import { hydrateClearance } from '@/utils/clearance'
 import {
   clearHistoryAccounts,
   historyAccounts,
@@ -126,7 +125,7 @@ const passwordValid = computed(() => touched.password && !errors.password && !!f
 const canSubmit = computed(() => !!form.account.trim() && !!form.password)
 const locked = computed(() => cooldown.value > 0)
 
-/** 密钥「血统共鸣度」：长度 + 字符种类，纯前端趣味反馈 */
+/** 密钥「强度」：长度 + 字符种类，纯前端趣味反馈（不做任何评级展示） */
 const resonance = computed(() => {
   const v = form.password
   if (!v) return { pct: 0, level: 'idle', text: '等待注入密钥' }
@@ -149,14 +148,6 @@ const slots = computed(() => Array.from({ length: 6 }, (_, i) => i < Math.min(6,
 /** 身份卡状态 */
 const cardState = computed(() => (scanning.value ? 'ok' : form.account ? 'scan' : 'idle'))
 const cardIdentity = computed(() => (scanning.value ? '认证通过 · 权限已解锁' : '身份待验证'))
-const cardGrade = computed(() => {
-  const pct = resonance.value.pct
-  if (!pct) return '—'
-  if (pct >= 85) return 'S'
-  if (pct >= 60) return 'A'
-  if (pct >= 30) return 'B'
-  return 'C'
-})
 const cardStatus = computed(() => {
   if (scanning.value) return '认证通过 · 正在接入'
   if (loading.value) return '正在校验龙文密钥…'
@@ -309,8 +300,6 @@ async function onSubmit() {
       remember: form.remember
     })
     saveSession({ token: data.token, user: data.user }, form.remember)
-    // 登录成功即拉取该账号的权限进度（换设备后在这里恢复）
-    hydrateClearance(true)
     rememberAccount(form.remember ? form.account.trim() : '')
     if (form.remember) history.value = pushHistoryAccount(form.account.trim())
     if (data.user?.codename) {
@@ -321,7 +310,7 @@ async function onSubmit() {
     stopCooldown()
     scanning.value = true
     notice.value = null
-    typeWriter(`认证通过 · 欢迎归来，${data.user.codename}。血统扫描正常，正在接入学院内网…`)
+    typeWriter(`认证通过 · 欢迎归来，${data.user.codename}。密钥校验通过，正在接入学院内网…`)
     window.setTimeout(() => {
       router.push(String(route.query.redirect || '/forum'))
     }, 1600)
@@ -404,7 +393,6 @@ onBeforeUnmount(() => {
               :account="form.account"
               :identity="cardIdentity"
               :spirit="form.password ? '密钥已注入' : '言灵待激活'"
-              :grade="cardGrade"
               :state="cardState"
               :status="cardStatus"
               :serial="form.password.length ? String(form.password.length) : ''"
@@ -483,7 +471,7 @@ onBeforeUnmount(() => {
                 <i v-for="(on, i) in slots" :key="i" :class="{ 'is-on': on }" />
               </div>
               <span class="meter__bar"><i :style="{ width: resonance.pct + '%' }" /></span>
-              <span class="meter__txt">血统共鸣 · {{ resonance.text }}</span>
+              <span class="meter__txt">密钥强度 · {{ resonance.text }}</span>
             </div>
 
             <div class="form-row">
@@ -530,7 +518,7 @@ onBeforeUnmount(() => {
             <p class="card-note">
               后端通道 ·
               <b v-if="backendOnline === true" class="is-online">
-                已连接（127.0.0.1:8082）· {{ ping }}ms
+                已连接（192.168.68.1:8082）· {{ ping }}ms
               </b>
               <template v-else-if="backendOnline === false">
                 <b class="is-offline">未连接，请先启动 Spring Boot 服务</b>

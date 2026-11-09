@@ -9,7 +9,6 @@ import { getUser } from '@/utils/auth'
 import { gradeOf, myLatestReport } from '@/utils/bloodline'
 import { ORG_GALLERY, codexPath } from '@/data/codex'
 import { useSpirits } from '@/data/spiritStore'
-import { level as clearanceLevel, levelLabel, points } from '@/utils/clearance'
 import {
   CATALOG_CATEGORIES,
   CATALOG_HOT,
@@ -57,11 +56,10 @@ const overviewError = ref(false)
 const access = computed(() => overview.value?.access || {})
 
 /**
- * 可查阅密级：直接取档案室那套「权限点 → 密级」（utils/clearance.js），
- * 不再用后端按身份给的上限 —— 否则首页说「可查阅公开」，档案室却因为
- * 攒了 34 点能看绝密，同一个用户在两个页面看到两套权限。
+ * 可查阅密级：任务系统下线后档案室全馆开放，这里固定为最高级，
+ * 避免首页与档案室给出两套权限口径。
  */
-const maxLevel = computed(() => clearanceLevel.value)
+const maxLevel = computed(() => 4)
 
 /** 四卷分类：与档案室同源（data/catalog.js），条数为真实馆藏数 */
 const categories = computed(() =>
@@ -508,20 +506,16 @@ onBeforeUnmount(() => {
         </button>
       </transition>
 
-      <!-- 权限提示条：与档案室同一套口径（权限点 → 密级） -->
+      <!-- 权限提示条：档案室已全馆开放 -->
       <div class="access">
         <AppIcon name="shield" :size="14" />
         <span>
           当前身份
           <b>{{ access.identityName || '未认证访客' }}</b>
           · 档案室密级
-          <b class="access__lv">「{{ levelLabel }}」</b>
-          （{{ points }} 点）· 可查阅该密级及以下卷宗
+          <b class="access__lv">「绝密」</b>
+          · 全馆卷宗开放查阅
         </span>
-        <router-link v-if="maxLevel < 4" class="access__hint" to="/missions">
-          更高密级需完成任务累积权限点
-          <AppIcon name="lock" :size="12" />
-        </router-link>
       </div>
 
       <!-- 英雄区 + 搜索栏 -->

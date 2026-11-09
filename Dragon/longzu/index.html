@@ -455,12 +455,16 @@ html, body {
   z-index: 0;
   background: linear-gradient(180deg, #0e1830 0%, #142040 30%, #0e1830 60%, var(--bg-deepest) 100%);
 }
-.main-bg img {
+.main-bg .bg-img {
+  position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   object-position: center top;
   filter: brightness(0.55) contrast(1.15) saturate(0.9);
+  opacity: 0;
+  transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
 }
+.main-bg .bg-img.on { opacity: 1; }
 .main-bg::after {
   content: '';
   position: absolute; inset: 0;
@@ -471,6 +475,16 @@ html, body {
       rgba(8, 12, 22, 0.15) 45%,
       rgba(8, 12, 22, 0.4) 70%,
       rgba(8, 12, 22, 0.75) 100%);
+}
+/* 蛇岐八家页签：罩一层绯红色调，和卡塞尔的冷蓝区分 */
+.main-bg.she::after {
+  background:
+    linear-gradient(180deg,
+      rgba(24, 8, 12, 0.55) 0%,
+      rgba(24, 8, 12, 0.25) 20%,
+      rgba(24, 8, 12, 0.15) 45%,
+      rgba(24, 8, 12, 0.4) 70%,
+      rgba(24, 8, 12, 0.75) 100%);
 }
 
 .main-scroll {
@@ -957,6 +971,120 @@ html, body {
   .splash-sep .phrase { letter-spacing: 4px; font-size: 13px; }
   .splash-btn { padding: 13px 32px; font-size: 14px; }
 }
+
+/* ========================================
+   PC / DESKTOP（>=768px）
+   移动端样式为基底，此处只做桌面增强：
+   通栏吸顶导航 + 居中限宽内容列 + 双栏布局 + 放大排版
+   ======================================== */
+@media (min-width: 768px) {
+  /* ---- 全局 ---- */
+  ::-webkit-scrollbar { width: 4px; }
+
+  /* ---- 首屏 ---- */
+  .emblem-wrap { width: 240px; height: 240px; margin-bottom: 48px; }
+  .splash-title { font-size: 56px; letter-spacing: 18px; }
+  .splash-sep .rule { width: 110px; }
+  .splash-sep .phrase { font-size: 16px; letter-spacing: 9px; }
+  .splash-btn { padding: 17px 58px; font-size: 16px; letter-spacing: 5px; }
+
+  /* ---- 序章 ---- */
+  .story-relief { height: 56%; }
+  /* 桌面视口宽，cover 裁剪后只露图片顶部一截；新浮雕龙身在图中部，下移取景框 */
+  .story-relief img { object-position: center 38%; }
+  .story-skip { top: 28px; right: 40px; }
+  .story-progress { width: min(600px, 72%); }
+  .story-body { top: 59%; padding: 24px 48px 64px; }
+  .story-text { max-width: 38em; font-size: 17px; }
+  .story-next { font-size: 15px; }
+
+  /* ---- 主页：通栏导航 + 居中内容列 ---- */
+  #main-page { display: flex; flex-direction: column; }
+  .main-nav { flex: none; padding: 14px 48px; }
+  .btn-back { font-size: 13px; padding: 9px 20px; }
+  .nav-pills {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    flex: 0 0 400px; max-width: 46vw;
+  }
+  .nav-pill { padding: 10px 12px; font-size: 14px; }
+
+  .main-scroll {
+    flex: 1; min-height: 0;
+    max-width: 1080px; margin: 0 auto; padding: 0 48px;
+  }
+
+  .hero { padding: 72px 0 28px; }
+  .hero-title { font-size: 72px; letter-spacing: 16px; margin: 36px 0 20px; }
+  .hero-eyebrow { font-size: 11px; letter-spacing: 6px; margin-left: 2px; }
+  .hero-sub .txt { font-size: 12px; letter-spacing: 5px; }
+  .lang-select { top: 26px; right: 0; font-size: 13.5px; }
+
+  /* 公告 + 登录入口双栏 */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 24px;
+    align-items: stretch;
+    margin: 12px 0 56px;
+  }
+
+  .bulletin {
+    margin: 0; padding: 32px 34px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .bulletin-tag { font-size: 11px; margin-bottom: 12px; }
+  .bulletin-h { font-size: 22px; margin-bottom: 8px; }
+  .bulletin-p { font-size: 14px; line-height: 1.9; }
+
+  .main-cta {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 32px 30px;
+    background: rgba(10, 16, 30, 0.6);
+    border: 1px solid rgba(130, 155, 200, 0.16);
+    border-radius: 14px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+  .main-tagline { font-size: 17px; letter-spacing: 6px; margin: 0 0 24px; }
+  .btn-login-main { margin: 0; width: 100%; padding: 18px; }
+  .reg-links { margin: 20px 0 0; }
+
+  /* ---- 登录页：左品牌 + 右表单 ---- */
+  .login-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 72px;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  .login-top { position: absolute; top: 26px; left: 48px; width: auto; max-width: none; }
+  .login-intro { text-align: left; }
+  .login-emblem { width: 96px; height: 96px; margin: 0 0 26px; }
+  .login-brand { text-align: left; font-size: 14px; letter-spacing: 6px; margin-bottom: 18px; }
+  .login-h1 { text-align: left; font-size: 46px; letter-spacing: 12px; margin-bottom: 14px; }
+  .login-desc { text-align: left; font-size: 15px; letter-spacing: 2.5px; }
+  .login-card { max-width: 460px; padding: 38px 36px; border-radius: 22px; }
+  .fld-label { font-size: 13.5px; }
+  .fld-input { padding: 15px 17px; font-size: 15px; }
+  .btn-submit { padding: 16px; font-size: 17px; }
+  .btn-fresh { padding: 14px; font-size: 14px; }
+
+  /* ---- 音乐按钮 ---- */
+  .music-fab { bottom: 34px; right: 34px; width: 46px; height: 46px; }
+  .music-fab svg { width: 20px; height: 20px; }
+}
+
+/* ---- 大屏微调 ---- */
+@media (min-width: 1200px) {
+  .splash-title { font-size: 64px; }
+  .hero-title { font-size: 84px; letter-spacing: 18px; }
+  .main-scroll { max-width: 1160px; }
+  .login-wrap { max-width: 1180px; }
+}
 </style>
 </head>
 <body>
@@ -1013,7 +1141,7 @@ html, body {
      ======================================== -->
 <div class="page" id="story-page">
   <div class="story-relief">
-    <img src="assets/Ancient_dark_stone_relief_carv_2026-11-06T01-19-07.png" alt="Dragon Relief">
+    <img src="assets/Western_dragon_runic_stone_relief_2026-11-09T01-45-57.png" alt="Western Dragon Relief">
   </div>
 
   <button class="story-skip" onclick="goTo('main')">跳过序章</button>
@@ -1041,19 +1169,20 @@ html, body {
      ======================================== -->
 <div class="page" id="main-page">
   <div class="main-bg">
-    <img src="assets/A_majestic_gothic_castle_at_ni_2026-11-06T01-18-23.png" alt="Cassell Castle">
+    <img class="bg-img bg-cassell on" src="assets/A_majestic_gothic_castle_at_ni_2026-11-06T01-18-23.png" alt="Cassell Castle">
+    <img class="bg-img bg-she" src="assets/Dark_japanese_palace_torii_night_2026-11-09T01-41-58.png" alt="Takamagahara Palace">
+  </div>
+
+  <!-- Nav（PC 端为通栏吸顶栏；移动端与原来一致） -->
+  <div class="main-nav">
+    <button class="btn-back" onclick="goTo('splash')">← BACK</button>
+    <div class="nav-pills">
+      <div class="nav-pill on" onclick="pickTab(this)">卡塞尔学院</div>
+      <div class="nav-pill" onclick="pickTab(this)">蛇岐八家</div>
+    </div>
   </div>
 
   <div class="main-scroll">
-    <!-- Nav -->
-    <div class="main-nav">
-      <button class="btn-back" onclick="goTo('splash')">← BACK</button>
-      <div class="nav-pills">
-        <div class="nav-pill on" onclick="pickTab(this)">卡塞尔学院</div>
-        <div class="nav-pill" onclick="pickTab(this)">蛇岐八家</div>
-      </div>
-    </div>
-
     <!-- Hero -->
     <div class="hero">
       <div class="hero-eyebrow">NIGHT<br>WATCHERS<br>COMMUNITY</div>
@@ -1066,26 +1195,31 @@ html, body {
       </div>
     </div>
 
-    <!-- Bulletin -->
-    <div class="bulletin">
-      <div class="bulletin-tag">Organization Bulletin</div>
-      <div class="bulletin-h">组织部活动公示</div>
-      <div class="bulletin-p">组织部正在摸鱼</div>
-    </div>
+    <div class="main-grid">
+      <!-- Bulletin -->
+      <div class="bulletin">
+        <div class="bulletin-tag">Organization Bulletin</div>
+        <div class="bulletin-h">组织部活动公示</div>
+        <div class="bulletin-p">组织部正在摸鱼</div>
+      </div>
 
-    <!-- Tagline -->
-    <div class="main-tagline">凡王之血，必以剑终。</div>
+      <!-- CTA -->
+      <div class="main-cta">
+        <!-- Tagline -->
+        <div class="main-tagline">凡王之血，必以剑终。</div>
 
-    <!-- Login button -->
-    <button class="btn-login-main" onclick="goTo('login')">
-      登 录 <span class="chv">›</span>
-    </button>
+        <!-- Login button -->
+        <button class="btn-login-main" onclick="goTo('login')">
+          登 录 <span class="chv">›</span>
+        </button>
 
-    <!-- Register -->
-    <div class="reg-links">
-      <a onclick="goTo('login')">新生注册</a>
-      <div class="dot"></div>
-      <a onclick="goTo('login')">提交入学申请</a>
+        <!-- Register -->
+        <div class="reg-links">
+          <a onclick="goTo('login')">新生注册</a>
+          <div class="dot"></div>
+          <a onclick="goTo('login')">提交入学申请</a>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1103,13 +1237,15 @@ html, body {
       <button class="btn-back" onclick="goTo('main')">← BACK</button>
     </div>
 
-    <div class="login-emblem">
-      <img src="assets/A_circular_metallic_silver_sea_2026-11-06T01-19-40.png" alt="Seal">
-    </div>
+    <div class="login-intro">
+      <div class="login-emblem">
+        <img src="assets/A_circular_metallic_silver_sea_2026-11-06T01-19-40.png" alt="Seal">
+      </div>
 
-    <div class="login-brand">CASSELL COLLEGE</div>
-    <h1 class="login-h1">登 录 学 院</h1>
-    <div class="login-desc">凭学号或用户名，回到守夜人的岗位</div>
+      <div class="login-brand">CASSELL COLLEGE</div>
+      <h1 class="login-h1">登 录 学 院</h1>
+      <div class="login-desc">凭学号或用户名，回到守夜人的岗位</div>
+    </div>
 
     <div class="login-card">
       <div class="fld">
@@ -1257,6 +1393,13 @@ function storyNext() {
 function pickTab(el) {
   document.querySelectorAll('.nav-pill').forEach(p => p.classList.remove('on'));
   el.classList.add('on');
+  // 主页背景跟随页签切换：卡塞尔学院 = 哥特城堡（冷蓝），蛇岐八家 = 高天原神殿（绯红）
+  const isShe = el.textContent.indexOf('蛇岐八家') !== -1;
+  const bg = document.querySelector('.main-bg');
+  if (bg) bg.classList.toggle('she', isShe);
+  document.querySelectorAll('.main-bg .bg-img').forEach(img => img.classList.remove('on'));
+  const target = document.querySelector(isShe ? '.bg-she' : '.bg-cassell');
+  if (target) target.classList.add('on');
 }
 
 // ===================== PASSWORD =====================

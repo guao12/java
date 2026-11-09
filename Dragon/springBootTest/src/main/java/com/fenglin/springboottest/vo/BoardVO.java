@@ -30,11 +30,8 @@ public class BoardVO implements Serializable {
     /** 当前访问者是否无权进入 */
     private boolean locked;
 
-    /** 无权进入时的说明，如「需执行部身份 · 权限点 8」 */
+    /** 无权进入时的说明，如「需执行部身份」 */
     private String lockHint;
-
-    /** 进入所需权限点 */
-    private Integer minPoints;
 
     /** 进入所需身份 */
     private String minIdentity;
@@ -123,14 +120,6 @@ public class BoardVO implements Serializable {
 
     public void setLockHint(String lockHint) {
         this.lockHint = lockHint;
-    }
-
-    public Integer getMinPoints() {
-        return minPoints;
-    }
-
-    public void setMinPoints(Integer minPoints) {
-        this.minPoints = minPoints;
     }
 
     public String getMinIdentity() {

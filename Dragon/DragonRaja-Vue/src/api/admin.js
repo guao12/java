@@ -156,5 +156,66 @@ export const adminApi = {
       `/api/admin/reports/${id}/handle${toQuery({ action, note })}`,
       { method: 'POST' }
     )
+  },
+
+  /* ---------------- 主题管理 ---------------- */
+
+  /**
+   * 版块下拉（含已关闭版块）。
+   * 版块几乎不变，缓存 1 分钟足够，别每次开弹窗都打一次接口。
+   *
+   * @returns {Promise<Array<{id:number, code:string, name:string, status:number}>>}
+   */
+  async threadBoards() {
+    return adminRequest('/api/admin/threads/boards', { cacheTtl: 60000 })
+  },
+
+  /**
+   * 后台主题分页。
+   *
+   * @param {object} [query]
+   * @param {number} [query.boardId] 版块主键，null = 全部
+   * @param {number} [query.status]  1 正常 / 0 待审 / -1 已下线，null = 全部
+   * @param {string} [query.keyword] 标题 / 正文 / 作者
+   * @param {number} [query.page]
+   * @param {number} [query.size]
+   */
+  async listThreads(query = {}) {
+    const page = Math.max(1, Number(query.page) || 1)
+    const size = Math.max(1, Number(query.size) || 20)
+
+    const params = { page, size }
+    if (query.boardId) params.boardId = query.boardId
+    if (query.status !== null && query.status !== undefined && query.status !== '') {
+      params.status = query.status
+    }
+    const keyword = (query.keyword || '').trim()
+    if (keyword) params.keyword = keyword
+
+    // 不缓存：置顶 / 下线之后列表必须立刻反映，缓存只会让人怀疑没生效
+    const data = await adminRequest(`/api/admin/threads${toQuery(params)}`, { cacheTtl: 0 })
+    return normalizePage(data, page, size)
+  },
+
+  /**
+   * 新建主题。
+   * @param {{boardId:number, title:string, content:string, securityLevel?:number,
+   *          replyVisible?:boolean, pinned?:boolean, essence?:boolean, status?:number}} form
+   */
+  async createThread(form) {
+    adminRequest.clearCache()
+    return adminRequest('/api/admin/threads', { method: 'POST', body: form })
+  },
+
+  /** 编辑主题（含置顶 / 加精 / 上下线） */
+  async updateThread(id, form) {
+    adminRequest.clearCache()
+    return adminRequest(`/api/admin/threads/${id}`, { method: 'PUT', body: form })
+  },
+
+  /** 删除主题（逻辑删除） */
+  async deleteThread(id) {
+    adminRequest.clearCache()
+    return adminRequest(`/api/admin/threads/${id}`, { method: 'DELETE' })
   }
 }

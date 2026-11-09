@@ -2,7 +2,7 @@
 /**
  * 全院统一顶部导航栏。
  *
- * 首页、任务看板、档案室、血统鉴定、档案详情页均复用本组件，
+ * 论坛、档案馆、好友、血统鉴定、档案详情页均复用本组件，
  * 保证品牌区 / 菜单项 / 学院时钟 / 用户菜单完全一致。
  *
  * - 菜单数据来自 data/nav.js 的 SITE_NAV（单一数据源）
@@ -14,6 +14,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
+import { friendApi } from '@/api/friend'
 import { request } from '@/api/http'
 import { clearSession, getUser } from '@/utils/auth'
 import { isAdminLoggedIn } from '@/utils/adminAuth'
@@ -45,6 +46,8 @@ watch(
   () => route.fullPath,
   () => {
     user.value = getUser()
+    // 换了账号就要换一份角标数字：退出时清零，登录时立刻取一次
+    pollBadge()
   }
 )
 
@@ -247,6 +250,35 @@ function goAdmin() {
   router.push(ADMIN_ENTRY.to)
 }
 
+/* ---------------- 未读私信角标 ---------------- */
+
+/**
+ * 只轮询一个极小的接口（/api/friend/badge，返回 unread / pending）。
+ *
+ * 导航是全站常驻组件，轮询策略直接影响整站空转开销，所以：
+ *  - 未登录不轮询（游客没有私信）
+ *  - 页面切到后台标签页时跳过本轮
+ *  - 失败静默，下一轮自己恢复，不弹提示打扰阅读
+ *
+ * 登录 / 退出会改变路由，上面的 watch 已负责刷新 user，这里跟着重算一次。
+ */
+const unread = ref(0)
+let badgeTimer = 0
+
+async function pollBadge() {
+  if (!logged.value) {
+    unread.value = 0
+    return
+  }
+  if (typeof document !== 'undefined' && document.hidden) return
+  try {
+    const data = await friendApi.badge()
+    unread.value = data?.unread || 0
+  } catch {
+    /* 静默 */
+  }
+}
+
 /* ---------------- 滚动高亮（仅首页区块） ---------------- */
 
 /** 阅读进度（0~1）：导航底部那条鎏金线，随页面滚过的高度生长 */
@@ -290,6 +322,9 @@ onMounted(() => {
   window.addEventListener('scroll', updateSpy, { passive: true })
   window.addEventListener('resize', updateSpy)
   updateSpy()
+  // 未读私信角标：先取一次，再每 20 秒刷新
+  pollBadge()
+  badgeTimer = window.setInterval(pollBadge, 20000)
 })
 
 onBeforeUnmount(() => {
@@ -297,6 +332,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
   window.clearInterval(clockTimer)
+  window.clearInterval(badgeTimer)
   window.removeEventListener('scroll', updateSpy)
   window.removeEventListener('resize', updateSpy)
   if (spyRaf) cancelAnimationFrame(spyRaf)
@@ -330,6 +366,10 @@ onBeforeUnmount(() => {
           @click="onNav(item)"
         >
           {{ item.label }}
+          <!-- 未读私信角标：只有数据里声明了 badge:'unread' 的菜单项才显示 -->
+          <i v-if="item.badge === 'unread' && unread > 0" class="nav__badge">
+            {{ unread > 99 ? '99+' : unread }}
+          </i>
         </button>
       </nav>
 
@@ -414,7 +454,12 @@ onBeforeUnmount(() => {
           :aria-current="isActive(item) ? 'page' : undefined"
           @click="onNav(item)"
         >
-          <span>{{ item.label }}</span>
+          <span>
+            {{ item.label }}
+            <i v-if="item.badge === 'unread' && unread > 0" class="nav__badge">
+              {{ unread > 99 ? '99+' : unread }}
+            </i>
+          </span>
           <AppIcon v-if="isActive(item)" name="chevron" :size="12" :stroke="2" />
         </button>
 
@@ -605,6 +650,25 @@ onBeforeUnmount(() => {
   font-weight: 600;
   background: linear-gradient(135deg, rgba(216, 178, 90, 0.16), rgba(216, 178, 90, 0.04));
   box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.26), 0 0 20px -10px var(--gold-glow);
+}
+
+/* 未读私信角标：挂在菜单文字右上角，不改变导航高度 */
+.nav__badge {
+  display: inline-block;
+  min-width: 15px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--blood);
+  color: #fff;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 15px;
+  letter-spacing: 0;
+  text-align: center;
+  vertical-align: 1px;
+  box-shadow: 0 0 10px -2px rgba(179, 39, 45, 0.9);
 }
 
 .nav__link.is-current::after {

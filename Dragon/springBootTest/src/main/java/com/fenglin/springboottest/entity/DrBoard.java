@@ -11,11 +11,12 @@ import java.time.LocalDateTime;
 /**
  * 论坛版块实体，对应表 dr_board。
  *
- * <p>版块的可见性由两个字段共同决定，判定逻辑见 {@code ForumServiceImpl#canReadBoard}：</p>
+ * <p>版块可见性只看在校身份，判定逻辑见 {@code ForumServiceImpl#canReadBoard}：</p>
  * <pre>
  *   min_identity  最低在校身份（guest &lt; student &lt; executor &lt; teacher）
- *   min_points    最低权限点（dr_user_clearance.points）
  * </pre>
+ *
+ * <p>表里仍保留 {@code min_points} 列（历史遗留，任务系统下线后不再参与判定）。</p>
  *
  * <p>发帖权限另算：{@code post_min_identity}，公告版（read_only=1）只允许教员发。</p>
  *
@@ -56,10 +57,6 @@ public class DrBoard implements Serializable {
     /** 可见所需最低身份 guest/student/executor/teacher */
     @TableField("min_identity")
     private String minIdentity;
-
-    /** 可见所需最低权限点 */
-    @TableField("min_points")
-    private Integer minPoints;
 
     /** 发帖所需最低身份 */
     @TableField("post_min_identity")
@@ -144,14 +141,6 @@ public class DrBoard implements Serializable {
 
     public void setMinIdentity(String minIdentity) {
         this.minIdentity = minIdentity;
-    }
-
-    public Integer getMinPoints() {
-        return minPoints;
-    }
-
-    public void setMinPoints(Integer minPoints) {
-        this.minPoints = minPoints;
     }
 
     public String getPostMinIdentity() {

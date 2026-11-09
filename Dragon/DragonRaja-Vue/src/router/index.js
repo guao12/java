@@ -11,7 +11,6 @@ const LoginView = () => import('@/views/LoginView.vue')
 const RegisterView = () => import('@/views/RegisterView.vue')
 const ForgotView = () => import('@/views/ForgotView.vue')
 const ConsoleView = () => import('@/views/ConsoleView.vue')
-const MissionsView = () => import('@/views/MissionsView.vue')
 const ArchiveView = () => import('@/views/ArchiveView.vue')
 const ArchiveDetailView = () => import('@/views/ArchiveDetailView.vue')
 const CharacterView = () => import('@/views/CharacterView.vue')
@@ -24,6 +23,7 @@ const ThreadView = () => import('@/views/ThreadView.vue')
 const PostEditorView = () => import('@/views/PostEditorView.vue')
 const AdminLoginView = () => import('@/views/AdminLoginView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
+const FriendsView = () => import('@/views/FriendsView.vue')
 
 const routes = [
   // 首页就是论坛：帖子流即门面。
@@ -32,12 +32,8 @@ const routes = [
   { path: '/', redirect: '/forum' },
   // 兼容旧链接与旧书签
   { path: '/home', redirect: '/forum' },
-  {
-    path: '/missions',
-    name: 'missions',
-    component: MissionsView,
-    meta: { title: '执行部任务 · 任务看板', requiresAuth: true, standalone: true }
-  },
+  // 任务系统已下线：旧的 /missions 一律回落到档案馆（老书签不报 404）
+  { path: '/missions', redirect: '/archive' },
   {
     path: '/archive',
     name: 'archive',
@@ -115,6 +111,14 @@ const routes = [
     name: 'thread',
     component: ThreadView,
     meta: { title: '主题', standalone: true }
+  },
+  {
+    // 好友与私信：必须登录。好友关系是双向的，没有游客可见的部分。
+    // standalone：自带 SiteNav，不套认证页外壳
+    path: '/friends',
+    name: 'friends',
+    component: FriendsView,
+    meta: { title: '好友与私信', requiresAuth: true, standalone: true }
   },
   {
     path: '/login',

@@ -9,14 +9,13 @@
  * 卷四任务执行记录仍走 /log/:code/:person（内容更细，见 TaskLogView）。
  *
  * 数据全部来自 data/catalog.js → data/archive.js，与档案室卡片一一对应；
- * 密级不足时不渲染正文，只给封存说明（口径与档案室 / 任务记录详情一致）。
+ * 任务系统已下线，正文一律完整展示，密级只作分级标注。
  */
 import { computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import RuneBackground from '@/components/RuneBackground.vue'
 import SiteNav from '@/components/SiteNav.vue'
-import { LEVELS, hasClearance, pointsTo } from '@/utils/clearance'
 import { findDossier, siblingDossiers } from '@/data/catalog'
 import { ARCHIVE_MISSION_LOGS } from '@/data/archive'
 
@@ -30,13 +29,6 @@ const key = computed(() => decodeURIComponent(String(route.params.key || '')))
 const found = computed(() => findDossier(kind.value, key.value))
 const item = computed(() => found.value.item)
 const raw = computed(() => found.value.raw)
-
-/** 密级是否足够：不足时整页封存 */
-const readable = computed(() => !!item.value && hasClearance(item.value.level))
-
-const needLabel = computed(() =>
-  item.value ? LEVELS[item.value.level - 1]?.label || '更高' : '更高'
-)
 
 const KIND_LABEL = { king: '龙王卷宗', person: '部门人物', arm: '龙族武器' }
 
@@ -136,8 +128,8 @@ watch(
     </SiteNav>
 
     <main class="ad__body">
-      <!-- ============ 可读：完整卷宗 ============ -->
-      <article v-if="item && readable" class="dossier">
+      <!-- ============ 完整卷宗（档案已全量开放） ============ -->
+      <article v-if="item" class="dossier">
         <i class="dossier__beam" />
 
         <header class="dossier__head">
@@ -353,26 +345,6 @@ watch(
           摘自《{{ item.topName }}》· 卡塞尔学院档案馆藏 · 本页调阅已计入日志
         </footer>
       </article>
-
-      <!-- ============ 密级不足：封存 ============ -->
-      <div v-else-if="item" class="void">
-        <AppIcon name="lock" :size="40" :stroke="1.2" />
-        <p>该卷宗正文已封存</p>
-        <p class="void__sub">
-          {{ item.code }} · {{ item.title }} · 需「{{ needLabel }}」密级
-          <template v-if="pointsTo(item.level) > 0">
-            · 还差 {{ pointsTo(item.level) }} 权限点
-          </template>
-        </p>
-        <!-- 与档案室 / 首页卡片露出的是同一段简介，口径一致：简介公开，正文封存 -->
-        <p v-if="item.summary" class="void__lead">{{ item.summary }}</p>
-        <div class="void__acts">
-          <button type="button" class="void__btn" @click="go('/missions')">去完成任务</button>
-          <button type="button" class="void__btn void__btn--ghost" @click="goBack">
-            返回档案室
-          </button>
-        </div>
-      </div>
 
       <!-- ============ 卷宗不存在 ============ -->
       <div v-else class="void">
@@ -1066,33 +1038,6 @@ watch(
   letter-spacing: 0.08em;
 }
 
-.void__sub {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--text-4);
-}
-
-/* 封存态也露出与列表卡一致的简介，避免「卡片能看、点进去说封存」的口径矛盾 */
-.void__lead {
-  max-width: 48ch;
-  margin-top: 2px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  color: var(--text-3);
-  font-size: 13px;
-  line-height: 1.9;
-  letter-spacing: 0.04em;
-  text-align: left;
-}
-
-.void__acts {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
 .void__btn {
   padding: 9px 20px;
   border-radius: 999px;
@@ -1108,12 +1053,6 @@ watch(
 .void__btn:hover {
   background: rgba(216, 178, 90, 0.2);
   border-color: var(--gold);
-}
-
-.void__btn--ghost {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-3);
 }
 
 /* ================= 响应式 ================= */

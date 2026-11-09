@@ -27,30 +27,14 @@ const IDENTITIES = [
  */
 const REGISTER_IDENTITY = 'freshman'
 
-/** 言灵卡片：value 与后端字典 code 一致，desc 为前端展示文案 */
-const SPIRIT_CARDS = [
-  { value: 'none', label: '未觉醒', desc: '血统尚未显现，待入学后统一鉴定', icon: 'shield' },
-  { value: 'junyan', label: '言灵 · 君焰', desc: '高阶火系，领域内绝对压制', icon: 'flame' },
-  { value: 'bronze', label: '言灵 · 青铜御座', desc: '重力操控，可抬升万钧之物', icon: 'shield' },
-  { value: 'shiling', label: '言灵 · 时零', desc: '时间迟滞，令领域内万物减速', icon: 'sparkle' },
-  { value: 'fengwang', label: '言灵 · 风王之瞳', desc: '风刃凝聚，洞穿一切实体', icon: 'sparkle' },
-  { value: 'zhulong', label: '言灵 · 烛龙', desc: '极寒吐息，冻结千里之地', icon: 'flame' },
-  { value: 'wangquan', label: '言灵 · 王权', desc: '血统威压，令低阶混血种臣服', icon: 'key' }
-]
-
-// 下拉项 / 卡片优先取后端字典（前后端共用一套 code）；后端未启动时回退到本地默认值
+// 下拉项优先取后端字典（前后端共用一套 code）；后端未启动时回退到本地默认值
 const identities = ref(IDENTITIES)
-const spirits = ref(SPIRIT_CARDS)
 
 onMounted(async () => {
   try {
     const dict = await authApi.dictionaries()
     if (dict?.identities?.length) {
       identities.value = dict.identities.map((item) => ({ value: item.code, label: item.name }))
-    }
-    if (dict?.spirits?.length) {
-      const nameMap = new Map(dict.spirits.map((item) => [item.code, item.name]))
-      spirits.value = SPIRIT_CARDS.map((c) => ({ ...c, label: nameMap.get(c.value) || c.label }))
     }
   } catch {
     /* 后端未启动：继续使用本地字典，提交时会给出明确错误提示 */
@@ -62,7 +46,6 @@ onMounted(async () => {
 const form = reactive({
   codename: '',
   identity: REGISTER_IDENTITY,
-  spirit: 'none',
   password: '',
   confirm: '',
   agree: false
@@ -70,7 +53,6 @@ const form = reactive({
 
 const errors = reactive({
   codename: '',
-  spirit: '',
   password: '',
   confirm: '',
   agree: ''
@@ -83,14 +65,22 @@ const notice = ref(null)
 const legalOpen = ref('')
 
 /* ---------------- 分步向导 ---------------- */
+/**
+ * 两步：身份核验 → 密钥设定。
+ *
+ * 这里原本是三步，中间一步是「血统鉴定」：让新人在 7 张言灵卡里自选一个，
+ * 再统一按 A 级盖到身份卡上。删掉的理由——
+ *  - 入学第一天就自选高危言灵（君焰 / 烛龙）在设定上说不通；
+ *  - 选什么都不影响任何后续逻辑，纯粹是装饰性选择；
+ *  - 七个选项里只有「未觉醒」是诚实的，其余等于新人给自己评级。
+ * 现在注册阶段不采集言灵，后端 AuthServiceImpl 对空 spirit 默认写 none，
+ * 真正的血统鉴定留在 /appraisal 页做。
+ */
 const STEPS = [
   { key: 'identity', label: '身份核验' },
-  { key: 'blood', label: '血统鉴定' },
   { key: 'key', label: '密钥设定' }
 ]
 const step = ref(0)
-/** 血统鉴定步骤要求手动点选一次（含「未觉醒」），避免一路回车跳过 */
-const spiritPicked = ref(false)
 
 const progress = computed(() => (step.value / (STEPS.length - 1)) * 100)
 const isLast = computed(() => step.value === STEPS.length - 1)
@@ -140,11 +130,10 @@ const checks = computed(() => ({
   symbol: /[^A-Za-z0-9]/.test(form.password)
 }))
 
-/** 身份卡预览用：身份 / 言灵文案 */
+/** 身份卡预览用：身份文案（言灵固定在卡片上显示「言灵未鉴定」） */
 const identityLabel = computed(
   () => identities.value.find((i) => i.value === form.identity)?.label || '新生'
 )
-const spiritLabel = computed(() => spirits.value.find((s) => s.value === form.spirit)?.label || '')
 
 const RULES = {
   codename() {
@@ -168,13 +157,9 @@ const RULES = {
 }
 
 /** 每一步需要校验的字段 */
-const STEP_FIELDS = [['codename'], ['spirit'], ['password', 'confirm']]
+const STEP_FIELDS = [['codename'], ['password', 'confirm']]
 
 function check(field) {
-  if (field === 'spirit') {
-    errors.spirit = ''
-    return
-  }
   touched[field] = true
   errors[field] = RULES[field]()
   if (field === 'password' && touched.confirm) errors.confirm = RULES.confirm()
@@ -264,19 +249,13 @@ function validateStep(index) {
     check(f)
     if (errors[f]) ok = false
   })
-  if (index === 1 && !spiritPicked.value) {
-    ok = false
-    notice.value = { type: 'err', text: '请点选你的言灵鉴定结果（尚未觉醒可选「未觉醒」）。' }
-  }
   return ok
 }
 
 function goNext() {
   notice.value = null
   if (!validateStep(step.value)) {
-    if (step.value !== 1) {
-      notice.value = { type: 'err', text: '本步信息存在未通过校验的项目，请检查被标记的字段。' }
-    }
+    notice.value = { type: 'err', text: '本步信息存在未通过校验的项目，请检查被标记的字段。' }
     return
   }
   // 第 1 步额外要求：图形验证码必填（服务端校验在最终提交时完成）
@@ -291,12 +270,6 @@ function goNext() {
 function goPrev() {
   notice.value = null
   if (step.value > 0) step.value -= 1
-}
-
-function pickSpirit(value) {
-  form.spirit = value
-  spiritPicked.value = true
-  notice.value = null
 }
 
 watch(step, () => {
@@ -324,11 +297,11 @@ async function onSubmit() {
 
   loading.value = true
   try {
-    // 调用后端 /api/auth/register，由后端校验图形验证码并签发账号落库
+    // 调用后端 /api/auth/register，由后端校验图形验证码并签发账号落库。
+    // 不再提交 spirit：注册阶段不采集言灵，后端对空值默认写 none（未觉醒）。
     const data = await authApi.register({
       codename: form.codename.trim(),
       identity: form.identity,
-      spirit: form.spirit,
       password: form.password,
       captchaToken: captcha.token,
       captchaCode: captcha.input.trim(),
@@ -339,7 +312,7 @@ async function onSubmit() {
     rememberAccount(data.account)
     notice.value = {
       type: 'ok',
-      text: `登记完成 · ${data.codename}，账号 ${data.account} 已签发（${data.identityName} / ${data.spiritName}），即将跳转登录…`
+      text: `登记完成 · ${data.codename}，账号 ${data.account} 已签发（${data.identityName}），即将跳转登录…`
     }
     window.setTimeout(() => router.push('/login'), 2600)
   } catch (e) {
@@ -451,44 +424,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
         <p v-else class="code-meta">
           <AppIcon name="info" :size="12" />不区分大小写，看不清可点击图片换一张
         </p>
-      </template>
 
-      <!-- ============ 第 2 步：血统鉴定 ============ -->
-      <template v-else-if="step === 1">
-        <p class="step-title">选择你的言灵鉴定结果</p>
-        <div class="spirits">
-          <button
-            v-for="s in spirits"
-            :key="s.value"
-            type="button"
-            class="spirit"
-            :class="{ 'is-on': form.spirit === s.value }"
-            @click="pickSpirit(s.value)"
-          >
-            <span class="spirit__icon"><AppIcon :name="s.icon" :size="17" /></span>
-            <span class="spirit__text">
-              <b>{{ s.label }}</b>
-              <em>{{ s.desc }}</em>
-            </span>
-            <span class="spirit__tick"><AppIcon name="check" :size="12" /></span>
-          </button>
-        </div>
-        <p class="note-line">
-          <AppIcon name="info" :size="12" />入学后可到执行部重新鉴定，此处仅用于生成身份卡底档。
-        </p>
+        <!-- 身份卡底档预览：不传 spirit，组件自动渲染「言灵未鉴定」；
+             状态只写「等待登记」，不承诺入学后会自动更新（/appraisal 是本地模拟，不回写账号） -->
         <IdCardPreview
           :name="form.codename"
           account="待 签 发"
           :identity="identityLabel"
-          :spirit="spiritLabel"
-          :grade="form.spirit === 'none' ? '—' : 'A'"
-          state="scan"
-          status="血统鉴定完成 · 等待签发账号"
-          :serial="form.spirit"
+          status="等待登记 · 待签发"
         />
       </template>
 
-      <!-- ============ 第 3 步：密钥设定 ============ -->
+      <!-- ============ 第 2 步：密钥设定 ============ -->
       <template v-else>
         <FormField
           v-model="form.password"
@@ -644,15 +591,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.step-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  color: var(--text-3);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
 .note-line {
   display: flex;
   align-items: center;
@@ -780,96 +718,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   color: var(--text-4);
   cursor: not-allowed;
 }
-/* ---------------- 言灵卡片 ---------------- */
-.spirits {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
-}
-.spirit {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 10px 11px;
-  border-radius: 11px;
-  border: 1px solid var(--line-soft);
-  background: rgba(4, 7, 13, 0.5);
-  cursor: pointer;
-  text-align: left;
-  overflow: hidden;
-  transition: border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s;
-}
-.spirit:hover {
-  border-color: rgba(216, 178, 90, 0.4);
-  transform: translateY(-2px);
-}
-.spirit.is-on {
-  border-color: var(--gold);
-  background: rgba(216, 178, 90, 0.1);
-  box-shadow: 0 0 0 1px rgba(216, 178, 90, 0.16), 0 12px 30px -20px var(--gold-glow);
-}
-.spirit__icon {
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  border: 1px solid var(--line-soft);
-  background: rgba(216, 178, 90, 0.06);
-  color: var(--text-3);
-  transition: color 0.25s, border-color 0.25s, background 0.25s;
-}
-.spirit.is-on .spirit__icon {
-  color: var(--gold);
-  border-color: rgba(216, 178, 90, 0.5);
-  background: rgba(216, 178, 90, 0.14);
-}
-.spirit__text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.spirit__text b {
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.spirit.is-on .spirit__text b {
-  color: var(--gold-lt);
-}
-.spirit__text em {
-  font-style: normal;
-  font-size: 10.5px;
-  line-height: 1.45;
-  color: var(--text-4);
-}
-.spirit__tick {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: #1a1206;
-  background: linear-gradient(180deg, var(--gold-lt), var(--gold));
-  opacity: 0;
-  transform: scale(0.4);
-  transition: opacity 0.25s, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.spirit.is-on .spirit__tick {
-  opacity: 1;
-  transform: scale(1);
-}
-
 /* ---------------- 密钥生成 ---------------- */
 .gen-row {
   display: flex;
@@ -1013,12 +861,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
   .grid-2 {
     grid-template-columns: 1fr;
     gap: 17px;
-  }
-  .spirits {
-    grid-template-columns: 1fr;
-  }
-  .code-row {
-    flex-wrap: wrap;
   }
   .captcha-input {
     flex: 1 1 100%;

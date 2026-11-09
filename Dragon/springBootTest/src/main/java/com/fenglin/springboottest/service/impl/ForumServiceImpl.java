@@ -17,7 +17,6 @@ import com.fenglin.springboottest.mapper.DrReplyMapper;
 import com.fenglin.springboottest.mapper.DrThreadActionMapper;
 import com.fenglin.springboottest.mapper.DrThreadMapper;
 import com.fenglin.springboottest.mapper.DrUserMapper;
-import com.fenglin.springboottest.service.ClearanceService;
 import com.fenglin.springboottest.service.DictService;
 import com.fenglin.springboottest.service.ForumService;
 import com.fenglin.springboottest.vo.BoardVO;
@@ -90,7 +89,6 @@ public class ForumServiceImpl implements ForumService {
     private final DrReplyMapper replyMapper;
     private final DrThreadActionMapper actionMapper;
     private final DrUserMapper userMapper;
-    private final ClearanceService clearanceService;
     private final DictService dictService;
 
     public ForumServiceImpl(DrBoardMapper boardMapper,
@@ -98,14 +96,12 @@ public class ForumServiceImpl implements ForumService {
                             DrReplyMapper replyMapper,
                             DrThreadActionMapper actionMapper,
                             DrUserMapper userMapper,
-                            ClearanceService clearanceService,
                             DictService dictService) {
         this.boardMapper = boardMapper;
         this.threadMapper = threadMapper;
         this.replyMapper = replyMapper;
         this.actionMapper = actionMapper;
         this.userMapper = userMapper;
-        this.clearanceService = clearanceService;
         this.dictService = dictService;
     }
 
@@ -118,7 +114,6 @@ public class ForumServiceImpl implements ForumService {
         DrUser user = CurrentUser.get();
         int maxLevel = SecurityLevel.maxLevelOfCurrentUser();
         int rank = rankOf(user);
-        int points = pointsOf(user);
 
         List<DrBoard> boards = boardMapper.listOpen();
         Map<Long, DrBoard> index = boards.stream()
@@ -127,7 +122,7 @@ public class ForumServiceImpl implements ForumService {
 
         ForumOverviewVO vo = new ForumOverviewVO();
         vo.setBoards(boards.stream()
-                .map(b -> toBoardVO(b, rank, points, counts.getOrDefault(b.getId(), 0)))
+                .map(b -> toBoardVO(b, rank, counts.getOrDefault(b.getId(), 0)))
                 .collect(Collectors.toList()));
 
         List<DrThread> latestRows = threadMapper.listLatest(maxLevel, 8);
@@ -151,8 +146,6 @@ public class ForumServiceImpl implements ForumService {
             me.setCodename(safe(user.getCodename()));
             me.setIdentity(safe(user.getIdentity()));
             me.setIdentityName(dictService.identityName(user.getIdentity()));
-            me.setPoints(points);
-            me.setLevelLabel(levelLabelOf(points));
             me.setThreadCount(nz(threadMapper.countByAuthor(user.getId())));
             me.setReplyCount(nz(replyMapper.countByAuthor(user.getId())));
         }
@@ -195,9 +188,8 @@ public class ForumServiceImpl implements ForumService {
         }
         DrUser user = CurrentUser.get();
         int rank = rankOf(user);
-        int points = pointsOf(user);
-        if (!canReadBoard(board, rank, points)) {
-            throw new BizException(403, "无权进入该版块 · " + lockHint(board, rank, points));
+        if (!canReadBoard(board, rank)) {
+            throw new BizException(403, "无权进入该版块 · " + lockHint(board, rank));
         }
 
         long p = Math.max(1L, page);
@@ -230,7 +222,6 @@ public class ForumServiceImpl implements ForumService {
         DrUser user = CurrentUser.get();
         int maxLevel = SecurityLevel.maxLevelOfCurrentUser();
         int rank = rankOf(user);
-        int points = pointsOf(user);
         DrBoard board = boardMapper.selectById(row.getBoardId());
 
         ThreadDetailVO out = new ThreadDetailVO();
@@ -239,7 +230,7 @@ public class ForumServiceImpl implements ForumService {
         out.setThread(toThreadVO(row, board, user, maxLevel,
                 isLiked(row.getId(), user), isCollected(row.getId(), user)));
 
-        boolean boardOk = board != null && canReadBoard(board, rank, points);
+        boolean boardOk = board != null && canReadBoard(board, rank);
         boolean levelOk = row.getSecurityLevel() == null || row.getSecurityLevel() <= maxLevel;
         boolean replyVisible = row.getReplyVisible() != null && row.getReplyVisible() == 1;
         boolean replied = user != null && hasReplied(row.getId(), user.getId());
@@ -303,9 +294,8 @@ public class ForumServiceImpl implements ForumService {
         int maxLevel = SecurityLevel.maxLevelOfCurrentUser();
         DrBoard board = boardMapper.selectById(row.getBoardId());
         int rank = rankOf(user);
-        int points = pointsOf(user);
 
-        boolean boardOk = board != null && canReadBoard(board, rank, points);
+        boolean boardOk = board != null && canReadBoard(board, rank);
         boolean levelOk = row.getSecurityLevel() == null || row.getSecurityLevel() <= maxLevel;
         if (!boardOk || !levelOk) {
             throw new BizException(403, "无权查看该主题的楼层");
@@ -326,9 +316,8 @@ public class ForumServiceImpl implements ForumService {
             throw new BizException("版块不存在");
         }
         int rank = rankOf(user);
-        int points = pointsOf(user);
-        if (!canReadBoard(board, rank, points)) {
-            throw new BizException(403, "无权在该版块发帖 · " + lockHint(board, rank, points));
+        if (!canReadBoard(board, rank)) {
+            throw new BizException(403, "无权在该版块发帖 · " + lockHint(board, rank));
         }
         if (!canPostOn(board, rank)) {
             throw new BizException(board.getReadOnly() != null && board.getReadOnly() == 1
@@ -400,8 +389,7 @@ public class ForumServiceImpl implements ForumService {
         }
         DrBoard board = boardMapper.selectById(row.getBoardId());
         int rank = rankOf(user);
-        int points = pointsOf(user);
-        if (board == null || !canReadBoard(board, rank, points)) {
+        if (board == null || !canReadBoard(board, rank)) {
             throw new BizException(403, "无权在该主题下回复");
         }
         int maxLevel = SecurityLevel.maxLevelOfCurrentUser();
@@ -829,7 +817,7 @@ public class ForumServiceImpl implements ForumService {
         return vo;
     }
 
-    private BoardVO toBoardVO(DrBoard b, int rank, int points, int threadCount) {
+    private BoardVO toBoardVO(DrBoard b, int rank, int threadCount) {
         BoardVO vo = new BoardVO();
         vo.setId(b.getId());
         vo.setCode(safe(b.getCode()));
@@ -838,24 +826,27 @@ public class ForumServiceImpl implements ForumService {
         vo.setDescription(safe(b.getDescription()));
         vo.setIcon(b.getIcon() == null || b.getIcon().isEmpty() ? "archive" : b.getIcon());
         vo.setThreadCount(threadCount);
-        vo.setMinPoints(nzInt(b.getMinPoints()));
         vo.setMinIdentity(safe(b.getMinIdentity()));
         vo.setReadOnly(b.getReadOnly() != null && b.getReadOnly() == 1);
-        boolean readable = canReadBoard(b, rank, points);
+        boolean readable = canReadBoard(b, rank);
         vo.setLocked(!readable);
-        vo.setLockHint(readable ? "" : lockHint(b, rank, points));
+        vo.setLockHint(readable ? "" : lockHint(b, rank));
         vo.setCanPost(readable && canPostOn(b, rank));
         return vo;
     }
 
-    /** 版块可见：状态开放 + 身份达标 + 权限点达标 */
-    private boolean canReadBoard(DrBoard board, int rank, int points) {
+    /**
+     * 版块可见：状态开放 + 身份达标。
+     *
+     * <p>任务系统已下线，版块不再按「权限点」拦人 —— 权限点唯一的来源就是任务，
+     * 保留这道门槛等于把所有受限版块永久锁死。现在只看在校身份
+     * （dr_board.min_identity / post_min_identity）。</p>
+     */
+    private boolean canReadBoard(DrBoard board, int rank) {
         if (board.getStatus() == null || board.getStatus() != 1) {
             return false;
         }
-        int needRank = identityRank(board.getMinIdentity());
-        int needPoints = board.getMinPoints() == null ? 0 : board.getMinPoints();
-        return rank >= needRank && points >= needPoints;
+        return rank >= identityRank(board.getMinIdentity());
     }
 
     /** 发帖权限：只读版仅教员；否则看 post_min_identity */
@@ -869,18 +860,13 @@ public class ForumServiceImpl implements ForumService {
         return rank >= identityRank(board.getPostMinIdentity());
     }
 
-    /** 权限不足的原因说明 */
-    private String lockHint(DrBoard board, int rank, int points) {
-        List<String> parts = new ArrayList<>();
+    /** 权限不足的原因说明（只剩身份一种原因） */
+    private String lockHint(DrBoard board, int rank) {
         int needRank = identityRank(board.getMinIdentity());
         if (rank < needRank) {
-            parts.add("需" + identityLabel(board.getMinIdentity()) + "身份");
+            return "需" + identityLabel(board.getMinIdentity()) + "身份";
         }
-        int needPoints = board.getMinPoints() == null ? 0 : board.getMinPoints();
-        if (points < needPoints) {
-            parts.add("权限点 " + needPoints + "（还差 " + (needPoints - points) + "）");
-        }
-        return parts.isEmpty() ? "权限不足" : String.join(" · ", parts);
+        return "权限不足";
     }
 
     /** 在校身份 → 可比较的等级（与 SecurityLevel 的密级映射保持一致） */
@@ -926,34 +912,6 @@ public class ForumServiceImpl implements ForumService {
             return 0;
         }
         return identityRank(user.getIdentity());
-    }
-
-    /** 当前登录者权限点；未登录 / 无记录均为 0 */
-    private int pointsOf(DrUser user) {
-        if (user == null || user.getId() == null) {
-            return 0;
-        }
-        try {
-            Integer p = clearanceService.get(user.getId()).getPoints();
-            return p == null ? 0 : p;
-        } catch (Exception e) {
-            // 权限表异常不应让整个论坛 500：降级为 0，最多是进不了受限版块
-            return 0;
-        }
-    }
-
-    /** 权限点 → 密级标签，阈值与前端 utils/clearance.js 的 THRESHOLDS 一致 */
-    private static String levelLabelOf(int points) {
-        if (points >= 15) {
-            return "绝密";
-        }
-        if (points >= 8) {
-            return "机密";
-        }
-        if (points >= 3) {
-            return "内部";
-        }
-        return "公开";
     }
 
     private static String orderByOf(String sort) {

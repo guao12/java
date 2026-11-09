@@ -20,10 +20,10 @@ import java.util.List;
  * <p>权限设计：不新造一套体系，而是复用现有的两套判定——</p>
  * <ul>
  *   <li>在校身份 → 可见密级上限：{@code SecurityLevel#maxLevelOfCurrentUser()}</li>
- *   <li>权限点：{@code dr_user_clearance.points}（由执行部任务累积）</li>
+ *   <li>版块准入 → 只看在校身份（{@code dr_board.min_identity} / {@code post_min_identity}）</li>
  * </ul>
- * <p>版块用 min_identity / min_points 把门，帖子用 security_level 定级，
- * 两者都不通过时给出「还差什么」而不是干巴巴的 403。</p>
+ * <p>任务系统下线后，版块不再有「权限点」门槛（详见 {@code ForumServiceImpl#canReadBoard}）；
+ * 帖子仍用 security_level 定级，不通过时给出「还差什么」而不是干巴巴的 403。</p>
  *
  * <p>写操作（发帖 / 回帖 / 点赞）一律要求登录，见各方法说明。</p>
  *

@@ -255,7 +255,9 @@ with open(path, "wb") as f:
 
 **后端 `springBootTest/src/main/resources/`**
 - `application.properties`：`spring.profiles.active=dev`，JWT 短令牌 12h / 长令牌（记住身份卡）7 天
-- `application-dev.properties`：**端口 8082**，数据源 `jdbc:mysql://localhost:3306/dragon_raja`，`root/123456`
+- `application-dev.properties`：**端口 8082**，数据源 `jdbc:mysql://192.168.68.1:3306/dragon_raja`，`root/123456`
+  （2026-11-09 前后端地址统一改成 `192.168.68.1`；MySQL 侧已建 `root@192.168.68.1` 账号，
+  否则只改 URL 会报 `Host 'xxx' is not allowed to connect`，见坑 5）
 - 另有 `application-test.properties`(8080) / `application-prod.properties`(8082)
 - JWT 密钥可用环境变量 `DR_JWT_SECRET` 覆盖（默认已内置一个 64 位值，够开发用）
 
@@ -388,7 +390,7 @@ Dragon/
 | 路由 | 文件 | 说明 |
 | --- | --- | --- |
 | `/admin/login` | `views/AdminLoginView.vue` | **只有登录，没有注册入口**。管理员账号由 SQL 预置 |
-| `/admin` | `views/AdminView.vue` | 言灵图鉴数据管理（列表 / 新增 / 编辑 / 删除） |
+| `/admin` | `views/AdminView.vue` | 后台四个菜单：言灵图鉴（增删改查）· **主题管理（发帖 / 置顶 / 加精 / 上下线 / 删除）** · 数据概览 · 举报处理 |
 
 - 路由守卫（`router/index.js`）：`/admin` 带 `meta.adminAuth`，无管理员令牌 → `/admin/login`；
   已登录管理员访问 `/admin/login` → 直接进 `/admin`。所以导航栏按钮**一律 push `/admin`**，落点交给守卫。
@@ -495,6 +497,9 @@ Dragon/
 - 全程 `Ctrl/⌘ + Enter` = 进入下一步 / 提交
 
 注意：登录卡片变高后，视口低于约 900px 时需要滚动，属正常。
+
+> **⚠️ 2026-11-09 已变更**：上面的第 2 步「血统鉴定」已被整步删除，注册现在是**两步**
+> （身份核验 → 密钥设定），不再采集言灵。不要再照着本节把言灵卡片加回去，详见第 13 节。
 
 ## 6. 演示账号（数据库初始化后可用）
 
@@ -827,3 +832,55 @@ Vue 只会覆盖它在模板里声明过的 class / 属性，`data-rise` 不会�
 - 浏览器自动化提示：`agent-browser` 的守护进程**不能跨 Bash 调用存活**
   （连续调用会 SIGTERM，exit 143/1）。把 `open → eval → screenshot → close`
   写进同一个 `.sh` 里一次跑完；元素选择器要用 `@eN` ref 形式。
+
+> **⚠️ 上面这一整段（权限点 / dr_user_clearance）已作废。** 任务系统与权限点机制
+> 2026-11 全部下线，后端 `ClearanceController` / `dr_user_clearance` 实体与表脚本都已删除，
+> 档案馆不再有任何密级门槛。别再按「先做任务赚点」的思路排查问题。
+
+---
+
+## 13. 注册页删除「血统鉴定」步骤（2026-11-09）
+
+`RegisterView.vue` 从三步减到两步：**身份核验 → 密钥设定**。
+
+删掉的东西（都在 `RegisterView.vue` 内，无从别处引用）：
+
+| 删除项 | 说明 |
+| --- | --- |
+| `SPIRIT_CARDS` 常量 | 7 张言灵卡的本地兜底数据 |
+| `spirits` ref + 字典映射 | `authApi.dictionaries()` 现在只取 `identities` |
+| `form.spirit` / `errors.spirit` | 表单不再有言灵字段 |
+| `spiritPicked` / `pickSpirit()` | 强制点选一次的逻辑 |
+| `spiritLabel` computed | 只给卡片预览用 |
+| `STEP_FIELDS` 中间项 | 变成 `[['codename'], ['password','confirm']]` |
+| 模板 `v-else-if="step === 1"` 整块 | 言灵卡片网格 + 该步的身份卡预览 |
+| CSS `.spirits / .spirit*` + `.step-title` | 连同媒体查询里的重复规则一起清掉 |
+
+保留 / 新增：
+
+- `IdCardPreview` **没有删**，挪到第 1 步末尾做底档预览。不传 `:spirit` 时组件自己渲染
+  「言灵未鉴定」，不传 `:grade` 时右上角等级块整块不渲染 —— 正好符合「还没鉴定」的语义。
+  状态文案是「等待登记 · 待签发」，**不要**改回「言灵入学后统一鉴定」这种承诺后续更新的说法（原因见下）。
+- 提交时**不再带 `spirit` 字段**。后端 `AuthServiceImpl.register` 对 null/blank 默认写
+  `none`，`DictServiceImpl.isValidSpirit("none")` 为 true，所以接口层无需改动。
+- 成功提示里去掉 `data.spiritName`，只留身份，避免新人看到「未觉醒」以为是失败。
+
+### 言灵从此恒为「未觉醒」——这是有意为之
+
+`/appraisal`（血统鉴定）**不会**把结果写回账号：它的 `onSubmit()` 只在内存里算出血统占比 +
+S/A/B/C 等级，`saveReport()` 存 `localStorage`，页面自己写着「不会上传学院服务器」。
+后端也没有任何接口能改 `dr_user.spirit`（`SpiritSaveDTO` / `AdminSpiritController` 是
+言灵**图鉴**的增删改，不是给用户发能力；用户侧无编辑 DTO）。
+
+所以此后注册的账号 `spirit` 恒为 `none`，控制台身份卡显示「未觉醒 · 待血统鉴定」。
+2026-11-09 明确选择维持这个状态 —— 未觉醒本来就是新生的诚实状态，不去造一个假的回写链路。
+将来若真要打通，需要新增 `PUT /api/user/spirit`（或复用 profile 更新）+ 在鉴定报告里
+引入「觉醒言灵」概念（血统等级和言灵在设定上是两回事，不能直接映射）。
+
+验证方式（可复用）：`.tmp/reg_submit.mjs` 用 CDP 走完两步提交流程，验证码是 4 位 PNG，
+脚本存 `captcha.png` 后轮询 `captcha_answer.txt` 等人工识别结果写入，再填表提交。
+实测账号 `CC202600010` 落库 `identity=freshman, spirit=none`，提示文案
+「登记完成 · xxx，账号 CC202600010 已签发（新生 · 2026 级）」，`issued` 过场正常，测完已删行。
+
+`/appraisal` 页面本身的 UI 与本地报告功能照旧，只是与账号数据无关。
+

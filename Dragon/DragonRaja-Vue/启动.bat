@@ -88,7 +88,7 @@ echo    等待后端就绪  最长约三分钟  请留意后端窗口日志...
 set COUNT=0
 :WAIT
 set /a COUNT+=1
-curl -s --noproxy "*" -o nul -m 2 "http://127.0.0.1:8082/api/health"
+curl -s --noproxy "*" -o nul -m 2 "http://192.168.68.1:8082/api/health"
 if not errorlevel 1 goto READY
 if !COUNT! gtr 120 goto SLOW
 ping -n 2 127.0.0.1 >nul
@@ -110,8 +110,8 @@ if not defined LANIP (
 echo ============================================================
 echo    启动完成
 echo.
-echo      本机访问   http://127.0.0.1:5177
-echo      后端接口   http://127.0.0.1:8082
+echo      本机访问   http://192.168.68.1:5177
+echo      后端接口   http://192.168.68.1:8082
 if defined LANIP echo      局域网访问 http://!LANIP!:5177
 echo      演示账号 CC20260001   密钥 Dragon@2026
 echo.
@@ -124,7 +124,7 @@ echo.
 echo    停止项目请双击  停止.bat
 echo ============================================================
 echo.
-start "" "http://127.0.0.1:5177"
+start "" "http://192.168.68.1:5177"
 pause
 endlocal
 exit /b 0

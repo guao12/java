@@ -3,7 +3,7 @@
 --
 -- 为什么放在这里：论坛的四张表是新增模块，换电脑初始化数据库时
 -- 很容易只跑了 sql/dragon_raja.sql 而漏掉论坛表 —— 结果一进 /forum
--- 就是 500。这里和 dr_user_clearance 一样，随启动补一次。
+-- 就是 500。这里随启动补一次（report / friend 两个模块同理，各自有脚本）。
 --
 -- 只做 CREATE TABLE IF NOT EXISTS：不会 DROP、不会动既有数据。
 -- ----------------------------
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `dr_board` (
   `icon`              varchar(24)  NOT NULL DEFAULT 'archive' COMMENT '图标名（对应前端 AppIcon）',
   `sort_no`           int          NOT NULL DEFAULT 0 COMMENT '排序，越小越前',
   `min_identity`      varchar(16)  NOT NULL DEFAULT 'guest' COMMENT '可见所需最低身份 guest/student/executor/teacher',
-  `min_points`        int          NOT NULL DEFAULT 0 COMMENT '可见所需最低权限点',
+  `min_points`        int          NOT NULL DEFAULT 0 COMMENT '历史遗留：任务系统下线后不再参与可见性判定，保留列避免老库报错',
   `post_min_identity` varchar(16)  NOT NULL DEFAULT 'student' COMMENT '发帖所需最低身份',
   `read_only`         tinyint      NOT NULL DEFAULT 0 COMMENT '1=只读（公告版），仅 teacher 可发',
   `status`            tinyint      NOT NULL DEFAULT 1 COMMENT '1=开放 0=关闭',

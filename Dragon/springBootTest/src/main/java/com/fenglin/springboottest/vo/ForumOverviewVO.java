@@ -129,8 +129,6 @@ public class ForumOverviewVO implements Serializable {
         private String codename = "";
         private String identity = "";
         private String identityName = "未认证访客";
-        private Integer points = 0;
-        private String levelLabel = "公开";
         private Integer maxLevel = 1;
         private String maxLevelLabel = "公开";
         private Long threadCount = 0L;
@@ -166,22 +164,6 @@ public class ForumOverviewVO implements Serializable {
 
         public void setIdentityName(String identityName) {
             this.identityName = identityName;
-        }
-
-        public Integer getPoints() {
-            return points;
-        }
-
-        public void setPoints(Integer points) {
-            this.points = points;
-        }
-
-        public String getLevelLabel() {
-            return levelLabel;
-        }
-
-        public void setLevelLabel(String levelLabel) {
-            this.levelLabel = levelLabel;
         }
 
         public Integer getMaxLevel() {

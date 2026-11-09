@@ -17,6 +17,9 @@ export const SITE_NAV = [
   { label: '同人', to: '/board/fanwork', match: ['/board/fanwork'] },
   // 档案馆：原首页的门面内容降级为资料层（人物志 / 言灵谱 / 机构志都在这里）
   { label: '档案馆', to: '/archive', match: ['/archive', '/codex', '/spirit', '/org'] },
+  // 好友：badge = 'unread' 时，导航项右上角显示未读私信数
+  // （SiteNav 会轮询 /api/friend/badge，只有登录后才轮询）
+  { label: '好友', to: '/friends', match: ['/friends'], badge: 'unread' },
   { label: '我的', to: '/console' }
 ]
 

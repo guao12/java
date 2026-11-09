@@ -18,7 +18,7 @@ INSERT IGNORE INTO `dr_board`
 ('fanwork',   '同人创作',   'FANWORKS',                 '文、图、音。转载必须附授权，标题请标「含剧透」', 'flame',   4, 'guest',    0,   'student',  0),
 ('cassell',   '学院日常',   'CAMPUS LIFE',              '报到、闲聊、失物招领，以及食堂三楼那扇门',       'home',    5, 'guest',    0,   'student',  0),
 ('notice',    '站务公告',   'NOTICE',                   '版规、活动与维护通知；仅教员可发',               'info',    6, 'guest',    0,   'teacher',  1),
-('ops',       '执行部内网', 'EXECUTION BUREAU',         '权限点 8 以上（机密级）且需执行部身份；外勤简报与内部讨论', 'shield',  7, 'executor', 8,   'executor', 0);
+('ops',       '执行部内网', 'EXECUTION BUREAU',         '仅执行部身份可进；外勤简报与内部讨论',            'shield',  7, 'executor', 0,   'executor', 0);
 
 -- ============ 主题 ============
 INSERT IGNORE INTO `dr_thread`

@@ -13,7 +13,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * 这里仍然放开，方便用 Postman / 浏览器直接调试，或前端不用代理时直连。</p>
  *
  * <p>允许的来源通过 {@code dr.cors.allowed-origin-patterns} 配置（逗号分隔），
- * 默认放开 localhost / 127.0.0.1 任意端口；局域网部署时改为实际 IP，例如
+ * 默认放开 192.168.68.1 / localhost / 127.0.0.1 任意端口；局域网部署时改为实际 IP，例如
  * {@code dr.cors.allowed-origin-patterns=http://192.168.1.100:[*]}。</p>
  *
  * @author fenglin
@@ -25,8 +25,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final OptionalAuthInterceptor optionalAuthInterceptor;
     private final AdminInterceptor adminInterceptor;
 
-    /** 允许的跨域来源（逗号分隔），默认 localhost / 127.0.0.1 任意端口 */
-    @Value("${dr.cors.allowed-origin-patterns:http://localhost:[*],http://127.0.0.1:[*]}")
+    /** 允许的跨域来源（逗号分隔），默认本机 192.168.68.1 与 localhost / 127.0.0.1 任意端口 */
+    @Value("${dr.cors.allowed-origin-patterns:http://192.168.68.1:[*],http://localhost:[*],http://127.0.0.1:[*]}")
     private String allowedOriginPatterns;
 
     public WebMvcConfig(JwtInterceptor jwtInterceptor,
@@ -51,8 +51,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 学院内网接口需要 JWT；/api/auth/** 与 /api/health 放行
+        // 好友与私信没有游客场景，一并走强制鉴权（未登录直接 401）
         registry.addInterceptor(jwtInterceptor)
-                .addPathPatterns("/api/user/**");
+                .addPathPatterns("/api/user/**", "/api/friend/**");
 
         // 首页展示、档案检索与论坛读取对所有人开放，但要识别登录者身份
         // 以便按在校身份决定可见密级（软鉴权：不带令牌也能访问，只是只能看公开卷宗）

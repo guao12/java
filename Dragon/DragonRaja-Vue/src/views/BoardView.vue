@@ -143,8 +143,9 @@ function openThread(t) {
   router.push(`/thread/${t.id}`)
 }
 
-function goMissions() {
-  router.push('/missions')
+function goForum() {
+  // 任务系统已下线：锁态只剩「身份不足」一种，引导回论坛首页看各版块要求
+  router.push('/forum')
 }
 
 /* ---------------- 轻提示 ---------------- */
@@ -203,8 +204,8 @@ function showToast(text) {
       <section v-if="locked" class="bd__void">
         <AppIcon name="lock" :size="30" />
         <h2>该版块尚未对你开放</h2>
-        <p>{{ board?.lockHint }}。积分由每日任务累积，完成一次即可看到进度变化。</p>
-        <button type="button" class="bd__void-link" @click="goMissions">前往任务看板</button>
+        <p>{{ board?.lockHint }}。该版块按在校身份开放，不涉及任务或积分。</p>
+        <button type="button" class="bd__void-link" @click="goForum">返回论坛首页</button>
       </section>
 
       <!-- 工具条 + 列表 -->

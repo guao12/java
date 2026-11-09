@@ -197,4 +197,43 @@ public interface DrThreadMapper extends BaseMapper<DrThread> {
     /** 同一作者最近一次发帖时间，用于发帖频率限制 */
     @Select("SELECT MAX(create_time) FROM dr_thread WHERE author_id = #{authorId} AND deleted = 0")
     LocalDateTime lastPostAt(@Param("authorId") Long authorId);
+
+    // ------------------------------------------------------------------
+    // 后台主题管理（管理员视角，不做密级过滤）
+    // ------------------------------------------------------------------
+
+    /**
+     * 后台主题分页。
+     *
+     * <p>与前台查询的三点不同：</p>
+     * <ul>
+     *   <li>不加 {@code security_level} 过滤 —— 管理员要能看到所有密级的帖子；</li>
+     *   <li>{@code status} 可为 null（全部），也可指定 1 正常 / 0 待审 / -1 已下线；</li>
+     *   <li>排序固定「置顶优先 + 最近活跃」，后台不需要用户自选排序。</li>
+     * </ul>
+     */
+    @Select("<script>"
+            + "SELECT t.* FROM dr_thread t WHERE t.deleted = 0 "
+            + "<if test='boardId != null'>AND t.board_id = #{boardId} </if>"
+            + "<if test='status != null'>AND t.status = #{status} </if>"
+            + "<if test='keyword != null and keyword != \"\"'>AND " + KW_COND + "</if>"
+            + "ORDER BY t.pinned DESC, COALESCE(t.last_reply_at, t.create_time) DESC, t.id DESC "
+            + "LIMIT #{offset}, #{size}"
+            + "</script>")
+    List<DrThread> adminList(@Param("boardId") Long boardId,
+                             @Param("status") Integer status,
+                             @Param("keyword") String keyword,
+                             @Param("offset") long offset,
+                             @Param("size") long size);
+
+    /** 后台主题总数，条件与 {@link #adminList} 保持一致 */
+    @Select("<script>"
+            + "SELECT COUNT(*) FROM dr_thread t WHERE t.deleted = 0 "
+            + "<if test='boardId != null'>AND t.board_id = #{boardId} </if>"
+            + "<if test='status != null'>AND t.status = #{status} </if>"
+            + "<if test='keyword != null and keyword != \"\"'>AND " + KW_COND + "</if>"
+            + "</script>")
+    Long adminCount(@Param("boardId") Long boardId,
+                    @Param("status") Integer status,
+                    @Param("keyword") String keyword);
 }

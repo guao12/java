@@ -1,7 +1,11 @@
 <script setup>
 /**
- * 身份卡实时预览 —— 随输入即时刷新，带扫描纹与血统评级
+ * 身份卡实时预览 —— 随输入即时刷新，带扫描纹
  * state: idle（待刷卡）| scan（识别中）| ok（已签发 / 认证通过）
+ *
+ * grade 为可选：传了才在右上角显示等级块。注册页 2026-11 起不再采集言灵，
+ * 已不传 grade / spirit —— 不传 spirit 时下方芯片显示「言灵未鉴定」，
+ * 正是「还没鉴定」该有的样子。prop 保留，供将来真做血统鉴定回填时使用。
  */
 import { computed } from 'vue'
 import DragonEmblem from './DragonEmblem.vue'
@@ -20,7 +24,8 @@ const props = defineProps({
 
 const shownName = computed(() => props.name || '待 识 别')
 const shownAccount = computed(() => props.account || '— — — — — — — —')
-const shownGrade = computed(() => props.grade || '—')
+/** 空字符串代表「不显示等级块」，不要用 '—' 占位，否则 v-if 会当成有值 */
+const shownGrade = computed(() => props.grade || '')
 
 const statusText = computed(() => {
   if (props.status) return props.status
@@ -52,7 +57,7 @@ const bars = computed(() => {
         <p class="idcard__name">{{ shownName }}</p>
         <p class="idcard__code">{{ shownAccount }}</p>
       </div>
-      <span class="idcard__grade">
+      <span v-if="shownGrade" class="idcard__grade">
         <i>{{ shownGrade }}</i>
         <em>血统</em>
       </span>

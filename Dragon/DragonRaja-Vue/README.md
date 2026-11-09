@@ -10,7 +10,7 @@
 ```
 
 1. 启动后端（默认 dev profile，端口 8082，需先执行后端项目的 `sql/dragon_raja.sql`）
-2. `npm run dev` 启动前端，登录页底部会显示「后端通道 · 已连接（127.0.0.1:8082）」
+2. `npm run dev` 启动前端，登录页底部会显示「后端通道 · 已连接（192.168.68.1:8082）」
 3. 演示账号：`CC20260001`，密钥 `Dragon@2026`
 
 ## 特性
@@ -36,6 +36,7 @@
   - **言灵图鉴原先在首页，现已整体并入此处**：卡片点开即 `/spirit/:key` 言灵档案，数据由后台 `/admin` 维护
 - **鉴权**：JWT 令牌（Bearer），拦截器统一校验，401 自动清除本地会话并跳回登录页
 - **路由**：Hash 模式（`createWebHashHistory`），`/console` 由路由守卫保护；构建产物可直接静态托管
+- **后台管理 `/admin`**：言灵图鉴增删改查 · **主题管理**（直接发帖、置顶 / 加精 / 上下线 / 删除，不必先等举报）· 举报处理 · 数据概览
 - **响应式**：移动端单列自适应，支持 `prefers-reduced-motion`
 
 ## 快速开始
@@ -46,7 +47,7 @@ mvn spring-boot:run          # 或在 IDEA 中直接运行 SpringBootTestApplica
 
 # 2. 前端
 npm install
-npm run dev      # 开发模式，默认 http://127.0.0.1:5177
+npm run dev      # 开发模式，默认 http://192.168.68.1:5177
 npm run build    # 构建到 dist/
 npm run preview  # 本地预览构建产物
 ```

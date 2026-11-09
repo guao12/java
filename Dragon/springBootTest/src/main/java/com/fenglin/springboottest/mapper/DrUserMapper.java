@@ -2,9 +2,12 @@ package com.fenglin.springboottest.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.fenglin.springboottest.entity.DrUser;
+import com.fenglin.springboottest.vo.UserSearchVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 /**
  * 混血种（用户）Mapper。
@@ -36,4 +39,20 @@ public interface DrUserMapper extends BaseMapper<DrUser> {
      */
     @Select("SELECT MAX(CAST(SUBSTRING(account, 7) AS UNSIGNED)) FROM dr_user WHERE account LIKE CONCAT('CC', #{year}, '%')")
     Integer maxAccountSeqOfYear(@Param("year") String year);
+
+    /**
+     * 好友模块：按学号 / 代号模糊搜索可添加的人。
+     *
+     * <p>只返回在册（status=1）、未删除、且不是自己的账号。
+     * 排序让"完全等于关键词"的排在前面 —— 输入完整学号时第一行就是本人，
+     * 不用在十条结果里挑。调用方负责补 relation（是否已是好友 / 有无待处理申请）。</p>
+     */
+    @Select("SELECT id, account, codename, identity, spirit FROM dr_user "
+            + "WHERE deleted = 0 AND status = 1 AND id <> #{me} "
+            + "  AND (account LIKE CONCAT('%', #{kw}, '%') OR codename LIKE CONCAT('%', #{kw}, '%')) "
+            + "ORDER BY (account = #{kw}) DESC, (codename = #{kw}) DESC, id DESC "
+            + "LIMIT #{limit}")
+    List<UserSearchVO> searchForFriend(@Param("me") Long me,
+                                      @Param("kw") String kw,
+                                      @Param("limit") int limit);
 }
