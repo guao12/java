@@ -5,10 +5,11 @@ import AuthCard from '@/components/AuthCard.vue'
 import FormField from '@/components/FormField.vue'
 import GlowButton from '@/components/GlowButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import IdCardPreview from '@/components/IdCardPreview.vue'
+import DragonEmblem from '@/components/DragonEmblem.vue'
 import { authApi } from '@/api/auth'
 import {
   clearHistoryAccounts,
+  currentScopeName,
   historyAccounts,
   lastAccount,
   pushHistoryAccount,
@@ -25,8 +26,6 @@ const form = reactive({ account: '', password: '', remember: true })
 /** 后端连通状态：null 检测中，true 已连接，false 未连接 */
 const backendOnline = ref(null)
 const checking = ref(false)
-/** 后端响应耗时（ms），用于信号强度显示 */
-const ping = ref(0)
 
 const stageEl = ref(null)
 const formEl = ref(null)
@@ -51,8 +50,12 @@ let cooldownTimer = null
 /* ---- 本机缓存 ---- */
 const lastLoginAt = ref(Number(localStorage.getItem('dr:last-login') || 0))
 const history = ref(historyAccounts())
-/** 编号 → 上次登录成功的行动代号（仅本机展示用） */
-const knownName = ref('')
+
+/**
+ * 当前身份槽。默认槽不提示；一旦本窗口被分到独立槽（第二个账号登录时自动分配），
+ * 就显示出来，让用户知道这个窗口和另一个窗口的账号互不影响。
+ */
+const scopeName = ref(currentScopeName())
 
 /* ---- 卡片 3D 跟随（尊重「减少动态效果」与触屏） ---- */
 const tilt = reactive({ rx: 0, ry: 0, mx: 50, my: 0, on: false })
@@ -97,7 +100,6 @@ watch(
   (v) => {
     const clean = v.replace(/\s+/g, '').toUpperCase()
     if (clean !== v) form.account = clean
-    knownName.value = clean ? localStorage.getItem(`dr:name-of-${clean}`) || '' : ''
   }
 )
 
@@ -125,44 +127,10 @@ const passwordValid = computed(() => touched.password && !errors.password && !!f
 const canSubmit = computed(() => !!form.account.trim() && !!form.password)
 const locked = computed(() => cooldown.value > 0)
 
-/** 密钥「强度」：长度 + 字符种类，纯前端趣味反馈（不做任何评级展示） */
-const resonance = computed(() => {
-  const v = form.password
-  if (!v) return { pct: 0, level: 'idle', text: '等待注入密钥' }
-  let score = 0
-  if (v.length >= 6) score += 30
-  if (v.length >= 10) score += 15
-  if (v.length >= 14) score += 10
-  if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score += 15
-  if (/\d/.test(v)) score += 15
-  if (/[^A-Za-z0-9]/.test(v)) score += 15
-  const pct = Math.min(100, score)
-  const level = pct >= 85 ? 'high' : pct >= 60 ? 'mid' : pct >= 30 ? 'low' : 'weak'
-  const text = { high: '龙文共振', mid: '共鸣稳定', low: '共鸣微弱', weak: '几乎无共鸣' }[level]
-  return { pct, level, text }
-})
+/** 密钥「强度」已移除：登录时评估强度没有决策意义（该在注册 / 改密时做），
+ *  6 格能量条 + 进度条 + 文字标签占了约 60px 却不改变任何行为。 */
 
-/** 密钥能量格：6 格随长度点亮 */
-const slots = computed(() => Array.from({ length: 6 }, (_, i) => i < Math.min(6, form.password.length)))
-
-/** 身份卡状态 */
-const cardState = computed(() => (scanning.value ? 'ok' : form.account ? 'scan' : 'idle'))
-const cardIdentity = computed(() => (scanning.value ? '认证通过 · 权限已解锁' : '身份待验证'))
-const cardStatus = computed(() => {
-  if (scanning.value) return '认证通过 · 正在接入'
-  if (loading.value) return '正在校验龙文密钥…'
-  if (form.account && form.password) return '密钥已注入，可提交认证'
-  if (form.account) return '已刷卡，等待密钥'
-  return '等待刷卡'
-})
-
-/** 信号强度：按 ping 折算为 0–3 格 */
-const signal = computed(() => {
-  if (backendOnline.value !== true) return 0
-  if (ping.value <= 120) return 3
-  if (ping.value <= 400) return 2
-  return 1
-})
+/** 后端信号格已移除（细节见模板 card-note）。探测逻辑保留：仅用于「连不上」时兜底提示。 */
 
 /** 上次登录的相对时间 */
 const lastLoginText = computed(() => {
@@ -242,14 +210,18 @@ function focusPassword() {
   })
 }
 
-function fillDemo() {
-  form.account = 'CC20260001'
-  form.password = 'Dragon@2026'
-  errors.account = ''
-  errors.password = ''
-  touched.account = true
-  touched.password = true
-  notice.value = { type: 'info', text: '已载入演示身份卡（密钥 Dragon@2026），点击「进入学院」即可登录。' }
+/**
+ * 跳转目标带上身份槽：?as=<scope>
+ * 默认槽不写，保持 URL 干净；独立槽写进去，用户把这个网址存成书签，
+ * 下次直接打开还是这个账号 —— 两个账号各有一个固定网址，互不干扰。
+ */
+function withScope(target, scope) {
+  if (!scope || scope === 'default') return target
+  const cut = target.indexOf('?')
+  const path = cut >= 0 ? target.slice(0, cut) : target
+  const params = new URLSearchParams(cut >= 0 ? target.slice(cut + 1) : '')
+  params.set('as', scope)
+  return `${path}?${params.toString()}`
 }
 
 function forget() {
@@ -263,17 +235,15 @@ function forget() {
   notice.value = { type: 'info', text: '已清除本机缓存的身份卡与登录记录。' }
 }
 
+/** 只判断「连得上 / 连不上」，不再计时长（信号格已移除，耗时无处展示） */
 async function probeBackend() {
   checking.value = true
   backendOnline.value = null
-  const t0 = performance.now()
   try {
     await authApi.dictionaries()
     backendOnline.value = true
-    ping.value = Math.round(performance.now() - t0)
   } catch {
     backendOnline.value = false
-    ping.value = 0
   } finally {
     checking.value = false
   }
@@ -299,12 +269,11 @@ async function onSubmit() {
       password: form.password,
       remember: form.remember
     })
-    saveSession({ token: data.token, user: data.user }, form.remember)
+    // 若是本窗口的第二个账号，saveSession 会自动换到新的身份槽，不覆盖原账号
+    const scope = saveSession({ token: data.token, user: data.user }, form.remember)
+    scopeName.value = scope
     rememberAccount(form.remember ? form.account.trim() : '')
     if (form.remember) history.value = pushHistoryAccount(form.account.trim())
-    if (data.user?.codename) {
-      localStorage.setItem(`dr:name-of-${form.account.trim()}`, data.user.codename)
-    }
     localStorage.setItem('dr:last-login', String(Date.now()))
     attempts.value = 0
     stopCooldown()
@@ -312,7 +281,7 @@ async function onSubmit() {
     notice.value = null
     typeWriter(`认证通过 · 欢迎归来，${data.user.codename}。密钥校验通过，正在接入学院内网…`)
     window.setTimeout(() => {
-      router.push(String(route.query.redirect || '/forum'))
+      router.push(withScope(String(route.query.redirect || '/forum'), scope))
     }, 1600)
   } catch (e) {
     loading.value = false
@@ -340,10 +309,7 @@ function onShortcut(e) {
 
 onMounted(async () => {
   form.account = lastAccount()
-  if (form.account) {
-    touched.account = true
-    knownName.value = localStorage.getItem(`dr:name-of-${form.account}`) || ''
-  }
+  if (form.account) touched.account = true
   probeBackend()
   window.addEventListener('keydown', syncCaps)
   window.addEventListener('keyup', syncCaps)
@@ -375,34 +341,36 @@ onBeforeUnmount(() => {
     @pointerleave="onLeave"
   >
     <div class="login-shell" :class="{ 'is-shake': shaking }">
+      <!-- 返回门户：从 /portal 进来后必须有回路，否则是死胡同 -->
+      <router-link to="/portal" class="back-link">
+        <AppIcon name="chevron-left" :size="14" />
+        返回门户
+      </router-link>
+
+      <!--
+        引子区放在卡片外。这是本次改版最决定性的一步：
+        原先把「徽记 + 标题 + 副题」塞在 AuthCard 里，卡片被撑到 800px+，
+        1440×900 / 1366×768 下整页必然滚动。移出后卡片只剩表单本身，整页不再滚动。
+      -->
+      <header class="intro">
+        <span class="intro__emblem" aria-hidden="true"><DragonEmblem /></span>
+        <h1 class="intro__title">身份认证</h1>
+        <p class="intro__sub">出示你的身份卡与言灵密钥，进入学院内部网络</p>
+      </header>
+
       <div class="login-tilt">
-        <AuthCard
-          badge="Cassell College · Access"
-          title="身份认证"
-          subtitle="出示你的身份卡与言灵密钥，进入学院内部网络"
-        >
+        <AuthCard>
           <template #tabs>
             <router-link to="/login" active-class="active">登录</router-link>
             <router-link to="/register" active-class="active">注册</router-link>
           </template>
 
           <form ref="formEl" class="form" novalidate @submit.prevent="onSubmit">
-            <!-- 身份卡实时预览 -->
-            <IdCardPreview
-              :name="knownName"
-              :account="form.account"
-              :identity="cardIdentity"
-              :spirit="form.password ? '密钥已注入' : '言灵待激活'"
-              :state="cardState"
-              :status="cardStatus"
-              :serial="form.password.length ? String(form.password.length) : ''"
-            />
-
             <FormField
               v-model="form.account"
               label="学号 / 姓名"
               icon="id"
-              placeholder="例：CC20260001 或 路明非"
+              placeholder="例：CC202600004 或 孤傲"
               autocomplete="username"
               :error="touched.account ? errors.account : ''"
               :valid="accountValid"
@@ -410,41 +378,29 @@ onBeforeUnmount(() => {
               @enter="focusPassword"
             />
 
-            <!-- 本机历史身份卡 -->
+            <!-- 本机历史身份卡：一个是「填入」按钮，删除是另一个独立按钮（不再嵌套） -->
             <div v-if="history.length" class="chips">
-              <span class="chips__label">本机身份卡</span>
+              <span class="chips__label">本机</span>
               <div class="chips__list">
-                <button
+                <span
                   v-for="acc in history"
                   :key="acc"
-                  type="button"
                   class="chip"
                   :class="{ 'is-active': acc === form.account }"
-                  @click="useHistory(acc)"
                 >
-                  {{ acc }}
-                  <span
+                  <button type="button" class="chip__pick" @click="useHistory(acc)">
+                    {{ acc }}
+                  </button>
+                  <button
+                    type="button"
                     class="chip__x"
-                    role="button"
-                    tabindex="0"
                     :aria-label="`删除 ${acc}`"
-                    @click.stop="dropHistory(acc)"
-                    @keydown.enter.stop.prevent="dropHistory(acc)"
+                    @click="dropHistory(acc)"
                   >
-                    <AppIcon name="alert" :size="9" />
-                  </span>
-                </button>
+                    <AppIcon name="close" :size="10" />
+                  </button>
+                </span>
               </div>
-            </div>
-
-            <div class="remember-line">
-              <p v-if="lastLoginText" class="remember-line__txt">
-                <AppIcon name="shield" :size="13" />
-                上次登录：<b>{{ lastLoginText }}</b>
-              </p>
-              <button v-if="form.account || history.length" class="link-tiny" type="button" @click="forget">
-                清除本机记录
-              </button>
             </div>
 
             <FormField
@@ -465,21 +421,15 @@ onBeforeUnmount(() => {
               <AppIcon name="alert" :size="13" />大写锁定已开启，密钥区分大小写
             </p>
 
-            <!-- 密钥能量格 + 共鸣度 -->
-            <div class="meter" :class="`meter--${resonance.level}`">
-              <div class="meter__slots">
-                <i v-for="(on, i) in slots" :key="i" :class="{ 'is-on': on }" />
-              </div>
-              <span class="meter__bar"><i :style="{ width: resonance.pct + '%' }" /></span>
-              <span class="meter__txt">密钥强度 · {{ resonance.text }}</span>
-            </div>
-
             <div class="form-row">
               <label class="check">
                 <input v-model="form.remember" type="checkbox" />
                 <span class="check__box" />
                 <span>记住身份卡</span>
               </label>
+              <button v-if="form.account || history.length" class="link-tiny" type="button" @click="forget">
+                清除记录
+              </button>
               <router-link class="link-gold" to="/forgot">忘记密钥？</router-link>
             </div>
 
@@ -506,29 +456,31 @@ onBeforeUnmount(() => {
               <template v-else>进入学院</template>
             </GlowButton>
 
-            <p class="shortcut-hint">提示：按 <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd> 快速认证</p>
+            <p class="shortcut-hint">
+              上次登录：<b v-if="lastLoginText">{{ lastLoginText }}</b>
+              <span v-else>首次登录</span>
+              <span class="shortcut-hint__sep">·</span>
+              <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> 快速认证
+            </p>
 
-            <div class="divider">或</div>
+            <!--
+              只在「后端不可达」时出现。原先是常驻一行「已连接（192.168.68.1:8082）· 12ms」
+              + 三格信号强度：内网地址属于拓扑信息不该摆在登录页，而 27 个用户里没有一个
+              会因为「后端 12ms」而改变登录动作。连不上才是需要提示的状态。
+            -->
+            <p v-if="backendOnline === false" class="card-note is-offline">
+              <AppIcon name="alert" :size="13" />
+              后端通道未连接，请先启动服务
+              <button class="link-tiny" type="button" :disabled="checking" @click="probeBackend">
+                {{ checking ? '检测中…' : '重新检测' }}
+              </button>
+            </p>
 
-            <GlowButton variant="ghost" type="button" :disabled="loading" @click="fillDemo">
-              <AppIcon name="ticket" :size="16" />
-              使用演示身份卡
-            </GlowButton>
-
-            <p class="card-note">
-              后端通道 ·
-              <b v-if="backendOnline === true" class="is-online">
-                已连接（192.168.68.1:8082）· {{ ping }}ms
-              </b>
-              <template v-else-if="backendOnline === false">
-                <b class="is-offline">未连接，请先启动 Spring Boot 服务</b>
-                <button class="link-tiny link-tiny--btn" type="button" :disabled="checking" @click="probeBackend">
-                  {{ checking ? '检测中…' : '重新检测' }}
-                </button>
-              </template>
-              <b v-else>检测中…</b>
-              <span class="signal" :class="`signal--${signal}`" :title="`信号强度 ${signal}/3`">
-                <i /><i /><i />
+            <!-- 独立身份槽提示：只在第二个账号登录后出现 -->
+            <p v-if="scopeName !== 'default'" class="slot-note">
+              <AppIcon name="shield" :size="12" />
+              <span>
+                本窗口使用独立身份槽 <b>{{ scopeName }}</b>，与另一个窗口的账号互不影响
               </span>
             </p>
           </form>
@@ -549,6 +501,70 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* ------------------------------------------------ 返回门户 */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 14px -6px;
+  padding: 4px 8px 4px 2px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-4);
+  transition: color 0.24s, transform 0.24s;
+}
+.back-link:hover {
+  color: var(--ice);
+  transform: translateX(-2px);
+}
+.back-link:hover svg {
+  color: var(--ice);
+}
+
+/* ------------------------------------------------ 引子区（卡片外）
+   结构色统一走冷银蓝，与落地页 / 门户保持同一条视觉链路；
+   金色只保留在悬停、焦点、成功态，作为「龙族 = 鎏金」的识别锚点。 */
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.intro__emblem {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 0 18px rgba(184, 194, 212, 0.32));
+  animation: intro-spin 46s linear infinite;
+}
+@keyframes intro-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.intro__title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  /* 字间距会在末尾多留一格，左移半格让它视觉居中 */
+  text-indent: 0.22em;
+  color: var(--silver-bright, #dce2ee);
+  text-shadow: 0 0 28px rgba(184, 194, 212, 0.26);
+  margin: 0 0 8px;
+}
+.intro__sub {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  max-width: 34em;
+}
+
 /* ------------------------------------------------ 舞台：光晕跟随 + 3D 倾斜 */
 .login-stage {
   position: relative;
@@ -563,7 +579,7 @@ onBeforeUnmount(() => {
   border-radius: calc(var(--r-lg) + 14px);
   background: radial-gradient(
     300px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(216, 178, 90, 0.14),
+    rgba(184, 194, 212, 0.13),
     transparent 62%
   );
   opacity: 0;
@@ -663,7 +679,9 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ------------------------------------------------ 本机历史身份卡 */
+/* ------------------------------------------------ 本机历史身份卡
+   每个 chip 现在是「一个 span 容器 + 两个并列 button」，
+   不再像原先那样把 span[role=button] 嵌在 button 里（HTML 不合法，读屏会念成两个按钮）。 */
 .chips {
   display: flex;
   align-items: center;
@@ -685,36 +703,44 @@ onBeforeUnmount(() => {
 }
 .chip {
   display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 7px 3px 9px;
+  align-items: stretch;
   border-radius: 999px;
   border: 1px solid var(--line-soft);
   background: rgba(4, 7, 13, 0.6);
-  color: var(--text-3);
+  overflow: hidden;
+  transition: border-color 0.22s, background 0.22s;
+}
+.chip:hover {
+  border-color: rgba(184, 194, 212, 0.45);
+}
+.chip.is-active {
+  border-color: rgba(184, 194, 212, 0.62);
+  background: rgba(184, 194, 212, 0.1);
+}
+.chip__pick {
+  padding: 4px 2px 4px 10px;
+  border: 0;
+  background: none;
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.06em;
+  color: var(--text-3);
   cursor: pointer;
-  transition: color 0.22s, border-color 0.22s, background 0.22s, transform 0.22s;
+  transition: color 0.22s;
 }
-.chip:hover {
-  color: var(--gold-lt);
-  border-color: rgba(216, 178, 90, 0.45);
-  transform: translateY(-1px);
-}
-.chip.is-active {
-  color: var(--gold);
-  border-color: rgba(216, 178, 90, 0.6);
-  background: rgba(216, 178, 90, 0.1);
+.chip:hover .chip__pick,
+.chip.is-active .chip__pick {
+  color: var(--silver-bright, #dce2ee);
 }
 .chip__x {
-  display: inline-grid;
+  display: grid;
   place-items: center;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
+  width: 22px;
+  border: 0;
+  border-left: 1px solid var(--line-soft);
+  background: none;
   color: var(--text-4);
+  cursor: pointer;
   transition: color 0.2s, background 0.2s;
 }
 .chip__x:hover {
@@ -722,29 +748,7 @@ onBeforeUnmount(() => {
   background: rgba(179, 39, 45, 0.18);
 }
 
-/* ------------------------------------------------ 本机记录行 */
-.remember-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: -6px 0 2px;
-  min-height: 16px;
-}
-.remember-line__txt {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-3);
-  letter-spacing: 0.02em;
-}
-.remember-line__txt b {
-  color: var(--text-2);
-  font-weight: 600;
-}
-
+/* ------------------------------------------------ 页脚小链接 */
 .link-tiny {
   border: 0;
   background: none;
@@ -758,14 +762,11 @@ onBeforeUnmount(() => {
   transition: color 0.2s ease;
 }
 .link-tiny:hover:not(:disabled) {
-  color: var(--gold-lt);
+  color: var(--silver-bright, #dce2ee);
 }
 .link-tiny:disabled {
   cursor: default;
   opacity: 0.6;
-}
-.link-tiny--btn {
-  margin-left: 6px;
 }
 
 /* ------------------------------------------------ 大写锁定 */
@@ -787,74 +788,6 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: none;
   }
-}
-
-/* ------------------------------------------------ 密钥共鸣度 + 能量格 */
-.meter {
-  margin: 10px 0 2px;
-}
-.meter__slots {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 7px;
-}
-.meter__slots i {
-  flex: 1;
-  height: 4px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.07);
-  transition: background 0.3s ease, box-shadow 0.3s ease;
-}
-.meter__slots i.is-on {
-  background: linear-gradient(90deg, var(--ice-dp), var(--ice));
-}
-.meter--mid .meter__slots i.is-on {
-  background: linear-gradient(90deg, var(--gold-dp), var(--gold));
-}
-.meter--high .meter__slots i.is-on {
-  background: linear-gradient(90deg, var(--gold), var(--gold-lt));
-  box-shadow: 0 0 10px var(--gold-glow);
-}
-.meter--weak .meter__slots i.is-on {
-  background: linear-gradient(90deg, var(--blood), var(--blood-lt));
-}
-
-.meter__bar {
-  display: block;
-  height: 3px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.07);
-  overflow: hidden;
-}
-.meter__bar i {
-  display: block;
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, var(--ice-dp), var(--ice));
-  transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s ease;
-}
-.meter--mid .meter__bar i {
-  background: linear-gradient(90deg, var(--gold-dp), var(--gold));
-}
-.meter--high .meter__bar i {
-  background: linear-gradient(90deg, var(--gold), var(--gold-lt));
-  box-shadow: 0 0 12px var(--gold-glow);
-}
-.meter--weak .meter__bar i {
-  background: linear-gradient(90deg, var(--blood), var(--blood-lt));
-}
-.meter__txt {
-  display: block;
-  margin-top: 6px;
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  color: var(--text-3);
-}
-.meter--high .meter__txt {
-  color: var(--gold-lt);
-}
-.meter--weak .meter__txt {
-  color: var(--err);
 }
 
 /* ------------------------------------------------ 打字机欢迎语 */
@@ -896,6 +829,14 @@ onBeforeUnmount(() => {
   font-size: 11px;
   color: var(--text-4);
 }
+.shortcut-hint b {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.shortcut-hint__sep {
+  margin: 0 6px;
+  opacity: 0.55;
+}
 .shortcut-hint kbd {
   display: inline-block;
   min-width: 18px;
@@ -910,44 +851,49 @@ onBeforeUnmount(() => {
   color: var(--text-2);
 }
 
-/* ------------------------------------------------ 后端状态 + 信号格 */
-.card-note b.is-online {
-  color: var(--ok);
+/* ------------------------------------------------ 独立身份槽提示 */
+.slot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: rgba(127, 212, 255, 0.06);
+  border: 1px solid rgba(127, 212, 255, 0.2);
 }
-.card-note b.is-offline {
+.slot-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--ice);
+}
+.slot-note b {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ice);
+}
+
+/* ------------------------------------------------ 后端不可达提示 */
+.card-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 11px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
   color: var(--err);
+  background: rgba(179, 39, 45, 0.1);
+  border: 1px solid rgba(239, 107, 98, 0.28);
 }
-.signal {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 10px;
-  margin-left: 8px;
-  vertical-align: -1px;
-}
-.signal i {
-  width: 3px;
-  background: var(--text-4);
-  border-radius: 1px;
-  transition: background 0.3s;
-}
-.signal i:nth-child(1) {
-  height: 4px;
-}
-.signal i:nth-child(2) {
-  height: 7px;
-}
-.signal i:nth-child(3) {
-  height: 10px;
-}
-.signal--1 i:nth-child(1) {
-  background: var(--warn);
-}
-.signal--2 i:nth-child(-n + 2) {
-  background: var(--gold);
-}
-.signal--3 i {
-  background: var(--ok);
+.card-note svg {
+  flex: 0 0 auto;
 }
 
 /* 动效敏感用户：关掉位移类动画 */
@@ -965,9 +911,28 @@ onBeforeUnmount(() => {
   .caret {
     animation: none;
   }
+  .intro__emblem {
+    animation: none;
+  }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 560px) {
+  .intro {
+    margin-bottom: 16px;
+  }
+  .intro__emblem {
+    width: 46px;
+    height: 46px;
+    margin-bottom: 11px;
+  }
+  .intro__title {
+    font-size: 22px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+  }
+  .intro__sub {
+    font-size: 12px;
+  }
   .chips {
     flex-wrap: wrap;
   }

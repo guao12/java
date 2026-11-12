@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { isLoggedIn } from '@/utils/auth'
 import { isAdminLoggedIn } from '@/utils/adminAuth'
+import { landingSeen } from '@/utils/landing'
 
 /**
  * 路由级代码分割：视图全部用动态 import，由 Vite 自动切成独立 chunk。
@@ -11,6 +12,8 @@ const LoginView = () => import('@/views/LoginView.vue')
 const RegisterView = () => import('@/views/RegisterView.vue')
 const ForgotView = () => import('@/views/ForgotView.vue')
 const ConsoleView = () => import('@/views/ConsoleView.vue')
+const LandingView = () => import('@/views/LandingView.vue')
+const PortalView = () => import('@/views/PortalView.vue')
 const ArchiveView = () => import('@/views/ArchiveView.vue')
 const ArchiveDetailView = () => import('@/views/ArchiveDetailView.vue')
 const CharacterView = () => import('@/views/CharacterView.vue')
@@ -26,10 +29,25 @@ const AdminView = () => import('@/views/AdminView.vue')
 const FriendsView = () => import('@/views/FriendsView.vue')
 
 const routes = [
-  // 首页就是论坛：帖子流即门面。
+  // 落地层（来自 longzu 原型的序章与门户）：
+  // 访客首次进入的入口。已登录 / 已看过序章时由下方守卫直接改道 ——
+  // 重定向写在守卫里而不是路由表里，是为了给 ?replay=1 留出「重看序章」的口子。
+  {
+    path: '/',
+    alias: '/welcome',
+    name: 'landing',
+    component: LandingView,
+    meta: { title: '序章 · 卡塞尔学院', standalone: true, landing: true }
+  },
+  {
+    path: '/portal',
+    name: 'portal',
+    component: PortalView,
+    meta: { title: '学院门户', standalone: true }
+  },
+  // 论坛是主站：帖子流即门面。
   // 原 HomeView（学院门面 / 卷宗检索）已退役 —— 它和 /archive 的职能高度重叠，
-  // 与其维护两套首页，不如让 /forum 直接承担第一入口。文件仍保留在 views/ 下，需要时可随时挂回来。
-  { path: '/', redirect: '/forum' },
+  // 与其维护两套首页，不如让 /forum 直接承担第一入口。文件已移至 src/legacy/，需要时可用。
   // 兼容旧链接与旧书签
   { path: '/home', redirect: '/forum' },
   // 任务系统已下线：旧的 /missions 一律回落到档案馆（老书签不报 404）
@@ -179,6 +197,14 @@ router.beforeEach((to) => {
   // 已登录管理员不再停留登录页，直接进后台
   if (to.path === '/admin/login' && isAdminLoggedIn()) {
     return { path: '/admin' }
+  }
+  // 落地层的条件入口：
+  //  - ?replay=1 强制播放（门户页的「重看序章」）
+  //  - 已登录用户不需要再看片头，直接进论坛
+  //  - 看过序章的回访用户直接到门户
+  if (to.meta.landing && !to.query.replay) {
+    if (isLoggedIn()) return { path: '/forum' }
+    if (landingSeen()) return { path: '/portal' }
   }
   if (to.meta.requiresAuth && !isLoggedIn()) {
     return { path: '/login', query: { redirect: to.fullPath } }

@@ -17,9 +17,12 @@ defineProps({
     <span class="corner corner--bl" />
     <span class="corner corner--br" />
 
-    <header class="auth-card__head">
+    <!-- 没有 badge / title / subtitle 时不渲染空头部：
+         登录页已把「徽记 + 标题 + 副题」移到卡片外，这里若保留空 header
+         会白占 20px 下边距，也让 .auth-card__head 的 text-align:center 空转。 -->
+    <header v-if="badge || title || subtitle" class="auth-card__head">
       <p v-if="badge" class="eyebrow"><i class="breathe-dot" />{{ badge }}</p>
-      <h1 class="auth-title">{{ title }}</h1>
+      <h1 v-if="title" class="auth-title">{{ title }}</h1>
       <p v-if="subtitle" class="auth-sub">{{ subtitle }}</p>
     </header>
 

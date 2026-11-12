@@ -1,7 +1,7 @@
 # 卡塞尔学院 · 龙族身份认证系统（Vue 3）
 
 龙族（Dragon Raja）同人风格的登录 / 注册页面，Vue 3 + Vite 单页应用。
-已对接 **Spring Boot 3 + MyBatis-Plus + MySQL 8** 后端（`D:\workSpace\springBootTest`），登录 / 注册 / 密钥重置均为真实接口。
+已对接 **Spring Boot 3 + MyBatis-Plus + MySQL 8** 后端（同仓库 `..\springBootTest`），登录 / 注册 / 密钥重置均为真实接口。
 
 ## 端到端流程
 
@@ -24,9 +24,15 @@
   - 无障碍：全部动效遵循 `prefers-reduced-motion`，触屏不启用倾斜
 - **注册页**：双列布局、身份与言灵下拉（下拉项来自后端字典接口）、**验证码由系统直接给出**（点「获取验证码」即回显 6 位码，5 分钟有效 / 60 秒冷却，不发邮件）、密码强度四档评估、协议勾选校验、提交后展示后端签发的学院编号并自动预填到登录页
 - **密钥重置页 `/forgot`**：三步向导（验证身份 → 重置密钥 → 完成），验证龙文由后端下发（5 分钟有效 / 60 秒冷却）、重置后旧密钥失效
+- **落地层 `/`**（2026-11 并入，来自原 `longzu` 单页原型）：访客首次进入的入口
+  - 徽记首屏：院徽 + 三重轨道环 + 光晕脉冲 + 拂光扫过 + 入场动画（`motto` 题词）
+  - **序章**：五段世界观逐字打字机 + 进度条，点击 / 空格 / 回车推进，ESC 跳过
+  - **门户 `/portal`**：双阵营（卡塞尔学院 / 蛇岐八家）切换背景与文案、学院公告、登录与注册入口
+  - 条件入口：已登录用户直接进 `/forum`；看过序章的回访用户直接到 `/portal`；`/?replay=1` 可重看
+  - 阵营选择与「已看过序章」存 localStorage（`dr:faction` / `dr:landing-seen`）
 - **学院内网 `/console`**：JWT 鉴权后的身份卡页面（档案来自 `dr_user`），支持刷新与退出
-- **首页 `/home`**：龙文档案馆（数据全部来自后端 `dr_*` 表）
-  - **首页展示**：学院通报（置顶/紧急分色）、统计面板、两级分类导航（带可见卷宗数）、精选 / 热门 / 最新三个书架、热门检索词
+- **龙文档案馆 `/archive`**（原首页 `/home` 已退役，`/` 不再指向它）
+  - **首页展示**（现位于 `/archive` 与 `/forum`）：学院通报（置顶/紧急分色）、统计面板、两级分类导航（带可见卷宗数）、精选 / 热门 / 最新三个书架、热门检索词
   - **分级分类检索**：关键词 + 一级分类 + 二级分类 + 密级分级 + 4 种排序 + 分页；每个筛选项带实时命中条数（分面统计）
   - **卷宗详情弹窗**：点卡片打开，支持 ESC / 点遮罩关闭，越级访问会被后端拒绝并提示
   - **分级可见**：「密级」= 公开 / 内部 / 机密 / 绝密，按登录身份自动过滤，超出权限的密级筛选项置灰加锁
@@ -34,15 +40,54 @@
   - 分卷支持 hash 直达：`#tab-kings` / `#tab-people` / `#tab-arms` / `#tab-logs` / `#tab-spirits`（Hash 路由下完整地址形如 `/#/archive#tab-spirits`）
   - 内容按权限点解锁密级，权限进度随账号存后端，换设备登录同一账号自动恢复（也可用备份码跨机搬运）
   - **言灵图鉴原先在首页，现已整体并入此处**：卡片点开即 `/spirit/:key` 言灵档案，数据由后台 `/admin` 维护
-- **鉴权**：JWT 令牌（Bearer），拦截器统一校验，401 自动清除本地会话并跳回登录页
+- **鉴权**：JWT 令牌（Bearer），拦截器统一校验，401 自动清除本作用域会话并跳回登录页
+- **多账号并存**：同一浏览器可同时登录多个账号、互不覆盖（见下节「会话隔离」）
 - **路由**：Hash 模式（`createWebHashHistory`），`/console` 由路由守卫保护；构建产物可直接静态托管
 - **后台管理 `/admin`**：言灵图鉴增删改查 · **主题管理**（直接发帖、置顶 / 加精 / 上下线 / 删除，不必先等举报）· 举报处理 · 数据概览
 - **响应式**：移动端单列自适应，支持 `prefers-reduced-motion`
 
+## 会话隔离（多账号并存）
+
+浏览器的 `localStorage` 是**按 origin 共享**的，不是按标签页、也不是按 URL 路径共享。
+同一个 `host:port` 下开两个窗口，默认会把令牌写进同一个键 —— 后登录的账号覆盖先登录的，
+两个窗口过一会儿就都变成同一个账号。这就是「串号」。
+
+本项目把会话键改成带作用域的形式：`dr:s:<scope>:token`。
+
+| 作用域来源 | 优先级 | 生命周期 |
+|---|---|---|
+| URL 参数 `?as=<name>` | 高 | 永久（刷新、重启浏览器后仍在，适合两个账号各存一个书签） |
+| 本标签页已确定的作用域（sessionStorage） | 中 | 刷新仍在，关掉标签页即失效 |
+| 最近一次用过的作用域 | 低 | 让单账号用户的「记住我」照常生效 |
+| `default` | 兜底 | 首次访问 |
+
+三条硬规则：
+
+1. **登录第二个账号时自动换槽**，不覆盖已存在的另一个账号的会话 —— 无需任何操作；
+2. **退出 / 令牌过期只清当前作用域**，不会把另一个窗口的账号一起踢下线；
+3. 令牌仍按「记住我」决定存 `localStorage`（7 天）还是 `sessionStorage`（仅本次标签页），语义未变。
+
+用法示例（哈希路由下 `?as=` 写在 `#` 之后）：
+
+```
+http://192.168.68.1:5177/#/forum?as=student    # 账号 1，存书签
+http://192.168.68.1:5177/#/forum?as=teacher    # 账号 2，存书签
+```
+
+登录成为「第二个账号」后，登录页会显示当前独立身份槽，跳转地址也会自动带上 `?as=`，方便直接存书签。
+
+回归验证（不需要浏览器，模拟多标签页共享 localStorage）：
+
+```bash
+npm run check:session
+```
+
+实现位置：`src/utils/sessionScope.js`（作用域名解析与登记）、`src/utils/auth.js`（按作用域读写令牌）。
+
 ## 快速开始
 
 ```bash
-# 1. 后端（D:\workSpace\springBootTest）
+# 1. 后端（..\springBootTest，或直接双击上级目录的「一键启动.bat」）
 mvn spring-boot:run          # 或在 IDEA 中直接运行 SpringBootTestApplication
 
 # 2. 前端
@@ -92,27 +137,36 @@ DragonRaja-Vue/
 └─ src/
    ├─ main.js                  # 应用入口，挂载 router 与全局样式
    ├─ App.vue                  # 布局 + 路由过渡
-   ├─ router/index.js          # /login、/register、/home 路由与页面标题
+   ├─ router/index.js          # 路由表 + 守卫（落地层条件入口 / 登录态 / 管理员）
    ├─ styles/theme.css         # 设计令牌 + 全部公共组件样式
    ├─ api/
    │  ├─ http.js               # fetch 封装（统一响应体、401 清理会话、超时）
    │  ├─ auth.js               # 认证相关接口
    │  ├─ home.js               # 首页概览接口（含后端不可用时的兜底数据）
    │  └─ search.js             # 分级分类检索 / 分类树 / 热词 / 卷宗详情
+   ├─ data/
+   │  └─ portal.js             # 落地层文案 / 双阵营配置 / 图片 srcset 助手
    ├─ components/
    │  ├─ AuthLayout.vue        # 品牌栏 / 舞台 / 页脚外壳
-   │  ├─ RuneBackground.vue    # 法阵 + 粒子背景特效
+   │  ├─ RuneBackground.vue    # 法阵 + 粒子背景特效（内页用）
+   │  ├─ AmbientDust.vue       # 龙文尘埃 Canvas 粒子（落地页用，与上者互斥）
+   │  ├─ ProloguePlayer.vue    # 序章逐字打字机 + 进度条
+   │  ├─ FactionSwitch.vue     # 双阵营切换（v-model，可键盘操作）
    │  ├─ DragonEmblem.vue      # 学院徽记 SVG
    │  ├─ AuthCard.vue          # 认证卡片（四角封印 + 插槽）
    │  ├─ FormField.vue         # 输入 / 下拉 / 密码字段
    │  ├─ GlowButton.vue        # 鎏金按钮（loading / ghost）
    │  └─ AppIcon.vue           # 线性图标集
    └─ views/
+      ├─ LandingView.vue       # 落地页 · 徽记首屏 + 序章（吸收原 longzu 原型）
+      ├─ PortalView.vue        # 学院门户 · 双阵营 + 公告 + 登录入口
       ├─ LoginView.vue         # 登录页
       ├─ RegisterView.vue      # 注册页
       ├─ ForgotView.vue        # 密钥重置页（三步向导）
-      ├─ HomeView.vue          # 首页 · 龙文档案馆（首页展示 + 分级分类检索 + 详情弹窗）
       └─ ConsoleView.vue       # 学院内网 · 我的身份卡
+
+   src/legacy/                 # 已退役视图（不参与构建，供查阅）
+      └─ HomeView.vue          # 原首页 · 龙文档案馆（`/` 已改指论坛）
 ```
 
 ## 自定义

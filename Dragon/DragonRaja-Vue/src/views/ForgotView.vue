@@ -210,7 +210,7 @@ function goLogin() {
         v-model="form.account"
         label="学号 / 姓名"
         icon="id"
-        placeholder="例：CC20260001 或 路明非"
+        placeholder="例：CC202600004 或 孤傲"
         autocomplete="username"
         :error="touched.account ? errors.account : ''"
         @blur="check('account')"

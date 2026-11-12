@@ -408,7 +408,6 @@ CREATE TABLE `dr_reset_code`  (
 -- ----------------------------
 -- Records of dr_reset_code
 -- ----------------------------
-INSERT INTO `dr_reset_code` VALUES (1, 'CC202600007', '358062', '2026-11-04 17:00:53', 1, '2026-11-04 16:55:53');
 
 -- ----------------------------
 -- Table structure for dr_search_log
@@ -446,19 +445,6 @@ INSERT INTO `dr_search_log` VALUES (11, 4, '', NULL, NULL, NULL, 35, '127.0.0.1'
 INSERT INTO `dr_search_log` VALUES (12, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 08:55:36');
 INSERT INTO `dr_search_log` VALUES (13, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 08:56:35');
 INSERT INTO `dr_search_log` VALUES (14, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 08:59:06');
-INSERT INTO `dr_search_log` VALUES (15, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:00:16');
-INSERT INTO `dr_search_log` VALUES (16, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:00:33');
-INSERT INTO `dr_search_log` VALUES (17, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:00:51');
-INSERT INTO `dr_search_log` VALUES (18, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:00:51');
-INSERT INTO `dr_search_log` VALUES (19, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:03:15');
-INSERT INTO `dr_search_log` VALUES (20, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:03:21');
-INSERT INTO `dr_search_log` VALUES (21, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:03:32');
-INSERT INTO `dr_search_log` VALUES (22, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:03:53');
-INSERT INTO `dr_search_log` VALUES (23, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:04:10');
-INSERT INTO `dr_search_log` VALUES (24, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:04:33');
-INSERT INTO `dr_search_log` VALUES (25, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:04:40');
-INSERT INTO `dr_search_log` VALUES (26, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:04:54');
-INSERT INTO `dr_search_log` VALUES (27, 1, '', NULL, NULL, NULL, 18, '127.0.0.1', '2026-11-02 09:05:19');
 INSERT INTO `dr_search_log` VALUES (28, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 09:06:06');
 INSERT INTO `dr_search_log` VALUES (29, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 09:24:20');
 INSERT INTO `dr_search_log` VALUES (30, 4, '', NULL, NULL, NULL, 35, '127.0.0.1', '2026-11-02 09:24:55');
@@ -484,7 +470,6 @@ INSERT INTO `dr_search_log` VALUES (49, NULL, '', NULL, NULL, NULL, 5, '127.0.0.
 INSERT INTO `dr_search_log` VALUES (50, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:45:19');
 INSERT INTO `dr_search_log` VALUES (51, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:45:22');
 INSERT INTO `dr_search_log` VALUES (52, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:45:27');
-INSERT INTO `dr_search_log` VALUES (53, 2, '龙', NULL, NULL, NULL, 10, '127.0.0.1', '2026-11-02 09:46:16');
 INSERT INTO `dr_search_log` VALUES (54, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:46:40');
 INSERT INTO `dr_search_log` VALUES (55, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:46:51');
 INSERT INTO `dr_search_log` VALUES (56, NULL, '', NULL, NULL, NULL, 5, '127.0.0.1', '2026-11-02 09:47:44');
@@ -661,15 +646,10 @@ CREATE TABLE `dr_user`  (
 -- ----------------------------
 -- Records of dr_user
 -- ----------------------------
-INSERT INTO `dr_user` VALUES (1, 'CC20260001', '路明非', '$2a$10$6Hzup9QGKCA9Hx8S4ouXKuGOVV27/2z4cb1.zpPYHgVP0hagU.SZS', 'freshman', 'junyan', 1, 0, 90, '2026-11-09 09:40:52', '2026-10-23 14:45:24', '2026-11-09 09:40:51');
-INSERT INTO `dr_user` VALUES (2, 'CC20260002', '楚子航', '$2b$10$EhhQtz0J7vukNhH3zCoBiew.9/FOuG9I/pE3uKWRR.7JcZxq150ou', 'executor', 'shiling', 1, 0, 10, '2026-11-09 09:32:34', '2026-10-23 14:45:24', '2026-11-09 09:32:34');
-INSERT INTO `dr_user` VALUES (3, 'CC20260003', '芬格尔', '$2b$10$aamVUE83rOCVisNGuH2TbOJHUrEfbXNcNzvwSOsmnASalROlxKlAC', 'student', 'fengwang', 1, 0, 2, '2026-11-09 08:58:52', '2026-10-23 14:45:24', '2026-11-09 08:58:52');
 INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'teacher', 'none', 1, 0, 21, '2026-11-09 08:51:19', '2026-10-23 14:49:24', '2026-11-09 08:51:19');
-INSERT INTO `dr_user` VALUES (5, 'CC202600005', '端到端己', '$2a$10$3Uke4FV.FcQ7sgxj2VPI6uuQols2FLe49jhzKU1.f1nZJ44uIebZ2', 'freshman', 'none', 1, 0, 1, '2026-11-02 09:33:46', '2026-11-02 09:33:40', '2026-11-02 09:33:45');
-INSERT INTO `dr_user` VALUES (6, 'CC202600006', '回归测试甲', '$2a$10$03YqCwqxkhmo3ijDWV0./OdNH.agVvF2P5Y7K3FQgsVP6YNsgdmi6', 'freshman', 'none', 1, 0, 0, NULL, '2026-11-02 09:39:03', '2026-11-02 09:39:03');
-INSERT INTO `dr_user` VALUES (7, 'CC202600007', '冒烟测试丙', '$2a$10$AooGQ4P4q1lNmnypjruzJe7YreFCISu20l1luqzZflOyAe75FptSS', 'freshman', 'junyan', 1, 0, 1, '2026-11-04 16:56:01', '2026-11-04 16:55:37', '2026-11-04 16:56:00');
-INSERT INTO `dr_user` VALUES (8, 'CC202600008', '测试读者', '$2a$10$wlQuNi8KtIfqhkHphKdwFucZcO8Pb8JwmJeK.yrzI0GMsLt3fnKW.', 'freshman', 'none', 1, 0, 1, '2026-11-06 09:57:55', '2026-11-06 09:57:43', '2026-11-06 09:57:55');
 INSERT INTO `dr_user` VALUES (13, 'CC202600009', '研霜', '$2a$10$ensJwRKG/8/SSsF6v0/t7OpFfwR0/07D22ow2lnF3r5zyfh4jGPme', 'freshman', 'none', 1, 0, 1, '2026-11-09 09:43:46', '2026-11-09 09:42:53', '2026-11-09 09:43:45');
+INSERT INTO `dr_user` VALUES (15, 'CC202600010', 'MA', '$2a$10$0RCdhmZMR0zUhS399KsBausRb1d9LGKRTgxkWmHCd8M/N75wIvb36', 'freshman', 'none', 1, 0, 5, '2026-11-12 14:28:31', '2026-11-12 13:55:55', '2026-11-12 14:28:31');
+INSERT INTO `dr_user` VALUES (16, 'CC202600011', '罗磊', '$2a$10$ukuQg8e47NzVZ4sK6tgyfemahyyUmnK7PXXdum9DhbDYdD7eLN/MG', 'freshman', 'none', 1, 0, 1, '2026-11-12 13:59:45', '2026-11-12 13:59:24', '2026-11-12 13:59:45');
 
 -- ----------------------------
 -- Table structure for dr_user_clearance

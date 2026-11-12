@@ -397,7 +397,7 @@ onBeforeUnmount(() => {
                 v-model="form.studentId"
                 type="text"
                 maxlength="20"
-                placeholder="如 CC20260001"
+                placeholder="如 CC202600004"
                 autocomplete="off"
               />
             </div>
