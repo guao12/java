@@ -11,7 +11,7 @@
  Target Server Version : 80039 (8.0.39)
  File Encoding         : 65001
 
- Date: 09/11/2026 10:00:16
+ Date: 12/11/2026 15:10:53
 */
 
 SET NAMES utf8mb4;
@@ -40,7 +40,7 @@ CREATE TABLE `dr_admin`  (
 -- Records of dr_admin
 -- ----------------------------
 INSERT INTO `dr_admin` VALUES (1, 'admin', '$2b$10$zo3PuzhEXRCmi/CgCZzvnOhCTVo8X9Bb7SDjnSfJkO6VZOuksD5W2', '执行部管理员', 1, 0, 23, '2026-11-09 09:46:35', '2026-10-23 14:52:37', '2026-11-09 09:46:34');
-INSERT INTO `dr_admin` VALUES (3, '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', '孤傲', 1, 0, 3, '2026-11-09 08:58:05', '2026-10-29 14:48:58', '2026-11-09 08:58:05');
+INSERT INTO `dr_admin` VALUES (3, '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', '孤傲', 1, 0, 4, '2026-11-12 13:59:10', '2026-10-29 14:48:58', '2026-11-12 13:59:09');
 
 -- ----------------------------
 -- Table structure for dr_archive
@@ -178,7 +178,7 @@ CREATE TABLE `dr_board`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_code`(`code` ASC) USING BTREE,
   INDEX `idx_sort`(`status` ASC, `sort_no` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 246 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛版块' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 253 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛版块' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_board
@@ -207,11 +207,12 @@ CREATE TABLE `dr_friend_request`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_pair`(`from_user_id` ASC, `to_user_id` ASC) USING BTREE,
   INDEX `idx_inbox`(`to_user_id` ASC, `status` ASC, `create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友申请' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友申请' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_friend_request
 -- ----------------------------
+INSERT INTO `dr_friend_request` VALUES (11, 15, 4, '', 1, '2026-11-12 14:02:23', '2026-11-12 14:01:49', '2026-11-12 14:02:23');
 
 -- ----------------------------
 -- Table structure for dr_friendship
@@ -226,11 +227,13 @@ CREATE TABLE `dr_friendship`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_user_friend`(`user_id` ASC, `friend_id` ASC) USING BTREE,
   INDEX `idx_user`(`user_id` ASC, `create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友关系（双向各一行）' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友关系（双向各一行）' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_friendship
 -- ----------------------------
+INSERT INTO `dr_friendship` VALUES (13, 4, 15, '', '2026-11-12 14:02:23');
+INSERT INTO `dr_friendship` VALUES (14, 15, 4, '', '2026-11-12 14:02:23');
 
 -- ----------------------------
 -- Table structure for dr_hot_keyword
@@ -274,11 +277,12 @@ CREATE TABLE `dr_message`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_pair`(`sender_id` ASC, `receiver_id` ASC, `id` ASC) USING BTREE,
   INDEX `idx_inbox`(`receiver_id` ASC, `read_flag` ASC, `id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '私信消息' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '私信消息' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_message
 -- ----------------------------
+INSERT INTO `dr_message` VALUES (4, 4, 15, '你好', 1, '2026-11-12 14:02:30');
 
 -- ----------------------------
 -- Table structure for dr_notice
@@ -329,7 +333,7 @@ CREATE TABLE `dr_reply`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_thread`(`thread_id` ASC, `status` ASC, `floor_no` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2030 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛批注（回帖）' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 2032 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '论坛批注（回帖）' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_reply
@@ -361,6 +365,8 @@ INSERT INTO `dr_reply` VALUES (2024, 1011, 0, '金陵旧客', 'student', '那就
 INSERT INTO `dr_reply` VALUES (2025, 1012, 0, '夜航西飞', 'student', '收到。同人区那篇短篇我补一下授权说明，是自己写的，无转载。', 0, 1, 1, 0, '2026-11-04 09:52:43', '2026-11-04 09:52:43');
 INSERT INTO `dr_reply` VALUES (2026, 1013, 0, '执行部值班员', 'executor', '补充：预案 B 的集合点本周改到旧仓库北门，地图已更新。', 0, 1, 1, 0, '2026-11-05 13:52:43', '2026-11-05 13:52:43');
 INSERT INTO `dr_reply` VALUES (2029, 1017, 4, '孤傲', 'teacher', '真的假的', 0, 1, 1, 0, '2026-11-09 09:06:57', '2026-11-09 09:06:57');
+INSERT INTO `dr_reply` VALUES (2030, 1017, 4, '孤傲', 'teacher', '我去反差好大', 0, 2, 1, 1, '2026-11-12 14:04:25', '2026-11-12 14:04:32');
+INSERT INTO `dr_reply` VALUES (2031, 1017, 15, 'MA', 'freshman', '我去反差好大', 0, 2, 1, 0, '2026-11-12 14:05:10', '2026-11-12 14:05:10');
 
 -- ----------------------------
 -- Table structure for dr_report
@@ -587,21 +593,21 @@ CREATE TABLE `dr_thread`  (
 -- ----------------------------
 -- Records of dr_thread
 -- ----------------------------
-INSERT INTO `dr_thread` VALUES (1001, 1, 0, '金陵旧客', 'student', '第四部那封信到底是谁写的？', '先说结论：我不认为是路明非本人写的。\n\n第一，措辞习惯对不上。前几部里他写便条有个很稳定的习惯——句子写到一半会自己打断，用破折号或者干脆换行。这封信的两段却是完整的长句，标点规规矩矩。\n\n第二，落款位置偏左半个字，这个位置恰好是学院公文模板的签名位。私人信件没有人会对齐到那个位置。\n\n第三，信纸背面有一道压痕，像是从某个本子上撕下来又压平的。\n\n所以我的判断是：有人替他起草，或者有人在他不知情的时候替他寄了出去。\n\n以下三处旁证涉及后三部情节，放在回复里，介意剧透的别往下翻。', 1, 0, 0, 1, 1847, 3, 96, 2337, 1, '2026-11-06 06:52:43', 0, '2026-10-31 09:52:43', '2026-10-31 09:52:43');
+INSERT INTO `dr_thread` VALUES (1001, 1, 0, '金陵旧客', 'student', '第四部那封信到底是谁写的？', '先说结论：我不认为是路明非本人写的。\n\n第一，措辞习惯对不上。前几部里他写便条有个很稳定的习惯——句子写到一半会自己打断，用破折号或者干脆换行。这封信的两段却是完整的长句，标点规规矩矩。\n\n第二，落款位置偏左半个字，这个位置恰好是学院公文模板的签名位。私人信件没有人会对齐到那个位置。\n\n第三，信纸背面有一道压痕，像是从某个本子上撕下来又压平的。\n\n所以我的判断是：有人替他起草，或者有人在他不知情的时候替他寄了出去。\n\n以下三处旁证涉及后三部情节，放在回复里，介意剧透的别往下翻。', 1, 0, 0, 1, 1848, 3, 96, 2338, 1, '2026-11-06 06:52:43', 0, '2026-10-31 09:52:43', '2026-11-12 14:14:21');
 INSERT INTO `dr_thread` VALUES (1002, 1, 0, '时间线强迫症', 'student', '时间线整理：从入学到东京，一共过了几个学期', '花了三个晚上把五部里所有明确提到季节、节日、学期节点的句子摘出来，排成一张表。\n\n结论有点意外：如果把所有明写的线索都认下来，中间至少有两次时间对不上。一次是暑假长度，一次是某个人物的生日。\n\n我的处理方式是标出三处「无法对齐」的点，不做猜测，只标注位置。表格放在回复里，欢迎补充。', 1, 0, 0, 1, 1205, 2, 58, 1502, 1, '2026-11-06 00:52:43', 0, '2026-11-02 09:52:43', '2026-11-02 09:52:43');
 INSERT INTO `dr_thread` VALUES (1003, 1, 0, '旧书摊主', 'student', '初版与再版的差异，我列了 27 处', '手上有初版和后来重新排版的两本，逐页对了一遍，能确认的差异 27 处。\n\n其中 19 处是排版与错字，5 处是段落顺序调整，剩下 3 处是实际改写的句子——都不长，但改完之后人物的语气软了一点。\n\n第 3 处改动我觉得值得单独讨论：它把一句原本很硬的话改成了疑问句。这个改动让后面一整章的动机都变了味道。', 1, 0, 0, 0, 764, 2, 41, 887, 1, '2026-11-05 09:52:43', 0, '2026-10-28 09:52:43', '2026-10-28 09:52:43');
-INSERT INTO `dr_thread` VALUES (1004, 2, 0, '长夜将至', 'student', '楚子航的沉默，是一种自我保护还是一种语言', '重读之后有个想法：他的沉默不是「无话可说」，而是一套完整的表达系统。\n\n他所有不解释的时刻，都发生在可能牵连别人的时候。反过来，只要事情只关于他自己，他其实说得很直接。\n\n所以沉默更像是一种边界，而不是性格缺陷。', 1, 0, 1, 1, 1572, 3, 88, 2022, 1, '2026-11-06 04:52:43', 0, '2026-10-29 09:52:43', '2026-10-29 09:52:43');
+INSERT INTO `dr_thread` VALUES (1004, 2, 0, '长夜将至', 'student', '楚子航的沉默，是一种自我保护还是一种语言', '重读之后有个想法：他的沉默不是「无话可说」，而是一套完整的表达系统。\n\n他所有不解释的时刻，都发生在可能牵连别人的时候。反过来，只要事情只关于他自己，他其实说得很直接。\n\n所以沉默更像是一种边界，而不是性格缺陷。', 1, 0, 1, 1, 1573, 3, 88, 2023, 1, '2026-11-06 04:52:43', 0, '2026-10-29 09:52:43', '2026-11-12 14:01:40');
 INSERT INTO `dr_thread` VALUES (1005, 2, 0, '折纸的人', 'student', '绘梨衣的日记里，哪些句子是别人替她写的', '日记的字体前后有细微差别，尤其是某些特别工整的句子。\n\n我倾向认为：她能写，但写得慢；那些过于流畅的长句，是别人握着她的手写的，或者干脆是代笔。\n\n如果是后者，那这本日记的性质就完全变了——它不再是她的独白，而是一份被安排过的记录。', 1, 0, 0, 0, 932, 2, 63, 1078, 1, '2026-11-05 19:52:43', 0, '2026-10-30 09:52:43', '2026-10-30 09:52:43');
 INSERT INTO `dr_thread` VALUES (1006, 3, 0, '热力学不及格', 'student', '言灵·君焰的温度上限，物理上到底有多离谱', '按书里描述的破坏效果反推，需要的瞬时温度远超常见材料的熔点。\n\n问题不在于能不能烧穿，而在于——施术者本人站在同一个空间里，为什么没有被热辐射烤熟。\n\n所以要么言灵自带一个「边界」，要么书里描述的温度其实只是视觉效果。我倾向后者，这样设定反而更自洽。', 1, 0, 0, 1, 1108, 2, 71, 1259, 1, '2026-11-06 03:52:43', 0, '2026-11-01 09:52:43', '2026-11-01 09:52:43');
 INSERT INTO `dr_thread` VALUES (1007, 3, 0, '档案室常驻', 'student', '血统等级 S/A/B 的真实含义（设定考据，非战力排名）', '先把结论摆出来：等级衡量的不是「打不打得过」，而是「能承受多少」。\n\n书里所有关于等级的判定，几乎都发生在检测、承压、失控这些场景，而不是胜负场景。\n\n如果按这个理解，很多看起来矛盾的描写就说得通了——高等级的人输给低等级的人，并不违反设定。', 1, 0, 0, 0, 688, 1, 39, 752, 1, '2026-11-04 09:52:43', 0, '2026-10-26 09:52:43', '2026-10-26 09:52:43');
-INSERT INTO `dr_thread` VALUES (1008, 4, 0, '夜航西飞', 'student', '【同人】雨夜里的便利店（短篇，已完结）', '全文约四千字，无 CP，清水，时间点设在某次任务结束之后。\n\n写的是一个很普通的场景：凌晨两点，便利店，关东煮，和一个不太会说话的人。\n\n我不太会写打斗，所以这篇里没有打斗。如果你也喜欢看他们安静地吃一顿饭，应该会喜欢。\n\n——以下正文——\n\n雨是从十一点开始下的。\n\n便利店的玻璃门上全是水，外面的路灯被拉成一条一条的。他站在关东煮前面，看了很久，最后拿了最便宜的那串。', 1, 0, 0, 1, 2043, 2, 132, 2341, 1, '2026-11-06 05:52:43', 0, '2026-11-04 09:52:43', '2026-11-04 09:52:43');
-INSERT INTO `dr_thread` VALUES (1009, 4, 0, '铅灰', 'student', '【图】给诺诺画了一张侧脸', '铅笔稿，A4，大概画了六个小时。\n\n没有画制服，画的是她自己那件外套。头发部分改了很多次，最后选了比较乱的那种。\n\n原图放回复里（不知道会不会被压缩）。禁止商用，转载请注明。', 1, 0, 0, 0, 1387, 1, 104, 1478, 1, '2026-11-05 09:52:43', 0, '2026-11-03 09:52:43', '2026-11-03 09:52:43');
+INSERT INTO `dr_thread` VALUES (1008, 4, 0, '夜航西飞', 'student', '【同人】雨夜里的便利店（短篇，已完结）', '全文约四千字，无 CP，清水，时间点设在某次任务结束之后。\n\n写的是一个很普通的场景：凌晨两点，便利店，关东煮，和一个不太会说话的人。\n\n我不太会写打斗，所以这篇里没有打斗。如果你也喜欢看他们安静地吃一顿饭，应该会喜欢。\n\n——以下正文——\n\n雨是从十一点开始下的。\n\n便利店的玻璃门上全是水，外面的路灯被拉成一条一条的。他站在关东煮前面，看了很久，最后拿了最便宜的那串。', 1, 0, 0, 1, 2044, 2, 132, 2711, 1, '2026-11-06 05:52:43', 0, '2026-11-04 09:52:43', '2026-11-12 13:57:53');
+INSERT INTO `dr_thread` VALUES (1009, 4, 0, '铅灰', 'student', '【图】给诺诺画了一张侧脸', '铅笔稿，A4，大概画了六个小时。\n\n没有画制服，画的是她自己那件外套。头发部分改了很多次，最后选了比较乱的那种。\n\n原图放回复里（不知道会不会被压缩）。禁止商用，转载请注明。', 1, 0, 0, 0, 1390, 1, 104, 1914, 1, '2026-11-05 09:52:43', 0, '2026-11-03 09:52:43', '2026-11-12 14:01:56');
 INSERT INTO `dr_thread` VALUES (1010, 5, 0, '新生CC2026', 'freshman', '新生报到：你们的代号是怎么来的？', '我的代号是注册时随手打的，现在非常后悔。\n\n想听听大家的代号来历，有没有那种一看就是想了很久的。', 1, 0, 0, 0, 968, 3, 44, 1198, 1, '2026-11-06 01:52:43', 0, '2026-11-05 09:52:43', '2026-11-05 09:52:43');
 INSERT INTO `dr_thread` VALUES (1011, 5, 0, '三楼没有门', 'student', '食堂三楼到底有没有传说中的那扇门', '问过三个学长，两个说没有，一个说「你先把权限点刷够再问」。\n\n所以到底是真事还是历届传下来的玩笑？', 1, 0, 0, 0, 1421, 2, 57, 1713, 1, '2026-11-05 22:52:43', 0, '2026-11-04 09:52:43', '2026-11-04 09:52:43');
 INSERT INTO `dr_thread` VALUES (1012, 6, 0, '执行部管理员', 'teacher', '关于同人区授权说明与剧透标注的通知', '一、同人区新增「授权说明」字段，转载必须填写原作者与授权方式，无授权的转载一律下沉。\n\n二、涉及后三部情节的标题必须标注「含剧透」，正文首段留空两行。\n\n三、本站为非官方、非商业的兴趣站点，不提供任何全文资源，禁止发布付费章节内容。\n\n以上自发布之日起执行。', 1, 0, 1, 1, 3120, 1, 76, 3300, 1, '2026-11-04 09:52:43', 0, '2026-10-25 09:52:43', '2026-10-25 09:52:43');
 INSERT INTO `dr_thread` VALUES (1013, 7, 0, '执行部值班员', 'executor', '执行部简报：本周三条外勤路线调整', '因北区管制作业，原定三条路线临时调整，具体如下：\n\n一、夜间巡线改走旧仓库东侧，避开主路。\n二、护送任务提前一小时出发，集合点不变。\n三、如遇通讯中断，按预案 B 执行，不要自行改线。\n\n本简报仅限执行部内部传阅。', 3, 0, 1, 0, 487, 1, 18, 581, 1, '2026-11-05 13:52:43', 0, '2026-11-04 09:52:43', '2026-11-04 09:52:43');
 INSERT INTO `dr_thread` VALUES (1014, 1, 0, '雨里抽烟的人', 'student', '为什么大家都记得那场雨：一次不严谨的读者调查', '在三个群里问了同一个问题：「你第一次读这个系列时，印象最深的一个画面是什么？」\n\n收到 87 个回答，其中 31 个提到了雨。有意思的是，雨在书里出现的次数并没有那么多——它更像是被读者的记忆二次加工出来的。\n\n样本很小，方法也不严谨，但这个偏差本身挺值得聊。', 1, 0, 0, 0, 421, 1, 22, 488, 1, '2026-11-04 09:52:43', 0, '2026-11-03 09:52:43', '2026-11-03 09:52:43');
-INSERT INTO `dr_thread` VALUES (1017, 2, 4, '孤傲', 'teacher', '楚子航尽然是个冷脸萌', '谁敢想高傲的楚子航竟然是冷脸萌，这么反差反差太大了', 1, 1, 0, 0, 0, 1, 0, 3, 1, '2026-11-09 09:06:57', 0, '2026-11-09 09:06:31', '2026-11-09 09:06:57');
+INSERT INTO `dr_thread` VALUES (1017, 2, 4, '孤傲', 'teacher', '楚子航尽然是个冷脸萌', '谁敢想高傲的楚子航竟然是冷脸萌，这么反差反差太大了', 1, 1, 0, 0, 6, 2, 0, 13, 1, '2026-11-12 14:05:10', 0, '2026-11-09 09:06:31', '2026-11-12 14:15:30');
 
 -- ----------------------------
 -- Table structure for dr_thread_action
@@ -641,12 +647,12 @@ CREATE TABLE `dr_user`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_account`(`account` ASC) USING BTREE,
   UNIQUE INDEX `uk_codename`(`codename` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '混血种（用户）表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of dr_user
 -- ----------------------------
-INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'teacher', 'none', 1, 0, 21, '2026-11-09 08:51:19', '2026-10-23 14:49:24', '2026-11-09 08:51:19');
+INSERT INTO `dr_user` VALUES (4, 'CC202600004', '孤傲', '$2a$10$q8Im82jt0rLviJcbujD1POsUJAqX5QrLTEqGN1ZdpR9QnUpcK2Thu', 'teacher', 'none', 1, 0, 26, '2026-11-12 14:59:11', '2026-10-23 14:49:24', '2026-11-12 14:59:11');
 INSERT INTO `dr_user` VALUES (13, 'CC202600009', '研霜', '$2a$10$ensJwRKG/8/SSsF6v0/t7OpFfwR0/07D22ow2lnF3r5zyfh4jGPme', 'freshman', 'none', 1, 0, 1, '2026-11-09 09:43:46', '2026-11-09 09:42:53', '2026-11-09 09:43:45');
 INSERT INTO `dr_user` VALUES (15, 'CC202600010', 'MA', '$2a$10$0RCdhmZMR0zUhS399KsBausRb1d9LGKRTgxkWmHCd8M/N75wIvb36', 'freshman', 'none', 1, 0, 5, '2026-11-12 14:28:31', '2026-11-12 13:55:55', '2026-11-12 14:28:31');
 INSERT INTO `dr_user` VALUES (16, 'CC202600011', '罗磊', '$2a$10$ukuQg8e47NzVZ4sK6tgyfemahyyUmnK7PXXdum9DhbDYdD7eLN/MG', 'freshman', 'none', 1, 0, 1, '2026-11-12 13:59:45', '2026-11-12 13:59:24', '2026-11-12 13:59:45');
