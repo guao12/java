@@ -20,7 +20,7 @@ log/
 # 自带的 Maven 发行包（二进制，体积大，不入库；构建请用系统 Maven 或 mvnw 自动下载）
 springBootTest/tools/
 
-# ===================== Node / Vue (fanren-login-vue) =====================
+# ===================== Node / Vue (DragonRaja-Vue) =====================
 node_modules/
 dist/
 dist-ssr/
@@ -40,6 +40,23 @@ DragonRaja-Vue/dist_*/
 # 本地私有配置（数据库口令 / JWT 密钥等），覆盖 application.properties 中的同名项，严禁入库
 application-local.properties
 springBootTest/src/main/resources/application-local.properties
+
+# JWT 密钥文件：启动脚本从这里读出并注入 DR_JWT_SECRET，严禁入库
+.run-secret
+springBootTest/.run-secret
+
+# ===================== 本机运行残留 =====================
+# 启动脚本的重定向输出（log-run.out / log-prod-profile.out / log-test-profile.out）
+*.out
+# 启动器写下的进程标记（如 .pid8804.txt）
+.pid*.txt
+# 脚本误创建的 Windows 缓存目录（形如 %SystemDrive%\ProgramData\...）
+%SystemDrive%/
+
+# ===================== 浏览器自动化残留 =====================
+# Chrome DevTools profile：本地验证登录时生成，约 30MB / 481 个文件，
+# 与工程无关且每次运行都在变，2026-11-16 已移出仓库。
+DragonRaja-Vue/.cdp-prof/
 
 # ===================== 操作系统 / 编辑器 =====================
 .DS_Store

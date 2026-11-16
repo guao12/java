@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthCard from '@/components/AuthCard.vue'
 import GlowButton from '@/components/GlowButton.vue'
@@ -39,41 +39,83 @@ function goHome() {
   router.push('/forum')
 }
 
-/* ---------------- 我的收藏 ---------------- */
+/* ---------------- 我的点赞与收藏 ----------------
+ * 点赞与收藏是同一种「我标记过的主题」，只差 dr_thread_action 的 type，
+ * 所以合成一个模块用 Tab 切换：列表、空态、取消动作全部共用一套。
+ * 两个列表都做成懒加载 —— 用户多数时候只看其中一个 Tab，没必要一进页面发两次请求。
+ */
+
+const TAB = { LIKE: 'like', COLLECT: 'collect' }
+const tab = ref(TAB.LIKE)
+
+const liked = ref([])
+const likedTotal = ref(0)
+const likedLoading = ref(false)
+const likedLoaded = ref(false)
 
 const favorites = ref([])
 const favTotal = ref(0)
-const favLoading = ref(true)
+const favLoading = ref(false)
+const favLoaded = ref(false)
 
-async function loadFavorites() {
-  favLoading.value = true
+/** 拉取一个列表（like=true 取点赞，false 取收藏） */
+async function loadList(like) {
+  const listRef = like ? liked : favorites
+  const totalRef = like ? likedTotal : favTotal
+  const loadingRef = like ? likedLoading : favLoading
+  const loadedRef = like ? likedLoaded : favLoaded
+
+  loadingRef.value = true
   try {
-    const res = await forumApi.collected({ page: 1, size: 10 })
-    favorites.value = res?.list || []
-    favTotal.value = Number(res?.total || favorites.value.length)
+    const res = like
+      ? await forumApi.liked({ page: 1, size: 10 })
+      : await forumApi.collected({ page: 1, size: 10 })
+    listRef.value = res?.list || []
+    totalRef.value = Number(res?.total || listRef.value.length)
+    loadedRef.value = true
   } catch {
-    // 收藏夹失败不该挡住身份卡：静默降级为空列表
-    favorites.value = []
-    favTotal.value = 0
+    // 点赞/收藏夹失败不该挡住身份卡：静默降级为空列表
+    listRef.value = []
+    totalRef.value = 0
   } finally {
-    favLoading.value = false
+    loadingRef.value = false
   }
+}
+
+const loadLiked = () => loadList(true)
+const loadFavorites = () => loadList(false)
+
+/** 当前 Tab 对应的列表 / 计数 / 加载态 */
+const activeList = computed(() => (tab.value === TAB.LIKE ? liked.value : favorites.value))
+const activeTotal = computed(() => (tab.value === TAB.LIKE ? likedTotal.value : favTotal.value))
+const activeLoading = computed(() => (tab.value === TAB.LIKE ? likedLoading.value : favLoading.value))
+
+function switchTab(name) {
+  tab.value = name
+  // 首次切到某个 Tab 才去拉数据；已经拉过（含空结果）就不再重复请求
+  if (name === TAB.LIKE && !likedLoaded.value) loadLiked()
+  if (name === TAB.COLLECT && !favLoaded.value) loadFavorites()
 }
 
 function openThread(t) {
   router.push(`/thread/${t.id}`)
 }
 
-async function uncollect(t) {
-  const prev = favorites.value
-  // 先摘掉再请求，失败时整体回滚 —— 收藏是个高频轻操作，等一次往返太慢
-  favorites.value = favorites.value.filter((x) => x.id !== t.id)
-  favTotal.value = Math.max(0, favTotal.value - 1)
+/** 取消点赞 / 取消收藏：先摘掉再请求，失败时整体回滚（高频轻操作，等一次往返太慢） */
+async function cancelAction(t) {
+  const like = tab.value === TAB.LIKE
+  const listRef = like ? liked : favorites
+  const totalRef = like ? likedTotal : favTotal
+  const prevList = listRef.value
+  const prevTotal = totalRef.value
+
+  listRef.value = prevList.filter((x) => x.id !== t.id)
+  totalRef.value = Math.max(0, prevTotal - 1)
   try {
-    await forumApi.collect(t.id)
+    await (like ? forumApi.like(t.id) : forumApi.collect(t.id))
   } catch {
-    favorites.value = prev
-    favTotal.value = prev.length
+    listRef.value = prevList
+    totalRef.value = prevTotal
   }
 }
 
@@ -90,7 +132,7 @@ async function logout() {
 
 onMounted(() => {
   load()
-  loadFavorites()
+  loadLiked() // 默认 Tab 是「点赞」；收藏 Tab 首次切换时才拉
 })
 </script>
 
@@ -151,19 +193,52 @@ onMounted(() => {
         <span>{{ error }}</span>
       </div>
 
-      <!-- 我的收藏：收藏夹总得有个地方能翻，否则「收藏」只是心理安慰 -->
+      <!-- 我的点赞与收藏：这两个动作以前只有入口没有出口（点了之后再也找不回），
+           所以合成一个模块，两个 Tab 各自能翻、能点进详情、能就地取消 -->
       <section class="fav">
         <header class="fav__head">
-          <h2 class="fav__title"><AppIcon name="archive" :size="14" /> 我的收藏</h2>
-          <span class="fav__count">{{ favTotal }} 条</span>
+          <h2 class="fav__title"><AppIcon name="archive" :size="14" /> 我的点赞与收藏</h2>
+          <span class="fav__count">{{ activeTotal }} 条</span>
         </header>
 
-        <p v-if="favLoading" class="fav__state">正在读取收藏夹…</p>
-        <p v-else-if="!favorites.length" class="fav__state">
-          还没有收藏。在主题页点「收藏」，帖子会出现在这里。
+        <div class="fav__tabs" role="tablist" aria-label="我的点赞与收藏">
+          <button
+            type="button"
+            role="tab"
+            class="fav__tab"
+            :class="{ 'is-active': tab === TAB.LIKE }"
+            :aria-selected="tab === TAB.LIKE"
+            @click="switchTab(TAB.LIKE)"
+          >
+            <AppIcon name="sparkle" :size="13" />
+            我点赞的
+            <b>{{ likedTotal }}</b>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="fav__tab"
+            :class="{ 'is-active': tab === TAB.COLLECT }"
+            :aria-selected="tab === TAB.COLLECT"
+            @click="switchTab(TAB.COLLECT)"
+          >
+            <AppIcon name="archive" :size="13" />
+            我收藏的
+            <b>{{ favTotal }}</b>
+          </button>
+        </div>
+
+        <p v-if="activeLoading" class="fav__state">正在读取…</p>
+        <p v-else-if="!activeList.length" class="fav__state">
+          <template v-if="tab === TAB.LIKE">
+            还没有点赞。在主题页点「点赞」，帖子会出现在这里。
+          </template>
+          <template v-else>
+            还没有收藏。在主题页点「收藏」，帖子会出现在这里。
+          </template>
         </p>
         <ul v-else class="fav__list">
-          <li v-for="t in favorites" :key="t.id" class="fav__item">
+          <li v-for="t in activeList" :key="t.id" class="fav__item">
             <button type="button" class="fav__link" @click="openThread(t)">
               <span class="fav__board">{{ t.boardName }}</span>
               <span class="fav__name">{{ t.title }}</span>
@@ -172,14 +247,18 @@ onMounted(() => {
             <button
               type="button"
               class="fav__x"
-              :aria-label="`取消收藏 ${t.title}`"
-              title="取消收藏"
-              @click="uncollect(t)"
+              :aria-label="`${tab === TAB.LIKE ? '取消点赞' : '取消收藏'} ${t.title}`"
+              :title="tab === TAB.LIKE ? '取消点赞' : '取消收藏'"
+              @click="cancelAction(t)"
             >
               <AppIcon name="close" :size="12" />
             </button>
           </li>
         </ul>
+        <p class="fav__hint">
+          点任意一条进入主题详情<template v-if="activeTotal > activeList.length">
+           · 当前显示最近 {{ activeList.length }} 条</template>
+        </p>
       </section>
 
       <div class="actions">
@@ -345,6 +424,56 @@ onMounted(() => {
   font-size: 11px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 点赞 / 收藏 Tab ---------------- */
+.fav__tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.fav__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+
+.fav__tab b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-4);
+}
+
+.fav__tab:hover {
+  color: var(--text-1);
+  border-color: rgba(216, 178, 90, 0.3);
+}
+
+/* 选中态用金色描边 + 微光底，和站内其他「当前项」保持一致 */
+.fav__tab.is-active {
+  border-color: rgba(216, 178, 90, 0.45);
+  background: rgba(216, 178, 90, 0.1);
+  color: var(--gold-lt);
+}
+
+.fav__tab.is-active b {
+  color: var(--gold-lt);
+}
+
+.fav__hint {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  color: var(--text-4);
 }
 
 .fav__state {

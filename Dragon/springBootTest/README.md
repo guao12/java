@@ -347,8 +347,14 @@ npm run dev     # http://192.168.68.1:5177
 检查 `application-dev.properties` 里的账号密码是否与本地 MySQL 一致（默认 root / 123456）。
 
 **1.1 启动报 `Host 'xxx' is not allowed to connect to this MySQL server`**
-数据源现在走 `192.168.68.1:3306`，而 MySQL 默认只建了 `root@localhost`。
-在本机先补一个同 IP 的账号（只需一次）：
+
+数据源默认已改为 `127.0.0.1:3306`（dev / test / prod 三个 profile 统一），走本机 `root@localhost`，
+正常情况下不会出现这个错。如果报错里的主机名是本机机器名（例如 `VOIPC4`），说明有人把
+数据源改回了局域网 IP：
+
+- `192.168.68.1` 本来就是本机的以太网 IP，从它连本机 MySQL 时，MySQL 会把客户端反解成
+  主机名（`VOIPC4`），而库里只有 `root@localhost`，于是直接拒绝；
+- 想保留 IP 写法，就必须在 MySQL 上补一个同 IP 的账号（只需一次）：
 
 ```sql
 CREATE USER IF NOT EXISTS 'root'@'192.168.68.1' IDENTIFIED WITH mysql_native_password BY '123456';
@@ -356,8 +362,14 @@ GRANT ALL PRIVILEGES ON *.* TO 'root'@'192.168.68.1';
 FLUSH PRIVILEGES;
 ```
 
-验证：`mysql -h 192.168.68.1 -uroot -p123456 -e "select current_user()"`。
-不想要这个账号时：`DROP USER 'root'@'192.168.68.1';`
+- 想省事就用默认的 `127.0.0.1`，或临时用环境变量覆盖：
+  `DR_DB_URL="jdbc:mysql://127.0.0.1:3306/dragon_raja?..."`。
+
+验证实际连的是哪个库（`/api/health` 里的 `database` 字段只反映配置，排查时以 MySQL 侧为准）：
+
+```sql
+select db, count(*) from information_schema.processlist where db is not null group by db;
+```
 
 **2. 中文乱码**
 数据库/表已用 `utf8mb4`，JDBC URL 带 `characterEncoding=utf8`。

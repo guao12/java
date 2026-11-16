@@ -22,4 +22,4 @@
 
 按整合方案约定保留 30 天作为回滚参照，之后可安全删除。若要回滚，删掉 `DragonRaja-Vue` 里新增的落地层文件与路由即可，业务层未做任何改动。
 
-迁移方案与验收清单见：`D:\workSpace\java\Dragon\整合方案.md`
+迁移方案与验收清单见：`D:\workSpace\java\Dragon\docs\architecture\整合方案.md`

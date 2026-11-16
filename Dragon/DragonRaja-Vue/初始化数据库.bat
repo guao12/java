@@ -13,6 +13,14 @@ if exist "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" set "MYSQL_EXE=
 if not defined MYSQL_EXE if exist "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" set "MYSQL_EXE=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 if not defined MYSQL_EXE for /d %%d in ("C:\Program Files\MySQL\*") do if exist "%%~fd\bin\mysql.exe" set "MYSQL_EXE=%%~fd\bin\mysql.exe"
 if not defined MYSQL_EXE goto NO_MYSQL
+REM ---- MySQL root 口令：优先取环境变量 DR_MYSQL_PWD，未设置则交互输入（不再写死在脚本里）----
+if not defined DR_MYSQL_PWD set /p DR_MYSQL_PWD=   请输入 MySQL root 口令:
+if not defined DR_MYSQL_PWD (
+    echo    [错误] 未提供 MySQL root 口令，已中止。
+    pause
+    exit /b 1
+)
+set "MYSQL_PWD=%DR_MYSQL_PWD%"
 set "SQL_FILE=..\springBootTest\sql\dragon_raja.sql"
 set "ERR_FILE=%TEMP%\dragon_raja_err.txt"
 echo    数据库 : dragon_raja    账号: root    密码: 见 application-dev.properties
@@ -24,13 +32,13 @@ echo    [1/2] 正在创建库表并写入演示账号...
 echo.
 REM 导入用 utf8mb4：SQL 是 UTF-8 文件，用默认 GBK 解析会报 ERROR 1366 且数据写不进去。
 REM 输出重定向到 nul：SQL 末尾的中文回显在 936 控制台会显示乱码。
-"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -p"123456" < "%SQL_FILE%" >nul
+"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot < "%SQL_FILE%" >nul
 if errorlevel 1 goto FAILED
 
 echo    [2/2] 校验结果:
 echo.
 REM 展示用 gbk：控制台是 936，查询结果若用 utf8mb4 输出会显示乱码。
-"%MYSQL_EXE%" --default-character-set=gbk -uroot -p"123456" -e "USE dragon_raja; SELECT account, codename, identity FROM dr_user;"
+"%MYSQL_EXE%" --default-character-set=gbk -uroot -e "USE dragon_raja; SELECT account, codename, identity FROM dr_user;"
 echo.
 echo    [完成] dragon_raja 数据库已就绪。
 echo    演示密钥统一为  Dragon@2026
@@ -39,7 +47,7 @@ pause
 exit /b 0
 
 :FAILED
-"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -p"123456" -e "source %SQL_FILE%" > "%ERR_FILE%" 2>&1
+"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -e "source %SQL_FILE%" > "%ERR_FILE%" 2>&1
 echo.
 echo    [失败] 初始化出错。请确认: 1) MySQL 服务已启动  2) root 密码与 application-dev.properties 一致
 echo.

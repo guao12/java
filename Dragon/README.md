@@ -54,7 +54,7 @@ npm run dev      # http://192.168.68.1:5177
 | --- | --- |
 | `springBootTest/` | 后端：13 个 Controller、17 张表、JWT + 软鉴权；`sql/` 内是全量建库脚本 |
 | `DragonRaja-Vue/` | 前端：18 个视图、请求层、设计令牌；`启动.bat` 是前端的完整启动器 |
-| `整合方案.md` | 原 `longzu` 单页原型并入本工程的方案、冲突处置与验收清单 |
+| `docs/` | 文档中心：架构方案、设计说明、实操手册、前端备忘、QA 截图 |
 | `一键启动.bat` | 根级统一入口 |
 
 ## 环境要求
@@ -63,17 +63,21 @@ npm run dev      # http://192.168.68.1:5177
 | --- | --- | --- |
 | JDK | 17+ | 实测 Zulu 21 可用 |
 | Node.js | 18+ | 实测 22.x |
-| MySQL | 8.0 | 库名 `dragon_raja`，账号 root / 123456（可用 `DR_DB_URL` 等环境变量覆盖） |
+| MySQL | 8.0 | 库名 `dragon_raja`，账号 root，口令见 `springBootTest/src/main/resources/application-local.properties`（可用 `DR_DB_URL` / `DR_DB_PASSWORD` 环境变量覆盖） |
 
 ## 配置要点
 
-后端 `dr.jwt.secret` **没有默认值**，必须从环境变量注入：
+后端 `dr.jwt.secret` **没有默认值**，必须由环境变量或本机私有配置注入：
 
-- 双击脚本启动：自动读 `springBootTest/.run-secret`
-- 命令行 / IDEA：`set DR_JWT_SECRET=<32 字节以上的密钥>`（dev profile 有兜底值，缺了也能启动）
+- 双击脚本启动：自动读 `springBootTest/.run-secret` 并注入 `DR_JWT_SECRET`
+- 命令行 / IDEA：优先读 gitignore 掉的 `springBootTest/src/main/resources/application-local.properties`（见同目录 `application-local.properties` 模板说明）
+- 生产：必须显式设置 `DR_JWT_SECRET`，缺失则启动直接失败
 
-数据源默认连 `192.168.68.1:3306`。若报 `Host 'xxx' is not allowed to connect`，
-说明 MySQL 只授权了 `root@localhost`，要么改连 `127.0.0.1`：
+数据库口令同理：仓库里不再有任何明文口令，本机值放在 `application-local.properties`，
+换机器时照该文件新建一份，或用 `DR_DB_PASSWORD` 环境变量注入。
+
+数据源默认连 `127.0.0.1:3306`。若报 `Host 'xxx' is not allowed to connect`，
+说明 MySQL 只授权了 `root@localhost`，要么确认走 `127.0.0.1`：
 
 ```bash
 set DR_DB_URL=jdbc:mysql://127.0.0.1:3306/dragon_raja?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
@@ -82,7 +86,7 @@ set DR_DB_URL=jdbc:mysql://127.0.0.1:3306/dragon_raja?useUnicode=true&characterE
 要么在 MySQL 里补授权：
 
 ```sql
-CREATE USER 'root'@'%' IDENTIFIED BY '123456';
+CREATE USER 'root'@'%' IDENTIFIED BY '<本机口令>';
 GRANT ALL PRIVILEGES ON dragon_raja.* TO 'root'@'%';
 FLUSH PRIVILEGES;
 ```
@@ -92,10 +96,12 @@ FLUSH PRIVILEGES;
 
 ## 子文档
 
+- 文档中心索引：`docs/README.md`
 - 后端：`springBootTest/README.md`
 - 前端：`DragonRaja-Vue/README.md`（功能清单、接口表、自定义指南）
-- 前端开发备忘：`DragonRaja-Vue/AI-MEMO.md`（踩过的坑、环境现状）
-- 整合记录：`整合方案.md`
+- 前端开发备忘：`docs/frontend/AI-MEMO.md`（踩过的坑、环境现状）
+- 整合记录：`docs/architecture/整合方案.md`
+- 登录页改版：`docs/design/登录页改版方案.md`
 
 ---
 

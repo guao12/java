@@ -125,6 +125,16 @@ public interface ForumService {
     PageVO<ThreadVO> collected(long page, long size);
 
     /**
+     * 我的点赞（按点赞时间倒序，需登录）。
+     *
+     * <p>与 {@link #collected} 平行：同一张 dr_thread_action 表，只换 type。</p>
+     *
+     * @param page 从 1 开始
+     * @param size 1–50
+     */
+    PageVO<ThreadVO> liked(long page, long size);
+
+    /**
      * 论坛内检索（标题 / 正文 / 作者），按密级过滤。
      *
      * @param keyword 关键词

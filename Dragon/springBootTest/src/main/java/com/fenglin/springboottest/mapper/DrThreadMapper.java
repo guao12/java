@@ -116,6 +116,27 @@ public interface DrThreadMapper extends BaseMapper<DrThread> {
             + "WHERE t.deleted = 0 AND t.status = 1 AND t.security_level <= #{maxLevel}")
     Long countCollected(@Param("userId") Long userId, @Param("maxLevel") int maxLevel);
 
+    /**
+     * 我点赞的主题，按点赞时间倒序。
+     *
+     * <p>与 {@link #listCollected} 用同一套可见性过滤：主题被删、被下沉（status=0）、
+     * 或密级高于当前身份时不再出现在列表里 —— 否则「我的点赞」会变成绕过密级的后门。</p>
+     */
+    @Select("SELECT t.* FROM dr_thread t "
+            + "JOIN dr_thread_action a ON a.thread_id = t.id AND a.type = 'like' AND a.user_id = #{userId} "
+            + "WHERE t.deleted = 0 AND t.status = 1 AND t.security_level <= #{maxLevel} "
+            + "ORDER BY a.create_time DESC, t.id DESC LIMIT #{size} OFFSET #{offset}")
+    List<DrThread> listLiked(@Param("userId") Long userId,
+                             @Param("maxLevel") int maxLevel,
+                             @Param("offset") long offset,
+                             @Param("size") long size);
+
+    /** 我点赞的主题总数（与列表同一套过滤条件） */
+    @Select("SELECT COUNT(*) FROM dr_thread t "
+            + "JOIN dr_thread_action a ON a.thread_id = t.id AND a.type = 'like' AND a.user_id = #{userId} "
+            + "WHERE t.deleted = 0 AND t.status = 1 AND t.security_level <= #{maxLevel}")
+    Long countLiked(@Param("userId") Long userId, @Param("maxLevel") int maxLevel);
+
     /** 全站检索（标题 / 正文 / 作者），按密级过滤 */
     @Select("<script>"
             + "SELECT * FROM dr_thread t "

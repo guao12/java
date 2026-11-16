@@ -21,6 +21,14 @@ if exist "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" set "MYSQL_EXE=
 if not defined MYSQL_EXE if exist "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" set "MYSQL_EXE=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 if not defined MYSQL_EXE for /d %%d in ("C:\Program Files\MySQL\*") do if exist "%%~fd\bin\mysql.exe" set "MYSQL_EXE=%%~fd\bin\mysql.exe"
 if not defined MYSQL_EXE goto NO_MYSQL
+REM ---- MySQL root 口令：优先取环境变量 DR_MYSQL_PWD，未设置则交互输入（不再写死在脚本里）----
+if not defined DR_MYSQL_PWD set /p DR_MYSQL_PWD=   请输入 MySQL root 口令:
+if not defined DR_MYSQL_PWD (
+    echo    [错误] 未提供 MySQL root 口令，已中止。
+    pause
+    exit /b 1
+)
+set "MYSQL_PWD=%DR_MYSQL_PWD%"
 set "SQL_FILE=..\springBootTest\sql\dragon_raja_admin.sql"
 set "ERR_FILE=%TEMP%\dragon_admin_err.txt"
 if not exist "%MYSQL_EXE%" goto NO_MYSQL
@@ -28,12 +36,12 @@ if not exist "%SQL_FILE%" goto NO_SQL
 echo    [1/2] 正在建表并写入言灵图鉴...
 echo.
 REM 导入用 utf8mb4（SQL 是 UTF-8 文件）；输出重定向到 nul 以避免 936 控制台乱码
-"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -p"123456" < "%SQL_FILE%" >nul
+"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot < "%SQL_FILE%" >nul
 if errorlevel 1 goto FAILED
 echo    [2/2] 校验结果:
 echo.
 REM 展示用 gbk：控制台是 936，查询结果用 utf8mb4 会乱码
-"%MYSQL_EXE%" --default-character-set=gbk -uroot -p"123456" -e "USE dragon_raja; SELECT (SELECT COUNT(*) FROM dr_admin) AS 管理员数, (SELECT COUNT(*) FROM dr_spirit) AS 言灵数;"
+"%MYSQL_EXE%" --default-character-set=gbk -uroot -e "USE dragon_raja; SELECT (SELECT COUNT(*) FROM dr_admin) AS 管理员数, (SELECT COUNT(*) FROM dr_spirit) AS 言灵数;"
 echo.
 echo    [完成] 后台管理数据已就绪。
 echo    管理入口：首页导航栏「后台管理」按钮，登录账号 admin / Dragon@2026
@@ -42,7 +50,7 @@ pause
 exit /b 0
 
 :FAILED
-"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -p"123456" -e "source %SQL_FILE%" > "%ERR_FILE%" 2>&1
+"%MYSQL_EXE%" --default-character-set=utf8mb4 -uroot -e "source %SQL_FILE%" > "%ERR_FILE%" 2>&1
 echo.
 echo    [失败] 建表出错。请确认: 1) MySQL 服务已启动
 echo           2) springBootTest\src\main\resources\application-dev.properties 里的账号密码正确

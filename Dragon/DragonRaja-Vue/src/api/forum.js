@@ -92,6 +92,11 @@ export const forumApi = {
     return request(`/api/forum/collected${toQuery(params)}`, { auth: true, cacheTtl: 0 })
   },
 
+  /** 我的点赞（按点赞时间倒序，需登录） */
+  liked(params = {}) {
+    return request(`/api/forum/liked${toQuery(params)}`, { auth: true, cacheTtl: 0 })
+  },
+
   /* ---------------- 编辑 / 删除 ---------------- */
 
   /** 编辑主题（仅作者本人）。返回编辑后的详情 */

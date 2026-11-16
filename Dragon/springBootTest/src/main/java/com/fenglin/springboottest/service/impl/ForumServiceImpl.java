@@ -624,16 +624,35 @@ public class ForumServiceImpl implements ForumService {
 
     @Override
     public PageVO<ThreadVO> collected(long page, long size) {
+        return myActionThreads(page, size, false);
+    }
+
+    @Override
+    public PageVO<ThreadVO> liked(long page, long size) {
+        return myActionThreads(page, size, true);
+    }
+
+    /**
+     * 「我的点赞 / 我的收藏」共用实现。
+     *
+     * <p>两者只差 dr_thread_action 的 type，其余（分页、密级过滤、VO 组装）完全一致，
+     * 合到一处避免两份代码日后改漏其中一边。</p>
+     */
+    private PageVO<ThreadVO> myActionThreads(long page, long size, boolean like) {
         DrUser user = requireLogin();
         int maxLevel = SecurityLevel.maxLevelOfCurrentUser();
         long p = Math.max(1L, page);
         long s = size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
 
-        Long counted = threadMapper.countCollected(user.getId(), maxLevel);
+        Long counted = like
+                ? threadMapper.countLiked(user.getId(), maxLevel)
+                : threadMapper.countCollected(user.getId(), maxLevel);
         long total = counted == null ? 0L : counted;
         List<DrThread> rows = total == 0
                 ? Collections.emptyList()
-                : threadMapper.listCollected(user.getId(), maxLevel, (p - 1) * s, s);
+                : (like
+                        ? threadMapper.listLiked(user.getId(), maxLevel, (p - 1) * s, s)
+                        : threadMapper.listCollected(user.getId(), maxLevel, (p - 1) * s, s));
         Map<Long, DrBoard> index = boardMapper.listOpen().stream()
                 .collect(Collectors.toMap(DrBoard::getId, b -> b, (a, b) -> a));
         return new PageVO<>(toThreadVOs(rows, index, user, maxLevel), total, p, s);

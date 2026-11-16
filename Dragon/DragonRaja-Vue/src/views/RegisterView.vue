@@ -351,6 +351,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
       <router-link to="/register" active-class="active">注册</router-link>
     </template>
 
+    <!-- 返回门户：注册是个三步流程，中途想退出时必须有回路，
+         否则只能靠浏览器后退键 —— 那是个死胡同 -->
+    <router-link to="/portal" class="back-link">
+      <AppIcon name="chevron-left" :size="14" />
+      返回门户
+    </router-link>
+
     <!-- 步骤条 -->
     <div class="stepper">
       <template v-for="(s, i) in STEPS" :key="s.key">
@@ -571,6 +578,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
 </template>
 
 <style scoped>
+/* ---------------- 返回门户 ----------------
+   与 LoginView 的 back-link 同一套视觉：等宽字体、小字号、hover 左移，
+   两块页面之间只差卡片内边距带来的 margin 微调 */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: -4px 0 12px -6px;
+  padding: 4px 8px 4px 2px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-4);
+  transition: color 0.24s, transform 0.24s;
+}
+.back-link:hover {
+  color: var(--ice);
+  transform: translateX(-2px);
+}
+.back-link:hover svg {
+  color: var(--ice);
+}
+
 /* ---------------- 步骤条 + 进度 ---------------- */
 .stepper {
   margin-bottom: 10px;

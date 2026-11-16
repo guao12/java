@@ -131,6 +131,13 @@ public class ForumController {
         return R.ok(forumService.collected(page, size));
     }
 
+    /** 我的点赞（需登录） */
+    @GetMapping("/liked")
+    public R<PageVO<ThreadVO>> liked(@RequestParam(value = "page", defaultValue = "1") long page,
+                                     @RequestParam(value = "size", defaultValue = "20") long size) {
+        return R.ok(forumService.liked(page, size));
+    }
+
     /** 编辑主题（仅作者本人） */
     @PutMapping("/threads/{id}")
     public R<ThreadDetailVO> update(@PathVariable("id") Long id,

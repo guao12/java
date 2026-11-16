@@ -333,8 +333,9 @@ onBeforeUnmount(() => {
               <span class="me__avatar">{{ (me.codename || '游').slice(0, 1) }}</span>
               <div class="me__text">
                 <b>{{ me.codename || '未登录访客' }}</b>
-                <span v-if="me.logged">{{ me.identityName || '读者' }} · 可读至「{{ me.maxLevelLabel }}」</span>
-                <span v-else>登录后即可发帖、回复与收藏</span>
+                <!-- 原「教员 / 研究员 · 可读至「绝密」」一行按要求移除：
+                     密级属于内网身份信息，不该在公开论坛侧栏露出来 -->
+                <span v-if="!me.logged">登录后即可发帖、回复与收藏</span>
               </div>
             </div>
 
@@ -346,9 +347,14 @@ onBeforeUnmount(() => {
             <router-link v-if="!me.logged" to="/login" class="side-link">
               登录 / 注册 <AppIcon name="arrow" :size="12" />
             </router-link>
-            <router-link v-else to="/archive" class="side-link">
-              档案馆 · 查阅卷宗 <AppIcon name="arrow" :size="12" />
-            </router-link>
+            <template v-else>
+              <router-link to="/console" class="side-link">
+                我的点赞与收藏 <AppIcon name="arrow" :size="12" />
+              </router-link>
+              <router-link to="/archive" class="side-link side-link--ghost">
+                档案馆 · 查阅卷宗 <AppIcon name="arrow" :size="12" />
+              </router-link>
+            </template>
           </section>
 
           <section class="side-card side-card--rule">
@@ -1173,6 +1179,19 @@ onBeforeUnmount(() => {
 .side-link:hover {
   background: rgba(216, 178, 90, 0.18);
   transform: translateY(-1px);
+}
+
+/* 账号卡里现在有两个入口，只让「我的点赞与收藏」占主色，
+   档案馆降级成次级按钮，避免两个金色胶囊打架 */
+.side-link--ghost {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.side-link--ghost:hover {
+  border-color: rgba(216, 178, 90, 0.3);
+  color: var(--gold-lt);
 }
 
 .rules {
