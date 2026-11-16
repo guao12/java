@@ -26,6 +26,11 @@ public class DrMessage implements Serializable {
     public static final int UNREAD = 0;
     public static final int READ = 1;
 
+    /** 消息类型：纯文本 */
+    public static final int TYPE_TEXT = 0;
+    /** 消息类型：表情包（此时 content 存的是 dr_sticker.code） */
+    public static final int TYPE_STICKER = 1;
+
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
@@ -37,9 +42,13 @@ public class DrMessage implements Serializable {
     @TableField("receiver_id")
     private Long receiverId;
 
-    /** 内容（纯文本） */
+    /** 内容：msgType=0 时是纯文本，msgType=1 时是表情编码（s01…） */
     @TableField("content")
     private String content;
+
+    /** 消息类型：0=文本 1=表情包 */
+    @TableField("msg_type")
+    private Integer msgType;
 
     /** 0=未读 1=已读 */
     @TableField("read_flag")
@@ -53,9 +62,14 @@ public class DrMessage implements Serializable {
     }
 
     public DrMessage(Long senderId, Long receiverId, String content) {
+        this(senderId, receiverId, content, TYPE_TEXT);
+    }
+
+    public DrMessage(Long senderId, Long receiverId, String content, int msgType) {
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.content = content;
+        this.msgType = msgType;
         this.readFlag = UNREAD;
     }
 
@@ -89,6 +103,14 @@ public class DrMessage implements Serializable {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Integer getMsgType() {
+        return msgType;
+    }
+
+    public void setMsgType(Integer msgType) {
+        this.msgType = msgType;
     }
 
     public Integer getReadFlag() {

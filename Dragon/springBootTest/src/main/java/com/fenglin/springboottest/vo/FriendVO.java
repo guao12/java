@@ -29,6 +29,9 @@ public class FriendVO implements Serializable {
     private String spirit;
     private String spiritName;
 
+    /** 头像相对路径（/uploads/avatar/xxx），null = 用首字占位 */
+    private String avatar;
+
     /** 成为好友的时间 */
     private String since;
 
@@ -95,6 +98,14 @@ public class FriendVO implements Serializable {
 
     public void setSpiritName(String spiritName) {
         this.spiritName = spiritName;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 
     public String getSince() {

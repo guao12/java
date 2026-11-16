@@ -26,7 +26,7 @@ public interface DrMessageMapper extends BaseMapper<DrMessage> {
      *
      * @param beforeId 游标：只取比它更早的消息，翻页用；首页传 Long.MAX_VALUE
      */
-    @Select("SELECT m.id, m.sender_id, m.receiver_id, m.content, "
+    @Select("SELECT m.id, m.sender_id, m.receiver_id, m.content, m.msg_type, "
             + "DATE_FORMAT(m.create_time, '%Y-%m-%dT%H:%i:%s') AS created_at "
             + "FROM dr_message m "
             + "WHERE ((m.sender_id = #{me} AND m.receiver_id = #{friendId}) "
@@ -44,7 +44,7 @@ public interface DrMessageMapper extends BaseMapper<DrMessage> {
      * <p>没有它就只能每次重拉一整页再整体替换，滚动位置和多页历史都会被冲掉。
      * 按 id 正序返回，前端直接 append。</p>
      */
-    @Select("SELECT m.id, m.sender_id, m.receiver_id, m.content, "
+    @Select("SELECT m.id, m.sender_id, m.receiver_id, m.content, m.msg_type, "
             + "DATE_FORMAT(m.create_time, '%Y-%m-%dT%H:%i:%s') AS created_at "
             + "FROM dr_message m "
             + "WHERE ((m.sender_id = #{me} AND m.receiver_id = #{friendId}) "
@@ -56,7 +56,8 @@ public interface DrMessageMapper extends BaseMapper<DrMessage> {
                               @Param("afterId") Long afterId,
                               @Param("size") int size);
 
-    /** 我的未读私信总数（导航角标 / 概览用） */    @Select("SELECT COUNT(*) FROM dr_message WHERE receiver_id = #{me} AND read_flag = 0")
+    /** 我的未读私信总数（导航角标 / 概览用） */
+    @Select("SELECT COUNT(*) FROM dr_message WHERE receiver_id = #{me} AND read_flag = 0")
     Long countUnread(@Param("me") Long me);
 
     /** 我与某人的未读条数 */

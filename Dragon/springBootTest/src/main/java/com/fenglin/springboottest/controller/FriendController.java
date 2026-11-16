@@ -9,6 +9,7 @@ import com.fenglin.springboottest.vo.FriendOverviewVO;
 import com.fenglin.springboottest.vo.FriendRequestVO;
 import com.fenglin.springboottest.vo.FriendVO;
 import com.fenglin.springboottest.vo.MessageVO;
+import com.fenglin.springboottest.vo.StickerVO;
 import com.fenglin.springboottest.vo.UserSearchVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,7 +37,8 @@ import java.util.List;
  * POST   /api/friend/requests/{id}/reject       拒绝申请
  * DELETE /api/friend/{userId}                   解除好友
  * GET    /api/friend/messages?friendId=&beforeId=&size=   会话历史
- * POST   /api/friend/messages                   发送私信
+ * POST   /api/friend/messages                   发送私信（文本 / 表情包）
+ * GET    /api/friend/stickers                   内置表情包目录
  * POST   /api/friend/read?friendId=             会话标记已读
  * </pre>
  *
@@ -130,10 +132,20 @@ public class FriendController {
         return R.ok(friendService.newMessages(friendId, afterId));
     }
 
-    /** 发送私信 */
+    /** 发送私信（msgType=1 时 content 为表情编码） */
     @PostMapping("/messages")
     public R<MessageVO> send(@Valid @RequestBody MessageSendDTO body) {
         return R.ok(friendService.send(body));
+    }
+
+    /**
+     * 内置表情包目录。
+     *
+     * <p>前端表情面板打开时拉一次；图片本身是前端静态资源，这里只给编码与路径。</p>
+     */
+    @GetMapping("/stickers")
+    public R<List<StickerVO>> stickers() {
+        return R.ok(friendService.stickers());
     }
 
     /** 会话标记已读，返回标记后的未读总数 */

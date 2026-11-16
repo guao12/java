@@ -42,9 +42,9 @@ public interface DrFriendshipMapper extends BaseMapper<DrFriendship> {
      * <p>排序用 {@code last_at IS NULL} 打头：没聊过的人沉底，
      * 再按时间倒序，最后按成为好友的时间兜底，避免列表顺序抖动。</p>
      */
-    @Select("SELECT u.id, u.account, u.codename, u.identity, u.spirit, "
+    @Select("SELECT u.id, u.account, u.codename, u.identity, u.spirit, u.avatar, "
             + "DATE_FORMAT(f.create_time, '%Y-%m-%dT%H:%i:%s') AS since, "
-            + "(SELECT m.content FROM dr_message m "
+            + "(SELECT IF(m.msg_type = 1, '[表情]', m.content) FROM dr_message m "
             + "   WHERE (m.sender_id = u.id AND m.receiver_id = #{me}) "
             + "      OR (m.sender_id = #{me} AND m.receiver_id = u.id) "
             + "   ORDER BY m.id DESC LIMIT 1) AS last_message, "

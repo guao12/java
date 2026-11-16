@@ -22,6 +22,9 @@ public class ProfileVO {
     private String spirit;
     private String identityName;
     private String spiritName;
+
+    /** 头像相对路径（/uploads/avatar/xxx），null = 从未上传，前端显示首字占位 */
+    private String avatar;
     private Integer loginCount;
     private String lastLoginAt;
     private String createdAt;
@@ -42,6 +45,7 @@ public class ProfileVO {
         vo.setSpirit(user.getSpirit());
         vo.setIdentityName(identityName);
         vo.setSpiritName(spiritName);
+        vo.setAvatar(user.getAvatar());
         vo.setLoginCount(user.getLoginCount() == null ? 0 : user.getLoginCount());
         vo.setLastLoginAt(user.getLastLoginAt() == null ? null : FMT.format(user.getLastLoginAt()));
         vo.setCreatedAt(user.getCreateTime() == null ? null : FMT.format(user.getCreateTime()));

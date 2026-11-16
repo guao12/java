@@ -4,7 +4,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Web 配置：跨域 + JWT 拦截器。
@@ -29,6 +33,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${dr.cors.allowed-origin-patterns:http://192.168.68.1:[*],http://localhost:[*],http://127.0.0.1:[*]}")
     private String allowedOriginPatterns;
 
+    /** 上传文件根目录（头像等），相对路径按启动目录解析 */
+    @Value("${dr.upload.dir:uploads}")
+    private String uploadDir;
+
     public WebMvcConfig(JwtInterceptor jwtInterceptor,
                         OptionalAuthInterceptor optionalAuthInterceptor,
                         AdminInterceptor adminInterceptor) {
@@ -46,6 +54,25 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);
+    }
+
+    /**
+     * 上传目录的静态映射：{@code /uploads/**} → {@code ${dr.upload.dir}}。
+     *
+     * <p>头像存的是站点相对路径（如 {@code /uploads/avatar/xxx.png}），数据库里
+     * 只记这个路径，换域名 / 换端口都不用改数据。目录不存在时启动也不报错，
+     * 第一次上传时由 AvatarStorage 创建。</p>
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
+        String location = dir.toUri().toString();
+        if (!location.endsWith("/")) {
+            location = location + "/";
+        }
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations(location)
+                .setCachePeriod(3600);
     }
 
     @Override

@@ -19,6 +19,14 @@ public class MessageVO implements Serializable {
     private Long receiverId;
     private String content;
 
+    /**
+     * 消息类型：0=文本 1=表情包。
+     *
+     * <p>表情包消息的 {@code content} 是 dr_sticker.code，前端拿它去目录里换图片；
+     * 老数据没有这一列时按 0 处理。</p>
+     */
+    private Integer msgType;
+
     /** 是否我发出的 */
     private boolean mine;
 
@@ -55,6 +63,14 @@ public class MessageVO implements Serializable {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Integer getMsgType() {
+        return msgType;
+    }
+
+    public void setMsgType(Integer msgType) {
+        this.msgType = msgType;
     }
 
     public boolean isMine() {

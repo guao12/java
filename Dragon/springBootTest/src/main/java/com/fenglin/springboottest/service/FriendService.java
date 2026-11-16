@@ -7,6 +7,7 @@ import com.fenglin.springboottest.vo.FriendOverviewVO;
 import com.fenglin.springboottest.vo.FriendRequestVO;
 import com.fenglin.springboottest.vo.FriendVO;
 import com.fenglin.springboottest.vo.MessageVO;
+import com.fenglin.springboottest.vo.StickerVO;
 import com.fenglin.springboottest.vo.UserSearchVO;
 
 import java.util.List;
@@ -74,8 +75,15 @@ public interface FriendService {
      */
     List<MessageVO> newMessages(Long friendId, Long afterId);
 
-    /** 发送私信，返回入库后的消息 */
+    /** 发送私信（文本或表情包），返回入库后的消息 */
     MessageVO send(MessageSendDTO body);
+
+    /**
+     * 内置表情包目录（按 sort_no 排序）。
+     *
+     * <p>纯静态目录，全员一致，不需要按登录者过滤。</p>
+     */
+    List<StickerVO> stickers();
 
     /** 标记与某人的会话为已读，返回剩余未读数 */
     Integer markRead(Long friendId);

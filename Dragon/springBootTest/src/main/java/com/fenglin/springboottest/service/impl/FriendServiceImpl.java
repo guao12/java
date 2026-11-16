@@ -6,10 +6,12 @@ import com.fenglin.springboottest.dto.FriendRequestCreateDTO;
 import com.fenglin.springboottest.dto.MessageSendDTO;
 import com.fenglin.springboottest.entity.DrFriendRequest;
 import com.fenglin.springboottest.entity.DrMessage;
+import com.fenglin.springboottest.entity.DrSticker;
 import com.fenglin.springboottest.entity.DrUser;
 import com.fenglin.springboottest.mapper.DrFriendRequestMapper;
 import com.fenglin.springboottest.mapper.DrFriendshipMapper;
 import com.fenglin.springboottest.mapper.DrMessageMapper;
+import com.fenglin.springboottest.mapper.DrStickerMapper;
 import com.fenglin.springboottest.mapper.DrUserMapper;
 import com.fenglin.springboottest.service.DictService;
 import com.fenglin.springboottest.service.FriendService;
@@ -18,6 +20,7 @@ import com.fenglin.springboottest.vo.FriendOverviewVO;
 import com.fenglin.springboottest.vo.FriendRequestVO;
 import com.fenglin.springboottest.vo.FriendVO;
 import com.fenglin.springboottest.vo.MessageVO;
+import com.fenglin.springboottest.vo.StickerVO;
 import com.fenglin.springboottest.vo.UserSearchVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,8 @@ public class FriendServiceImpl implements FriendService {
 
     /** 单条私信上限 */
     private static final int MAX_CONTENT = 500;
+    /** 表情编码长度上限（dr_sticker.code 是 varchar(32)） */
+    private static final int STICKER_CODE_MAX = 32;
     /** 发送间隔：1 秒内只能发一条，挡连点 */
     private static final long SEND_INTERVAL_SECONDS = 1L;
     /** 搜索结果上限 */
@@ -68,17 +73,20 @@ public class FriendServiceImpl implements FriendService {
     private final DrFriendRequestMapper requestMapper;
     private final DrMessageMapper messageMapper;
     private final DrUserMapper userMapper;
+    private final DrStickerMapper stickerMapper;
     private final DictService dictService;
 
     public FriendServiceImpl(DrFriendshipMapper friendshipMapper,
                              DrFriendRequestMapper requestMapper,
                              DrMessageMapper messageMapper,
                              DrUserMapper userMapper,
+                             DrStickerMapper stickerMapper,
                              DictService dictService) {
         this.friendshipMapper = friendshipMapper;
         this.requestMapper = requestMapper;
         this.messageMapper = messageMapper;
         this.userMapper = userMapper;
+        this.stickerMapper = stickerMapper;
         this.dictService = dictService;
     }
 
@@ -290,11 +298,26 @@ public class FriendServiceImpl implements FriendService {
         Long to = body.getToUserId();
         requireFriend(me, to);
 
+        int msgType = body.getMsgType() == null ? DrMessage.TYPE_TEXT : body.getMsgType();
+        if (msgType != DrMessage.TYPE_TEXT && msgType != DrMessage.TYPE_STICKER) {
+            throw new BizException("不支持的消息类型");
+        }
+
         String content = body.getContent() == null ? "" : body.getContent().trim();
         if (content.isEmpty()) {
-            throw new BizException("消息不能为空");
+            throw new BizException(msgType == DrMessage.TYPE_STICKER ? "请选择一个表情" : "消息不能为空");
         }
-        if (content.length() > MAX_CONTENT) {
+
+        if (msgType == DrMessage.TYPE_STICKER) {
+            // 表情消息里 content 是 dr_sticker.code：必须真实存在，否则前端渲染不出来，
+            // 而且库里会留下一条永远显示不出内容的死消息
+            if (content.length() > STICKER_CODE_MAX) {
+                throw new BizException("表情编码不合法");
+            }
+            if (stickerMapper.countByCode(content) == 0) {
+                throw new BizException("该表情已下架，请刷新表情面板后重试");
+            }
+        } else if (content.length() > MAX_CONTENT) {
             throw new BizException("单条消息最多 " + MAX_CONTENT + " 字");
         }
 
@@ -304,7 +327,7 @@ public class FriendServiceImpl implements FriendService {
             throw new BizException("发送得太快了，稍等一下");
         }
 
-        DrMessage msg = new DrMessage(me, to, content);
+        DrMessage msg = new DrMessage(me, to, content, msgType);
         messageMapper.insert(msg);
 
         MessageVO vo = new MessageVO();
@@ -312,9 +335,23 @@ public class FriendServiceImpl implements FriendService {
         vo.setSenderId(me);
         vo.setReceiverId(to);
         vo.setContent(content);
+        vo.setMsgType(msgType);
         vo.setMine(true);
         vo.setCreatedAt(ISO.format(LocalDateTime.now()));
         return vo;
+    }
+
+    @Override
+    public List<StickerVO> stickers() {
+        List<DrSticker> rows = stickerMapper.listAll();
+        if (rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<StickerVO> list = new ArrayList<>(rows.size());
+        for (DrSticker s : rows) {
+            list.add(new StickerVO(s.getCode(), s.getName(), s.getImage()));
+        }
+        return list;
     }
 
     @Override

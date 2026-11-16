@@ -47,6 +47,15 @@ public class DrUser implements Serializable {
     @TableField("spirit")
     private String spirit;
 
+    /**
+     * 头像地址：站点相对路径（如 {@code /uploads/avatar/xxx.png}），null = 从未上传。
+     *
+     * <p>存相对路径而不是完整 URL：换域名、换端口、前后端分离部署都不用改库；
+     * 前端按当前 origin 拼即可。</p>
+     */
+    @TableField("avatar")
+    private String avatar;
+
     /** 状态：1=在册 0=封印（禁用） */
     @TableField("status")
     private Integer status;
@@ -121,6 +130,14 @@ public class DrUser implements Serializable {
 
     public void setSpirit(String spirit) {
         this.spirit = spirit;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 
     public Integer getStatus() {
